@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh-gal</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="stage">
+    <!-- Character layers: cross-faded video loops (one per emotion), image fallback -->
+    <div id="character">
+      <video id="layer-a" class="char-layer" autoplay muted loop playsinline></video>
+      <video id="layer-b" class="char-layer" autoplay muted loop playsinline></video>
+      <img id="layer-img" class="char-layer" alt="">
+      <!-- Prompt-only pack: no art yet -->
+      <div id="placeholder" class="hidden">
+        <svg viewBox="0 0 200 260" aria-hidden="true"><path d="M100 20a52 52 0 1 1 0 104 52 52 0 0 1 0-104zM30 260c0-62 31-100 70-100s70 38 70 100z"/></svg>
+        <div id="placeholder-text">No art yet — press <b>E</b> for the image prompt</div>
+      </div>
+    </div>
+    <div id="vignette"></div>
+
+    <header id="topbar">
+      <div id="title">DSH-GAL <span id="conn-dot" title="disconnected"></span></div>
+    </header>
+
+    <!-- Status ticker while the agent works -->
+    <div id="ticker" class="hidden"><span id="ticker-text"></span></div>
+
+    <!-- Dialogue assembly (galgame message window) -->
+    <div id="dialogue">
+      <div id="msgbox">
+        <div id="nameplate"><span id="char-name">Cetus</span><span id="emotion-tag"></span></div>
+        <div id="text-window" tabindex="0">
+          <p id="dialogue-text"></p>
+          <div id="advance" class="hidden">◆</div>
+        </div>
+        <div id="box-bottom">
+          <form id="input-row" autocomplete="off">
+            <input id="input" type="text" placeholder="Say something… (/help for commands)" spellcheck="false">
+            <button id="btn-send" type="submit">SEND</button>
+          </form>
+          <nav id="menu-row">
+            <button type="button" id="btn-skip" title="Reveal instantly (Ctrl)">SKIP</button>
+            <button type="button" id="btn-auto" title="Auto mode (A)">AUTO</button>
+            <button type="button" id="btn-history" title="Backlog (L)">LOG</button>
+            <button type="button" id="btn-char" title="Switch character (C)">CHAR</button>
+            <button type="button" id="btn-edit" title="Persona & memory (E)">EDIT</button>
+            <button type="button" id="btn-gallery" title="Sprites & loops (G)">GALLERY</button>
+            <button type="button" id="btn-hide" title="Hide window (H / right-click)">HIDE</button>
+          </nav>
+        </div>
+      </div>
+      <div id="last-user" class="hidden"><span class="you-label">You</span><span id="last-user-text"></span></div>
+    </div>
+
+    <!-- Character picker -->
+    <div id="char-picker" class="hidden">
+      <div id="char-picker-head">Character</div>
+      <div id="char-list"></div>
+      <div id="char-picker-foot">
+        <button type="button" id="btn-import" title="Import a character pack (.zip)">Import pack…</button>
+        <button type="button" id="btn-export" title="Download the current pack as .zip (memory stays local)">Export pack</button>
+        <input id="import-file" type="file" accept=".zip,application/zip" hidden>
+      </div>
+    </div>
+
+    <!-- Persona & memory editor -->
+    <div id="editor" class="overlay hidden">
+      <div class="overlay-head"><span id="editor-title">Character</span><button type="button" class="overlay-close" data-close="editor">Close</button></div>
+      <form id="editor-form" class="overlay-body">
+        <label>Name <input id="ed-name" type="text" spellcheck="false"></label>
+        <label>Greeting <textarea id="ed-greeting" rows="2"></textarea></label>
+        <label>Persona — how she talks (system prompt voice layer) <textarea id="ed-persona" rows="8"></textarea></label>
+        <div id="ed-art" class="hidden">
+          <div class="ed-art-head">This pack has no images yet. Generate them with any image model and drop six files into <code id="ed-art-dir"></code>: neutral, happy, thinking, surprised, sad, excited (.png), optionally .mp4 loops with the same names.</div>
+          <label>Base image prompt (neutral) <textarea id="ed-art-base" rows="4" readonly></textarea></label>
+          <label>Expression deltas (edit the base image with each) <textarea id="ed-art-expr" rows="5" readonly></textarea></label>
+          <label>Motion prompt (image-to-video) <textarea id="ed-art-motion" rows="2" readonly></textarea></label>
+        </div>
+        <label>Motion speed — playback rate of the idle loops (1 = as encoded, 1.5 = faster) <input id="ed-rate" type="number" min="0.25" max="4" step="0.05"></label>
+        <label>Memory — what she remembers about you (memory.md; she also writes here with the <code>gal_remember</code> tool) <textarea id="ed-memory" rows="8" placeholder="- 2026-09-11: …"></textarea></label>
+        <div class="overlay-actions">
+          <span id="ed-path" class="dim"></span>
+          <button type="submit" id="ed-save">SAVE</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Asset gallery -->
+    <div id="gallery" class="overlay hidden">
+      <div class="overlay-head"><span id="gallery-title">Gallery</span><button type="button" class="overlay-close" data-close="gallery">Close</button></div>
+      <div id="gallery-grid" class="overlay-body"></div>
+      <div id="gallery-hint" class="dim">Click a tile to show that expression on stage. Drop a .png / .mp4 onto a tile, or use its ↑ button, to replace that expression. Files live in the pack directory shown in EDIT.</div>
+      <input id="asset-file" type="file" accept=".png,.webp,.jpg,.jpeg,.mp4,.webm,image/png,image/webp,image/jpeg,video/mp4,video/webm" hidden>
+    </div>
+
+    <!-- History overlay -->
+    <div id="history" class="hidden">
+      <div id="history-head">
+        <span>Backlog</span>
+        <button id="btn-close-history">Close</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

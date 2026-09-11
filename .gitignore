@@ -1,0 +1,14 @@
+node_modules/
+lib/
+assets/work/
+*.log
+.DS_Store
+# private / third-party character packs stay out of the public repo
+characters/*
+!characters/cetus/
+!characters/README.md
+app/node_modules/
+app/plugin/
+app/src-tauri/target/
+app/src-tauri/gen/
+eval-results.json

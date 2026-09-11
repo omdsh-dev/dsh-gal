@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dsh-gal</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 90% at 50% 20%, #0d3a5c 0%, #062036 55%, #04101c 100%);
+    color: #f2f8ff; font-family: "Hiragino Sans", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  #box { width: min(560px, 86vw); text-align: center; }
+  #title { font-size: 0.8rem; letter-spacing: 0.4em; color: rgba(157,184,204,0.8); margin-bottom: 28px; }
+  #diamond { font-size: 2rem; color: #8fd8ff; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  #stage { margin-top: 18px; font-size: 1rem; }
+  #detail {
+    margin-top: 10px; font-size: 0.8rem; color: #9db8cc; white-space: pre-wrap; text-align: left;
+    background: rgba(9,20,34,0.7); border: 1px solid rgba(168,214,255,0.22); border-radius: 3px;
+    padding: 12px 14px; max-height: 40vh; overflow: auto; display: none; user-select: text; -webkit-user-select: text;
+  }
+  #detail.show { display: block; }
+  #actions { margin-top: 16px; display: none; gap: 10px; justify-content: center; }
+  #actions.show { display: flex; }
+  button {
+    background: rgba(9,20,34,0.8); color: #f2f8ff; border: 1px solid rgba(168,214,255,0.55);
+    padding: 8px 18px; font: inherit; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; border-radius: 2px;
+  }
+  button:hover { border-color: #8fd8ff; color: #8fd8ff; }
+</style>
+</head>
+<body>
+  <div id="box">
+    <div id="title">DSH-GAL</div>
+    <div id="diamond">◆</div>
+    <div id="stage">Starting…</div>
+    <div id="detail"></div>
+    <div id="actions">
+      <button id="retry">RETRY</button>
+      <button id="open-dir">OPEN LOGS</button>
+    </div>
+  </div>
+  <script>
+    const { event, core } = window.__TAURI__;
+    const stageEl = document.getElementById('stage');
+    const detailEl = document.getElementById('detail');
+    const actions = document.getElementById('actions');
+    const labels = {
+      runtime: 'Locating the dsh runtime…',
+      install: 'Installing the DeepSeek Harness runtime (first launch only)…',
+      stage: 'Preparing the visual-novel plugin…',
+      spawn: 'Starting dsh web…',
+      attach: 'Attaching to the running dsh-gal server…',
+      ready: 'Ready — opening…',
+      error: 'Could not start dsh-gal',
+    };
+    event.listen('dsh-gal://status', ({ payload }) => {
+      stageEl.textContent = labels[payload.stage] || payload.stage;
+      const isError = payload.stage === 'error';
+      detailEl.textContent = payload.detail;
+      detailEl.classList.toggle('show', isError || payload.stage === 'install');
+      actions.classList.toggle('show', isError);
+      document.getElementById('diamond').style.animationPlayState = isError ? 'paused' : 'running';
+    });
+    document.getElementById('retry').addEventListener('click', () => {
+      actions.classList.remove('show');
+      detailEl.classList.remove('show');
+      stageEl.textContent = 'Retrying…';
+      core.invoke('retry');
+    });
+    document.getElementById('open-dir').addEventListener('click', async () => {
+      const dir = await core.invoke('support_dir');
+      detailEl.textContent = `Logs: ${dir}/dsh-web.log`;
+      detailEl.classList.add('show');
+    });
+  </script>
+</body>
+</html>

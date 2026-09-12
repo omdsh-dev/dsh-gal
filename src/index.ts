@@ -24,12 +24,13 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync as fileExists, mkdirSync, mkdtempSync, readdirSync, rmSync, cpSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { listCharacterPacks, loadCharacterPack, memorySection, personaSection, rememberInPack, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
 import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion } from './emotion.js'
 import { GalServer } from './server.js'
+import { looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize } from './tts.js'
 
 /** The agent surface this plugin consumes (`ctx.agents`). */
 interface AgentLike {
@@ -112,6 +113,20 @@ export interface Config {
    * accepts off/low/high/max; an unsupported value falls back to the default.
    */
   judgeReasoningEffort?: string
+  /** Speak each reply (VOICEVOX must be running; silently off otherwise). */
+  voiceEnabled?: boolean
+  /** VOICEVOX engine base URL. */
+  voicevoxUrl?: string
+  /** Fallback VOICEVOX style id when the pack sets none. */
+  voiceSpeaker?: number
+  /** Path of a local VOICEVOX engine `run` binary to auto-start when the engine is not answering ('' = never). */
+  voicevoxEngine?: string
+  /**
+   * Language the voice always speaks. 'ja' (default) translates non-Japanese
+   * replies with a small side LLM call before synthesis; 'auto' speaks the
+   * reply as written (VOICEVOX only handles Japanese well).
+   */
+  voiceLanguage?: 'ja' | 'auto'
 }
 
 export const Config: z<Config> = z.object({
@@ -126,6 +141,11 @@ export const Config: z<Config> = z.object({
   judgeProvider: z.string(),
   judgeModel: z.string(),
   judgeReasoningEffort: z.string().default('off'),
+  voiceEnabled: z.boolean().default(true),
+  voicevoxUrl: z.string().default('http://127.0.0.1:50021'),
+  voiceSpeaker: z.number().step(1).min(0).default(2),
+  voicevoxEngine: z.string().default(join(homedir(), 'Library', 'Application Support', 'dsh-gal', 'voicevox', 'macos-arm64', 'run')),
+  voiceLanguage: z.union(['ja', 'auto']).default('ja'),
 })
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -147,7 +167,7 @@ export function apply(ctx: Context, config: Config): void {
   // ---- character pack ----
   let pack: CharacterPack = resolveCharacterPack(config.character ?? 'cetus', bundledDir, promptsDir)
     ?? resolveCharacterPack('cetus', bundledDir)
-    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', memory: '', theme: {}, playbackRate: 1, promptOnly: true, emotions: {} }
+    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', memory: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, emotions: {} }
   if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
 
   const displayName = (): string => config.characterName ?? pack.name
@@ -169,6 +189,7 @@ export function apply(ctx: Context, config: Config): void {
       greeting: greeting(),
       theme: pack.theme,
       playbackRate: pack.playbackRate,
+    voiceSpeaker: pack.voice.speaker,
       promptOnly: pack.promptOnly,
       defaultEmotion: 'neutral' in emotions ? 'neutral' : Object.keys(emotions)[0] ?? 'neutral',
       emotions,
@@ -213,6 +234,7 @@ export function apply(ctx: Context, config: Config): void {
     memory: pack.memory,
     theme: pack.theme,
     playbackRate: pack.playbackRate,
+    voiceSpeaker: pack.voice.speaker,
     art: pack.art,
     promptOnly: pack.promptOnly,
     bundled: pack.dir.startsWith(bundledDir) || pack.dir.startsWith(promptsDir),
@@ -305,7 +327,13 @@ export function apply(ctx: Context, config: Config): void {
     characterDir: () => pack.dir,
     manifest,
     switchCharacter,
-    debugUsage: () => ({ ...judgeStats }),
+    debugUsage: () => ({ judge: { ...judgeStats }, voice: { ...voiceStats, available: voiceAvailable } }),
+    voiceClip: (id: string) => voiceClips.get(id),
+    voiceSpeakers: async () => {
+      if (!(await checkVoice())) return { available: false, speakers: [] }
+      return { available: true, speakers: await voicevoxSpeakers(config.voicevoxUrl ?? 'http://127.0.0.1:50021') }
+    },
+    voiceStatus: () => ({ enabled: config.voiceEnabled !== false, available: voiceAvailable, language: config.voiceLanguage ?? 'ja', speaker: pack.voice.speaker ?? config.voiceSpeaker ?? 3 }),
     debugPrompt: async () => {
       const assembly = await ctx.systemPrompt.assemble()
       return assembly.sections.map(section => ({ name: section.name, text: (section as { text?: string }).text ?? '' }))
@@ -445,6 +473,102 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
 
+  // ---- voice ----
+  const voiceClips = new Map<string, Buffer>()
+  const voiceStats = { calls: 0, ok: 0, failed: 0, translateMs: 0, synthMs: 0, lastError: '' }
+  let voiceSeq = 0
+  let voiceAvailable: boolean | undefined
+  const voiceUrl = (): string => config.voicevoxUrl ?? 'http://127.0.0.1:50021'
+  const pingVoice = async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${voiceUrl()}/version`, { signal: AbortSignal.timeout(1500) })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+  let engineStarted = false
+  /** Start the local VOICEVOX engine once, if configured and installed. */
+  const startVoiceEngine = async (): Promise<boolean> => {
+    const bin = config.voicevoxEngine ?? ''
+    if (engineStarted || bin === '' || !fileExists(bin)) return false
+    engineStarted = true
+    const port = new URL(voiceUrl()).port || '50021'
+    try {
+      const child = spawn(bin, ['--host', '127.0.0.1', '--port', port], { cwd: dirname(bin), stdio: 'ignore', detached: false })
+      child.on('error', error => ctx.logger.warn(`dsh-gal: voicevox engine failed to start (${String(error)})`))
+      process.once('exit', () => { try { child.kill() } catch { /* gone */ } })
+    } catch (error) {
+      ctx.logger.warn(`dsh-gal: voicevox engine failed to start (${String(error)})`)
+      return false
+    }
+    ctx.logger.info(`dsh-gal: starting VOICEVOX engine from ${bin}`)
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      if (await pingVoice()) return true
+    }
+    return false
+  }
+  const checkVoice = async (): Promise<boolean> => {
+    if (config.voiceEnabled === false) return false
+    voiceAvailable = (await pingVoice()) || (await startVoiceEngine())
+    return voiceAvailable
+  }
+  if (config.voiceEnabled !== false) void checkVoice()
+  /** One-shot side LLM call: reply → spoken Japanese line. */
+  const translateForVoice = async (text: string, agent: AgentLike | undefined): Promise<string> => {
+    const provider = config.judgeProvider ?? agent?.options.provider ?? defaultSelection()?.provider
+    const model = config.judgeModel ?? agent?.options.model ?? defaultSelection()?.model
+    if (provider === undefined || model === undefined) throw new Error('no llm route for translation')
+    const assembler = new BlockAssembler()
+    const effort = config.judgeReasoningEffort
+    const options: GenerateOptions = {
+      provider,
+      model,
+      ...effort === undefined || effort === '' ? {} : { reasoningEffort: effort as GenerateOptions['reasoningEffort'] },
+      maxTokens: 2048,
+      signal: AbortSignal.timeout(15000),
+      messages: [createUserMessage({
+        content: [{ type: 'text', text: translationPrompt(text, pack.name, pack.persona) }],
+        source: { kind: 'plugin', plugin: name },
+      })],
+    }
+    for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk as never)
+    const line = assembler.blocks().map(block => block.type === 'text' ? block.text : '').join('').trim()
+    if (line === '') throw new Error('empty translation')
+    return line
+  }
+  /** Synthesize a reply and announce the clip; never throws. */
+  const speak = async (id: string, text: string, agent: AgentLike | undefined): Promise<void> => {
+    if (config.voiceEnabled === false) return
+    if (voiceAvailable === undefined && !(await checkVoice())) return
+    if (voiceAvailable === false) return
+    const spoken = speakableText(text)
+    if (spoken === '') return
+    voiceStats.calls += 1
+    try {
+      let line = spoken
+      if (config.voiceLanguage !== 'auto' && !looksJapanese(spoken)) {
+        const t0 = Date.now()
+        line = await translateForVoice(spoken, agent)
+        voiceStats.translateMs += Date.now() - t0
+      }
+      const t1 = Date.now()
+      const speaker = pack.voice.speaker ?? config.voiceSpeaker ?? 3
+      const wav = await voicevoxSynthesize(config.voicevoxUrl ?? 'http://127.0.0.1:50021', line, speaker)
+      voiceStats.synthMs += Date.now() - t1
+      voiceClips.set(id, wav)
+      while (voiceClips.size > 24) { const oldest = voiceClips.keys().next().value; if (oldest === undefined) break; voiceClips.delete(oldest) }
+      voiceStats.ok += 1
+      server.broadcast({ type: 'voice', id, url: `/voice/${id}.wav`, line, speaker })
+    } catch (error) {
+      voiceStats.failed += 1
+      voiceStats.lastError = String(error).slice(0, 300)
+      if (/fetch failed|ECONNREFUSED/.test(String(error))) voiceAvailable = false
+      ctx.logger.debug(`dsh-gal: voice skipped (${String(error)})`)
+    }
+  }
+
   // ---- observe the conversation ----
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     const header = session.header as { origin?: string }
@@ -467,7 +591,9 @@ export function apply(ctx: Context, config: Config): void {
         // Show the reply at once with a keyword-picked expression; the LLM
         // judge refines it a moment later without delaying the text.
         const provisional = heuristicEmotion(text)
-        server.broadcast({ type: 'assistant', text, emotion: provisional, judge: 'pending' })
+        const messageId = `m${++voiceSeq}`
+        server.broadcast({ type: 'assistant', id: messageId, text, emotion: provisional, judge: 'pending' })
+        void speak(messageId, text, agent)
         void judgeEmotion(text, agent).then(({ emotion, judge, judgeError }) => {
           if (emotion !== provisional || judge === 'llm') server.broadcast({ type: 'emotion', emotion, judge, ...judgeError === undefined ? {} : { judgeError } })
         })

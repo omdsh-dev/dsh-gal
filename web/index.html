@@ -49,6 +49,7 @@
             <button type="button" id="btn-char" title="Switch character (C)">CHAR</button>
             <button type="button" id="btn-edit" title="Persona & memory (E)">EDIT</button>
             <button type="button" id="btn-gallery" title="Sprites & loops (G)">GALLERY</button>
+            <button type="button" id="btn-voice" title="Voice on/off (V)">VOICE</button>
             <button type="button" id="btn-hide" title="Hide window (H / right-click)">HIDE</button>
           </nav>
         </div>
@@ -81,6 +82,7 @@
           <label>Motion prompt (image-to-video) <textarea id="ed-art-motion" rows="2" readonly></textarea></label>
         </div>
         <label>Motion speed — playback rate of the idle loops (1 = as encoded, 1.5 = faster) <input id="ed-rate" type="number" min="0.25" max="4" step="0.05"></label>
+        <label>Voice — VOICEVOX speaker style (<span id="ed-voice-state">checking…</span>) <select id="ed-voice"></select></label>
         <label>Memory — what she remembers about you (memory.md; she also writes here with the <code>gal_remember</code> tool) <textarea id="ed-memory" rows="8" placeholder="- 2026-09-11: …"></textarea></label>
         <div class="overlay-actions">
           <span id="ed-path" class="dim"></span>

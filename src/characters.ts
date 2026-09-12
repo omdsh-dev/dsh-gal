@@ -25,6 +25,8 @@ export interface CharacterManifestFile {
   theme?: { accent?: string; frame?: string; box?: string }
   /** Playback speed multiplier for the idle loops (1 = as encoded). */
   playbackRate?: number
+  /** Voice settings: VOICEVOX style id. */
+  voice?: { speaker?: number }
   /** Image-generation guidance for packs distributed without art. */
   art?: { base?: string; expressions?: Partial<Record<Emotion, string>>; motion?: string }
   /**
@@ -46,6 +48,7 @@ export interface CharacterPack {
   memory: string
   theme: { accent?: string; frame?: string; box?: string }
   playbackRate: number
+  voice: { speaker?: number }
   art?: { base?: string; expressions?: Partial<Record<Emotion, string>>; motion?: string }
   /** True when the pack ships no expression assets (prompt-only pack). */
   promptOnly: boolean
@@ -102,6 +105,7 @@ export function loadCharacterPack(dir: string, id = basename(dir)): CharacterPac
     memory: existsSync(join(dir, 'memory.md')) ? readFileSync(join(dir, 'memory.md'), 'utf8') : '',
     theme: file.theme ?? {},
     playbackRate: typeof file.playbackRate === 'number' && file.playbackRate > 0 ? file.playbackRate : 1,
+    voice: typeof file.voice === 'object' && file.voice !== null ? file.voice : {},
     ...file.art === undefined ? {} : { art: file.art },
     promptOnly: Object.keys(emotions).length === 0,
     emotions,
@@ -115,6 +119,7 @@ export interface CharacterPatch {
   persona?: string
   memory?: string
   playbackRate?: number
+  voiceSpeaker?: number
 }
 
 /**
@@ -138,6 +143,7 @@ export function saveCharacterPack(pack: CharacterPack, patch: CharacterPatch, bu
   if (patch.greeting !== undefined) file.greeting = patch.greeting
   if (patch.persona !== undefined) file.persona = patch.persona
   if (patch.playbackRate !== undefined && patch.playbackRate > 0) file.playbackRate = patch.playbackRate
+  if (patch.voiceSpeaker !== undefined) file.voice = { ...file.voice ?? {}, speaker: patch.voiceSpeaker }
   writeFileSync(manifestPath, `${JSON.stringify(file, null, 2)}\n`)
   if (patch.memory !== undefined) writeFileSync(join(dir, 'memory.md'), patch.memory.replace(/\s+$/, '') === '' ? '' : `${patch.memory.replace(/\s+$/, '')}\n`)
   const reloaded = loadCharacterPack(dir, pack.id)

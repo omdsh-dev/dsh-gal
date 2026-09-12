@@ -10,7 +10,7 @@ import { createReadStream, existsSync, rmSync, statSync } from 'node:fs'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 
 export interface GalEvent {
-  type: 'user' | 'assistant' | 'status' | 'busy' | 'emotion' | 'snapshot' | 'manifest' | 'session' | 'memory'
+  type: 'user' | 'assistant' | 'status' | 'busy' | 'emotion' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice'
   [key: string]: unknown
 }
 
@@ -33,6 +33,12 @@ export interface GalServerOptions {
   saveCharacter: (patch: { name?: string; greeting?: string; persona?: string; memory?: string; playbackRate?: number }) => void
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
+  /** WAV bytes of a synthesized line, if still cached. */
+  voiceClip: (id: string) => Buffer | undefined
+  /** VOICEVOX speaker list (empty when the engine is not running). */
+  voiceSpeakers: () => Promise<{ available: boolean; speakers: unknown[] }>
+  /** Current voice settings for the UI. */
+  voiceStatus: () => Record<string, unknown>
   /** Store one uploaded expression asset for the active pack. */
   uploadAsset: (emotion: string, kind: 'image' | 'video', ext: string, data: Buffer) => void
   /** Import a zipped pack into the user directory; returns its id. */
@@ -138,6 +144,8 @@ export class GalServer {
       }
       const rate = Number(body['playbackRate'])
       if (Number.isFinite(rate) && rate > 0) patch['playbackRate'] = rate
+      const speaker = Number(body['voiceSpeaker'])
+      if (Number.isInteger(speaker) && speaker >= 0) patch['voiceSpeaker'] = speaker
       try {
         this.options.saveCharacter(patch)
         res.writeHead(200, { 'content-type': 'application/json' })
@@ -146,6 +154,27 @@ export class GalServer {
         res.writeHead(500, { 'content-type': 'text/plain' })
         res.end(String(error instanceof Error ? error.message : error))
       }
+      return
+    }
+    if (url.pathname.startsWith('/voice/') && url.pathname.endsWith('.wav')) {
+      const clip = this.options.voiceClip(url.pathname.slice('/voice/'.length, -'.wav'.length))
+      if (clip === undefined) { res.writeHead(404); res.end(); return }
+      res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': String(clip.length), 'cache-control': 'no-store' })
+      res.end(clip)
+      return
+    }
+    if (url.pathname === '/voice/speakers') {
+      try {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(await this.options.voiceSpeakers()))
+      } catch (error) {
+        res.writeHead(502, { 'content-type': 'text/plain' }); res.end(String(error))
+      }
+      return
+    }
+    if (url.pathname === '/voice/status') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(this.options.voiceStatus()))
       return
     }
     if (url.pathname === '/character/asset' && req.method === 'PUT') {

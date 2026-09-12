@@ -89,6 +89,7 @@
       $('ed-persona').value = c.persona;
       $('ed-memory').value = c.memory;
       $('ed-rate').value = c.playbackRate || 1;
+      fillVoiceSelect(c.voiceSpeaker);
       const art = c.art || {};
       $('ed-art').classList.toggle('hidden', !c.promptOnly);
       if (c.promptOnly) {
@@ -108,6 +109,7 @@
       persona: $('ed-persona').value, memory: $('ed-memory').value,
       playbackRate: Number($('ed-rate').value) || 1,
     };
+    if ($('ed-voice').value !== '') body.voiceSpeaker = Number($('ed-voice').value);
     try {
       const res = await fetch(withToken('/character/config'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error(await res.text());
@@ -119,6 +121,28 @@
       say('Saved. The new persona and memory apply from the next reply.', 'happy');
     } catch (err) { say(`(save failed: ${err.message})`, 'sad'); }
   });
+
+  async function fillVoiceSelect(current) {
+    const sel = $('ed-voice');
+    sel.textContent = '';
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'default (plugin config)'; sel.appendChild(none);
+    try {
+      const res = await fetch(withToken('/voice/speakers'));
+      const data = await res.json();
+      $('ed-voice-state').textContent = data.available ? 'VOICEVOX running' : 'VOICEVOX not running — start it to pick a voice';
+      for (const sp of data.speakers || []) {
+        for (const st of sp.styles || []) {
+          const opt = document.createElement('option');
+          opt.value = String(st.id); opt.textContent = `${sp.name} · ${st.name} (#${st.id})`;
+          if (current === st.id) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+      if (current !== undefined && current !== null && sel.value === '') {
+        const opt = document.createElement('option'); opt.value = String(current); opt.textContent = `#${current}`; opt.selected = true; sel.appendChild(opt);
+      }
+    } catch (err) { $('ed-voice-state').textContent = `voice list unavailable: ${err.message}`; }
+  }
 
   async function openGallery() {
     try {
@@ -220,6 +244,7 @@
     '/edit': 'edit persona, greeting and memory',
     '/gallery': 'browse sprites and loops',
     '/log': 'open the backlog',
+    '/voice': 'toggle voice playback',
     '/help': 'this list',
   };
   async function runCommand(line) {
@@ -242,6 +267,7 @@
         return;
       case '/edit': openEditor(); return;
       case '/gallery': openGallery(); return;
+      case '/voice': toggleVoice(); say(voiceOn ? 'Voice on.' : 'Voice off.', 'neutral'); return;
       case '/log': toggleHistory(); return;
       case '/help':
         say(Object.entries(COMMANDS).map(([k, v]) => `${k} — ${v}`).join('\n'), 'neutral');
@@ -366,12 +392,33 @@
     playNext();
   }
 
+  // ---------- voice ----------
+  const voiceAudio = new Audio();
+  const pendingVoice = new Map(); // message id → clip url (arrived before the line was shown)
+  let currentMessageId = null;
+  let voiceOn = localStorage.getItem('gal-voice') !== 'off';
+  function renderVoiceButton() { $('btn-voice').classList.toggle('active', voiceOn); $('btn-voice').textContent = voiceOn ? 'VOICE' : 'MUTE'; }
+  function toggleVoice() {
+    voiceOn = !voiceOn;
+    localStorage.setItem('gal-voice', voiceOn ? 'on' : 'off');
+    if (!voiceOn) { voiceAudio.pause(); }
+    renderVoiceButton();
+  }
+  function playVoice(url) {
+    if (!voiceOn) return;
+    try { voiceAudio.pause(); voiceAudio.src = withToken(url); voiceAudio.currentTime = 0; voiceAudio.play().catch(() => {}); } catch (_) { /* autoplay policy */ }
+  }
+  $('btn-voice').addEventListener('click', toggleVoice);
+  renderVoiceButton();
+
   function playNext() {
     if (typing || waitingAdvance) return;
     const next = msgQueue.shift();
     if (next === undefined) return;
     if (next.emotion) setEmotion(next.emotion);
+    currentMessageId = next.id || null;
     beginMessage(next.text);
+    if (currentMessageId && pendingVoice.has(currentMessageId)) { playVoice(pendingVoice.get(currentMessageId)); pendingVoice.delete(currentMessageId); }
   }
 
   // VN conventions: click anywhere on the stage advances; right-click (or H)
@@ -398,6 +445,7 @@
     if (ev.key === 'Control') revealRestOfPage();
     if (ev.key === 'l' || ev.key === 'L') toggleHistory();
     if (ev.key === 'a' || ev.key === 'A') toggleAuto();
+    if (ev.key === 'v' || ev.key === 'V') toggleVoice();
     if (ev.key === 'h' || ev.key === 'H') setUiHidden(true);
     if (ev.key === 'c' || ev.key === 'C') toggleCharPicker();
     if (ev.key === 'e' || ev.key === 'E') openEditor();
@@ -416,7 +464,7 @@
     entry.className = `h-entry ${role}`;
     const roleEl = document.createElement('div');
     roleEl.className = 'h-role';
-    roleEl.textContent = role === 'user' ? 'You' : role === 'assistant' ? manifest.characterName : 'Action';
+    roleEl.textContent = role === 'user' ? 'You' : role === 'assistant' ? manifest.characterName : role === 'voice' ? `${manifest.characterName} · voice` : 'Action';
     const textEl = document.createElement('div');
     textEl.className = 'h-text';
     textEl.textContent = text;
@@ -491,7 +539,7 @@
         // live conversation favors freshness: unshown backlog yields to the
         // newest reply (everything stays readable in History)
         msgQueue.length = 0;
-        msgQueue.push({ text: ev.text, emotion: ev.emotion });
+        msgQueue.push({ id: ev.id, text: ev.text, emotion: ev.emotion });
         if (waitingAdvance && pageRest.length === 0) advanceNow();
         else playNext();
         break;
@@ -500,6 +548,11 @@
         break;
       case 'emotion':
         setEmotion(ev.emotion);
+        break;
+      case 'voice':
+        if (ev.line && ev.line !== '') pushHistory('voice', ev.line);
+        if (ev.id === currentMessageId) playVoice(ev.url);
+        else pendingVoice.set(ev.id, ev.url);
         break;
       case 'session': {
         history.length = 0;

@@ -17,7 +17,8 @@ Your agent becomes a character. Each reply plays as a dialogue scene — typewri
 - **EDIT** (`E`) — edit the active character's name, greeting, persona, and memory in place. Editing a bundled pack copies it to `~/.dsh/gal/characters/<id>` first.
 - **GALLERY** (`G`) — browse the pack's six sprites and idle loops; click one to show it on stage. Drop a `.png` / `.mp4` onto a tile (or use its ↑ button) to upload your own art for that expression — this is how a prompt-only pack becomes a full one without touching the file system.
 - **Import / Export packs** — the **CHAR** menu imports a pack `.zip` into `~/.dsh/gal/characters/<id>` and exports the active pack as a `.zip` (art + `character.json`; `memory.md` stays on your machine). Share packs with friends without going through the repo.
-- **Slash commands** in the input box: `/new` starts a fresh session, `/char [id]` switches character, `/edit`, `/gallery`, `/log`, `/help`.
+- **Voice** — replies are spoken through [VOICEVOX](https://voicevox.hiroshiba.jp/) (free, local, Japanese). With `voiceLanguage: ja` (default) a small side LLM call first rewrites the reply as a spoken Japanese line in the character's voice, so you read Chinese/English subtitles and hear Japanese, like a real VN. Each pack picks its own speaker style in **EDIT**; **VOICE** (`V`) mutes. Install the VOICEVOX engine (`voicevox_engine-macos-*.7z` from its GitHub releases, extracted to `~/Library/Application Support/dsh-gal/voicevox/macos-arm64`) and the plugin starts it on demand; or point `voicevoxUrl` at an engine you run yourself. Without an engine the feature is silently off.
+- **Slash commands** in the input box: `/new` starts a fresh session, `/char [id]` switches character, `/edit`, `/gallery`, `/voice`, `/log`, `/help`.
 - **Backlog** — press `L` or click **LOG** for the full scrollable conversation log.
 - **Drive the session from the UI** — the input box sends real user turns into the live dsh session. With no session open, the first message creates one with the deployment's default agent preset (the same tools the browser UI gets).
 
@@ -67,7 +68,12 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | `personaEnabled` | `true` | Register the pack persona as a system-prompt voice layer |
 | `judgeEnabled` | `true` | Use an LLM call to pick the expression (heuristic fallback otherwise) |
 | `judgeTimeoutMs` | `8000` | Deadline for the emotion judge before falling back |
-| `judgeProvider` / `judgeModel` | agent's route | Route override for the judge call |
+| `judgeProvider` / `judgeModel` | agent's route | Route override for the judge and translation calls |
+| `voiceEnabled` | `true` | Speak replies when a VOICEVOX engine is reachable |
+| `voicevoxUrl` | `http://127.0.0.1:50021` | VOICEVOX engine base URL |
+| `voicevoxEngine` | `~/Library/Application Support/dsh-gal/voicevox/macos-arm64/run` | Local engine binary to auto-start (`""` = never) |
+| `voiceSpeaker` | `2` | Fallback VOICEVOX style id when the pack sets none (`voice.speaker` in `character.json`) |
+| `voiceLanguage` | `ja` | `ja` translates non-Japanese replies before synthesis; `auto` speaks the reply as written |
 
 ## Making a character pack
 

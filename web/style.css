@@ -316,3 +316,6 @@ body.ui-hidden #dialogue, body.ui-hidden #topbar, body.ui-hidden #ticker {
 .ed-art-head { font-size: 0.78rem; color: var(--text); line-height: 1.5; letter-spacing: 0; }
 .ed-art-head code { color: var(--accent); }
 #ed-art textarea { font-size: 0.8rem; color: var(--dim); }
+
+.h-entry.voice .h-text { color: var(--dim); font-style: italic; }
+#btn-voice.active { color: var(--accent); }

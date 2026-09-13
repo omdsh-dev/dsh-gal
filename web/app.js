@@ -364,7 +364,7 @@
     const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定与开场白','查看关于你的记忆（所有角色共用）','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','人格とあいさつを編集','あなたについての記憶（全キャラ共通）','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
     $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
     $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
-    $('help-keys').textContent={zh:'单键快捷键只在光标不在输入框时生效；输入时按 Esc 即可退出输入框。',ja:'単キーのショートカットは入力欄にカーソルが無いときだけ有効です。入力中は Esc で抜けられます。',en:'Single-key shortcuts work when the cursor is not in the input box; press Esc to leave it.'}[language];
+    $('help-keys').textContent={zh:'⌥ 组合键随时可用，打字打到一半也行。不带 ⌥ 的单键只在光标离开输入框时生效（按 / 进入输入框，按 Esc 退出）。',ja:'⌥ の組み合わせは入力中でもいつでも使えます。⌥ なしの単キーは、カーソルが入力欄に無いときだけ有効です（/ で入力欄へ、Esc で抜ける）。',en:'The ⌥ combinations work at any time, even mid-sentence. Without ⌥, a single key only works while the cursor is outside the input box (/ enters it, Esc leaves).'}[language];
     showOverlay('help-panel',true);
   }
   // ---------- slash commands ----------
@@ -645,6 +645,25 @@
     r: () => window.galVoice.replay(), n: () => runCommand('/new'), '?': showHelp,
   };
   const typing = target => Boolean(target.closest('input,textarea,select,button,[contenteditable=true]'));
+
+  // The cursor lives in the text box, so a bare letter is not reachable there
+  // without leaving it first. Option + the same letter works from anywhere,
+  // including mid-sentence. Keyed by `code`: on macOS Option changes `key`
+  // (⌥M is "µ"), but the physical key is the same one printed in the panel.
+  const ALT_SHORTCUTS = {
+    KeyL: toggleHistory, KeyM: openMemory, KeyC: toggleCharPicker, KeyG: openGallery,
+    KeyE: openEditor, KeyS: openSpeechSettings, KeyV: toggleVoice,
+    KeyR: () => window.galVoice.replay(), KeyN: () => runCommand('/new'),
+    KeyH: () => setUiHidden(true), Slash: showHelp,
+  };
+  document.addEventListener('keydown', (ev) => {
+    if (!ev.altKey || ev.metaKey || ev.ctrlKey || ev.isComposing) return;
+    const action = ALT_SHORTCUTS[ev.code];
+    if (action === undefined) return;
+    ev.preventDefault();
+    if (document.body.classList.contains('ui-hidden')) setUiHidden(false);
+    action();
+  });
   document.addEventListener('keydown', (ev) => {
     if(ev.isComposing||ev.metaKey||ev.altKey||ev.ctrlKey&&ev.key!=='Control'||activeOverlay())return;
     if (typing(ev.target) || ev.target.closest('#editor')) return;

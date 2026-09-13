@@ -28,10 +28,10 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 </div>
 <div className="app-controls">
 <Button id="btn-help" type="button" data-ui-text="help" variant="ghost" data-slot="button">{"帮助"}</Button>
-<Button type="button" id="btn-char" title="Switch character (C)" variant="ghost" data-slot="button">{"CHAR"}</Button>
-<Button type="button" id="btn-memory" title="What I remember about you (M)" variant="ghost" data-slot="button">{"MEMORY"}</Button>
+<Button type="button" id="btn-char" title="Switch character (⌥C)" variant="ghost" data-slot="button">{"CHAR"}</Button>
+<Button type="button" id="btn-memory" title="What I remember about you (⌥M)" variant="ghost" data-slot="button">{"MEMORY"}</Button>
 <Button type="button" id="btn-speech-settings" variant="ghost" data-slot="button">{"语音设置"}</Button>
-<Button type="button" id="btn-hide" title="Hide window (H / right-click)" variant="ghost" data-slot="button">{"HIDE"}</Button>
+<Button type="button" id="btn-hide" title="Hide window (⌥H / right-click)" variant="ghost" data-slot="button">{"HIDE"}</Button>
 </div>
 </header>
 <div id="ticker" className="hidden">
@@ -63,7 +63,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 </form>
 <nav id="menu-row" aria-label="对话与应用控制">
 <div className="conversation-controls">
-<Button type="button" id="btn-history" title="Backlog (L)" variant="ghost" data-slot="button">{"LOG"}</Button>
+<Button type="button" id="btn-history" title="Backlog (⌥L)" variant="ghost" data-slot="button">{"LOG"}</Button>
 </div>
 </nav>
 <div id="ui-notice" role="status" aria-live="polite">

@@ -12,8 +12,8 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 </div>
 <nav className="character-tabs" aria-label="角色管理">
 <Button type="button" id="btn-character-select" data-character-view="char-picker" data-layout-text="choose" variant="ghost" data-slot="button">{"选择角色"}</Button>
-<Button type="button" id="btn-gallery" data-character-view="gallery" title="Sprites & loops (G)" variant="ghost" data-slot="button">{"GALLERY"}</Button>
-<Button type="button" id="btn-edit" data-character-view="editor" title="Persona (E)" variant="ghost" data-slot="button">{"EDIT"}</Button>
+<Button type="button" id="btn-gallery" data-character-view="gallery" title="Sprites & loops (⌥G)" variant="ghost" data-slot="button">{"GALLERY"}</Button>
+<Button type="button" id="btn-edit" data-character-view="editor" title="Persona (⌥E)" variant="ghost" data-slot="button">{"EDIT"}</Button>
 </nav>
 <div className="character-display-settings">
 <Label className="language-control">
@@ -223,17 +223,17 @@ export const HelpPanel=React.memo(function HelpPanel(){return (<>
 <div className="help-key"><KbdGroup><Kbd>{"Space"}</Kbd><Kbd>{"Enter"}</Kbd></KbdGroup><span data-ui-text="key-advance">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"/"}</Kbd></KbdGroup><span data-ui-text="key-input">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"Esc"}</Kbd></KbdGroup><span data-ui-text="key-blur">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"L"}</Kbd></KbdGroup><span data-ui-text="key-log">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"M"}</Kbd></KbdGroup><span data-ui-text="key-memory">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"C"}</Kbd></KbdGroup><span data-ui-text="key-char">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"G"}</Kbd></KbdGroup><span data-ui-text="key-gallery">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"E"}</Kbd></KbdGroup><span data-ui-text="key-edit">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"S"}</Kbd></KbdGroup><span data-ui-text="key-settings">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"V"}</Kbd></KbdGroup><span data-ui-text="key-voice">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"R"}</Kbd></KbdGroup><span data-ui-text="key-replay">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"N"}</Kbd></KbdGroup><span data-ui-text="key-new">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"H"}</Kbd></KbdGroup><span data-ui-text="key-hide">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"?"}</Kbd></KbdGroup><span data-ui-text="key-help">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"L"}</Kbd></KbdGroup><span data-ui-text="key-log">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"M"}</Kbd></KbdGroup><span data-ui-text="key-memory">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"C"}</Kbd></KbdGroup><span data-ui-text="key-char">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"G"}</Kbd></KbdGroup><span data-ui-text="key-gallery">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"E"}</Kbd></KbdGroup><span data-ui-text="key-edit">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"S"}</Kbd></KbdGroup><span data-ui-text="key-settings">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"V"}</Kbd></KbdGroup><span data-ui-text="key-voice">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"R"}</Kbd></KbdGroup><span data-ui-text="key-replay">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"N"}</Kbd></KbdGroup><span data-ui-text="key-new">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"H"}</Kbd></KbdGroup><span data-ui-text="key-hide">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"/"}</Kbd></KbdGroup><span data-ui-text="key-help">{""}</span></div>
 </div>
 <p id="help-keys">
 </p>

@@ -21,9 +21,11 @@ Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网
 ## How a turn works
 
 1. You type in the VN input box. It sends a real user turn into the live dsh session — same tools and preset the browser UI gets. With no session open, the first message creates one.
-2. The reply streams into the text box token by token, at the model's real pace, rendered as markdown. The box scrolls and stays pinned to the newest line; scroll up to read back and a **回到最新 / Jump to latest** control appears. While the agent works, she switches to `thinking` and a ticker shows tool activity.
-3. A tiny side LLM call classifies the finished reply into one of six expressions; a keyword heuristic covers the fallback. The stage crossfades to that expression's idle loop.
-4. If voice is on, the reply is spoken — optionally rewritten into spoken Japanese first, so you read subtitles and hear a VN-style voice track.
+2. Each assistant message is its own scene. It streams into the text box token by token at the model's real pace, rendered as markdown, and is read aloud — and only when it has been both fully delivered and spoken does the next message take the box. A turn that runs tools produces several messages, and a message arriving early waits its turn instead of cutting the previous one off.
+3. Between messages the box keeps the last line up while a small ticker shows the tool that is running, and she switches to `thinking`. Tool work is not something she says, so it never takes the panel.
+4. The box scrolls and stays pinned to the newest line; scroll up to read back and **回到最新 / Jump to latest** appears. When a message is waiting, that control becomes **下一条 / Next** — click, `Space` or `Enter` hands over early.
+5. A tiny side LLM call classifies the finished reply into one of six expressions; a keyword heuristic covers the fallback. The stage crossfades to that expression's idle loop.
+6. Voice can be rewritten into spoken Japanese first, so you read subtitles and hear a VN-style voice track.
 
 | expression | when she shows it |
 | --- | --- |
@@ -64,7 +66,7 @@ Everything has a button; the shortcuts are for when you are reading, not clickin
 
 | | |
 | --- | --- |
-| `Space` / `Enter` / click | jump back to the newest line |
+| `Space` / `Enter` / click | hand over to the next message, or jump back to the newest line |
 | `L` | backlog — the full scrollable log |
 | `C` | 角色 › 选择角色 — switch pack live |
 | `G` | 角色 › 立绘素材 — browse the six expressions, click to preview, drop a `.png` / `.mp4` on a tile to replace it |

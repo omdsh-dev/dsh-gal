@@ -66,8 +66,7 @@
           });
           if (!res.ok) throw new Error(await res.text());
         } catch (err) {
-          msgQueue.push({ text: `(failed to switch character: ${err.message})`, emotion: 'sad' });
-          playNext();
+          enqueue({ text: `(failed to switch character: ${err.message})`, emotion: 'sad' });
         }
       });
       list.appendChild(btn);
@@ -355,89 +354,166 @@
     }
   }
 
-  // ---------- dialogue: a live stream into one scrolling box ----------
-  // Replies arrive token by token (SSE `delta`), so the reveal runs at the
-  // model's real pace instead of replaying a typewriter over text we already
-  // have. There is no paging: the box scrolls and stays pinned to the newest
-  // line until the reader scrolls up themselves.
-  const msgQueue = [];       // queued non-streamed lines (greeting, notices)
-  let streaming = false;     // a reply is currently arriving
-  let streamText = '';       // what has arrived so far
+  // ---------- dialogue: one assistant message at a time ----------
+  // A turn can produce several assistant messages (message → tool → message).
+  // Each one is its own scene: it streams in at the model's pace, gets read
+  // aloud, and only then does the next one take the box. A message arriving
+  // while the previous is still being read waits instead of replacing it —
+  // what happens between them is tool work, and that belongs in the ticker,
+  // not in her mouth.
+  const queue = [];          // messages waiting their turn
+  let current = null;        // { id, text, complete, emotion, voiceStarted }
+  let live = null;           // the message currently arriving from the stream
   let paintHandle = null;
-  let following = true;      // stay pinned to the bottom
+  let finishTimer = null;
+  let voiceActive = false;
+  let currentMessageId = null;
+  let following = true;      // stay pinned to the newest line
 
   const textWindow = $('text-window');
 
   function atBottom() { return textWindow.scrollHeight - textWindow.scrollTop - textWindow.clientHeight < 24; }
 
-  function updateJumpButton() {
+  function updateAdvanceButton() {
     const button = $('btn-skip'), lang = window.galVoice.language;
-    button.hidden = following || atBottom();
-    button.textContent = { zh: '回到最新', en: 'Jump to latest', ja: '最新へ' }[lang] || 'Jump to latest';
+    const waiting = queue.length > 0;
+    button.hidden = !waiting && (following || atBottom());
+    button.textContent = waiting
+      ? ({ zh: '下一条', en: 'Next', ja: '次へ' }[lang] || 'Next')
+      : ({ zh: '回到最新', en: 'Jump to latest', ja: '最新へ' }[lang] || 'Jump to latest');
     button.title = button.textContent;
   }
-  window.addEventListener('gal-language', updateJumpButton);
+  window.addEventListener('gal-language', updateAdvanceButton);
 
-  textWindow.addEventListener('scroll', () => { following = atBottom(); updateJumpButton(); });
-
-  function scrollToLatest() {
-    following = true;
-    textWindow.scrollTop = textWindow.scrollHeight;
-    updateJumpButton();
-  }
+  textWindow.addEventListener('scroll', () => { following = atBottom(); updateAdvanceButton(); });
 
   function paint(text) {
     dialogueText.innerHTML = window.galMarkdown.render(text);
     if (following) textWindow.scrollTop = textWindow.scrollHeight;
-    updateJumpButton();
+    updateAdvanceButton();
   }
 
   // At most one repaint per frame: a fast stream would otherwise re-render the
-  // whole reply for every token that lands.
+  // whole message for every token that lands.
   function schedulePaint() {
     if (paintHandle !== null) return;
-    paintHandle = requestAnimationFrame(() => { paintHandle = null; paint(streamText); });
+    paintHandle = requestAnimationFrame(() => { paintHandle = null; if (current) paint(current.text); });
   }
 
   function cancelPaint() {
-    if (paintHandle === null) return;
-    cancelAnimationFrame(paintHandle);
-    paintHandle = null;
+    if (paintHandle !== null) { cancelAnimationFrame(paintHandle); paintHandle = null; }
+    if (finishTimer !== null) { clearTimeout(finishTimer); finishTimer = null; }
   }
 
+  function present(item) {
+    cancelPaint();
+    current = item;
+    following = true;
+    if (item.emotion) setEmotion(item.emotion);
+    paint(item.text);
+    if (item.complete) speakCurrent();
+    scheduleFinish();
+  }
+
+  function speakCurrent() {
+    if (current === null || current.voiceRequested) return;
+    current.voiceRequested = true;
+    currentMessageId = current.id || null;
+    window.galVoice.setMessage(currentMessageId, current.text);
+  }
+
+  function enqueue(item) {
+    const entry = { id: null, text: '', complete: true, emotion: undefined, voiceRequested: false, voicePlayed: false, voiceWait: 0, ...item };
+    if (current === null) { present(entry); return entry; }
+    queue.push(entry);
+    updateAdvanceButton();
+    scheduleFinish();
+    return entry;
+  }
+
+  function presentNext() {
+    const next = queue.shift();
+    if (next === undefined) { updateAdvanceButton(); return; }
+    present(next);
+  }
+
+  // Hand over only when this message is really done with: fully arrived, spoken
+  // (not merely queued for speech — synthesis takes seconds, and handing over
+  // early is what cancelled the previous line mid-sentence), and on screen long
+  // enough to have been read. With nothing waiting there is nothing to hand
+  // over to, so it simply stays.
+  const READING_MS = text => Math.min(9000, Math.max(1400, text.length * 45));
+  const VOICE_WAIT_LIMIT = 15000;
+
+  function scheduleFinish() {
+    if (finishTimer !== null) { clearTimeout(finishTimer); finishTimer = null; }
+    if (current === null || !current.complete || queue.length === 0) return;
+    if (voiceActive) return;                       // being spoken right now
+    const awaitingVoice = current.voiceRequested && !current.voicePlayed
+      && window.galVoice.enabled && current.voiceWait < VOICE_WAIT_LIMIT;
+    const delay = awaitingVoice ? 500 : current.voicePlayed ? 700 : READING_MS(current.text);
+    finishTimer = setTimeout(() => {
+      finishTimer = null;
+      if (awaitingVoice) { current.voiceWait += 500; scheduleFinish(); return; }
+      presentNext();
+    }, delay);
+  }
+
+  window.addEventListener('gal-speaking', event => {
+    voiceActive = Boolean(event.detail.speaking);
+    if (voiceActive && current !== null) current.voicePlayed = true;
+    scheduleFinish();
+  });
+
   function beginStream() {
-    streaming = true; streamText = ''; following = true;
-    dialogueText.textContent = '';
-    updateJumpButton();
+    // A fresh attempt replaces an unfinished one rather than appending to it.
+    if (live !== null && !live.complete) {
+      const index = queue.indexOf(live);
+      if (index !== -1) queue.splice(index, 1);
+      if (current === live) { live.text = ''; paint(''); }
+    }
+    live = enqueue({ text: '', complete: false });
   }
 
   function pushStream(text) {
-    if (!streaming) beginStream();
-    streamText += text;
-    schedulePaint();
+    if (live === null || live.complete) beginStream();
+    live.text += text;
+    if (current === live) schedulePaint();
   }
 
   // The committed message is authoritative: a retried or interrupted attempt
   // can differ from the frames already painted.
-  function showMessage(text) {
-    streaming = false; streamText = text; following = true;
+  function commitMessage(id, text, emotion) {
+    const item = live !== null && !live.complete ? live : enqueue({ text, complete: false });
+    item.id = id; item.text = text; item.emotion = emotion; item.complete = true;
+    live = null;
+    if (current === item) {
+      cancelPaint();
+      if (emotion) setEmotion(emotion);
+      paint(text);
+      speakCurrent();
+    }
+    scheduleFinish();
+  }
+
+  function clearPresentation() {
     cancelPaint();
-    paint(text);
+    queue.length = 0;
+    current = null; live = null;
+    updateAdvanceButton();
+  }
+
+  function advance() {
+    if (queue.length > 0) { presentNext(); return; }
+    following = true;
+    textWindow.scrollTop = textWindow.scrollHeight;
+    updateAdvanceButton();
   }
 
   // ---------- voice ----------
-  let currentMessageId = null;
   function toggleVoice() { return window.galVoice.toggle(); }
   $('btn-voice').addEventListener('click', toggleVoice);
 
-  function playNext() {
-    const next = msgQueue.shift();
-    if (next === undefined) return;
-    if (next.emotion) setEmotion(next.emotion);
-    currentMessageId = next.id || null;
-    showMessage(next.text);
-    window.galVoice.setMessage(currentMessageId, next.text);
-  }
 
   // VN conventions: click anywhere on the stage advances; right-click (or H)
   // hides the window to admire the art; any input restores it.
@@ -450,7 +526,7 @@
     if (el.closest('#input-row') || el.closest('#menu-row') || el.closest('#history') || el.closest('#char-picker') || el.closest('.overlay')) return;
     if (!$('char-picker').classList.contains('hidden')) { closeOverlays(); return; }
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
-    scrollToLatest();
+    advance();
   });
   $('stage').addEventListener('contextmenu', (ev) => {
     if (activeOverlay()||ev.target.closest('input,textarea,select,[contenteditable=true]')) return;
@@ -461,7 +537,7 @@
     if(ev.isComposing||ev.metaKey||ev.altKey||ev.ctrlKey&&ev.key!=='Control'||activeOverlay())return;
     if (ev.target.closest('input,textarea,select,button,[contenteditable=true]') || ev.target.closest('#editor')) return;
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
-    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); scrollToLatest(); }
+    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); advance(); }
     if (ev.key === 'l' || ev.key === 'L') toggleHistory();
     if (ev.key === 'v' || ev.key === 'V') toggleVoice();
     if (ev.key === 'h' || ev.key === 'H') setUiHidden(true);
@@ -471,7 +547,7 @@
   });
   $('btn-char').addEventListener('click', toggleCharPicker);
   $('btn-character-select').addEventListener('click',()=>showOverlay('char-picker',true));
-  $('btn-skip').addEventListener('click', scrollToLatest);
+  $('btn-skip').addEventListener('click', advance);
   $('btn-hide').addEventListener('click', () => setUiHidden(true));
 
   // ---------- history ----------
@@ -538,8 +614,7 @@
   function interruptPresentation(){
     window.dispatchEvent(new Event('gal-dialogue-interrupt'));
     window.galVoice.stop();
-    msgQueue.length = 0; streaming = false; streamText = '';
-    cancelPaint(); updateJumpButton();
+    clearPresentation();
   }
   // ---------- event stream ----------
   function handleEvent(ev) {
@@ -560,9 +635,7 @@
         setBusy(false);
         // live conversation favors freshness: unshown backlog yields to the
         // newest reply (everything stays readable in History)
-        msgQueue.length = 0;
-        msgQueue.push({ id: ev.id, text: ev.text, emotion: ev.emotion });
-        playNext();
+        commitMessage(ev.id, ev.text, ev.emotion);
         break;
       case 'delta':
         if (ev.reset) { beginStream(); break; }
@@ -583,7 +656,7 @@
         historyList.textContent = '';
         $('last-user').classList.add('hidden');
         setBusy(false);
-        interruptPresentation();msgQueue.push({text:window.galVoice.greeting(manifest.greeting),emotion:manifest.defaultEmotion});playNext();
+        interruptPresentation();enqueue({text:window.galVoice.greeting(manifest.greeting),emotion:manifest.defaultEmotion});
         pushHistory('status', `— new session ${ev.id} —`);
         break;
       }
@@ -593,17 +666,15 @@
       case 'manifest': {
         applyManifest(ev.manifest);
         if (ev.silent) break;
-        msgQueue.length = 0;
-        msgQueue.push({ text: window.galVoice.greeting(ev.manifest.greeting), emotion: ev.manifest.defaultEmotion });
-        streaming = false; streamText = ''; cancelPaint();
-        playNext();
+        clearPresentation();
+        enqueue({ text: window.galVoice.greeting(ev.manifest.greeting), emotion: ev.manifest.defaultEmotion });
         break;
       }
       case 'snapshot':
         for (const entry of ev.entries) pushHistory(entry.role, entry.text);
         if (ev.entries.length > 0) {
           const last = ev.entries[ev.entries.length - 1];
-          if (last.role === 'assistant') { msgQueue.push({ text: last.text, emotion: ev.emotion }); playNext(); }
+          if (last.role === 'assistant') enqueue({ text: last.text, emotion: ev.emotion });
         }
         break;
     }
@@ -625,8 +696,7 @@
       applyManifest(m);
       connect();
       const greeting = window.galVoice.greeting(m.greeting);
-      msgQueue.push({ text: greeting, emotion: m.defaultEmotion });
-      playNext();
+      enqueue({ text: greeting, emotion: m.defaultEmotion });
     })
     .catch(() => {
       dialogueText.textContent = 'Failed to load manifest — is the dsh-gal plugin running?';

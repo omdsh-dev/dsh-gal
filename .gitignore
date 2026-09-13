@@ -12,8 +12,4 @@ app/plugin/
 app/src-tauri/target/
 app/src-tauri/gen/
 eval-results.json
-# Downloaded Live2D SDK sources used to rebuild the local bundle.
-.local/
-# Official evaluation model is not part of this project's BSD artwork.
-web/live2d/mao/
 ui/node_modules/

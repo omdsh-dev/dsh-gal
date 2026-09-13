@@ -16,20 +16,6 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 </nav>
 <div className="character-display-settings">
 <Label className="language-control">
-<span id="character-renderer-label">{"角色展示"}</span>
-<NativeSelect id="character-renderer" aria-label="display">
-<option value="sprite">{"角色立绘"}</option>
-<option value="live2d">{"小黑鱼 Live2D"}</option>
-</NativeSelect>
-</Label>
-<Label className="language-control">
-<span data-ui-text="model">{"Live2D 模型"}</span>
-<NativeSelect id="live2d-model" aria-label="model">
-<option value="xiaoheiyu">{"小黑鱼 · Live2D"}</option>
-<option value="mao">{"Mao · Live2D Inc."}</option>
-</NativeSelect>
-</Label>
-<Label className="language-control">
 <span data-ui-text="state">{"表情预览"}</span>
 <NativeSelect id="character-state-preview" aria-label="state">
 <option value="auto">{"跟随对话"}</option>
@@ -40,10 +26,6 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 <option value="surprised">{"惊讶"}</option>
 <option value="excited">{"兴奋"}</option>
 </NativeSelect>
-</Label>
-<Label className="motion-debug-setting" htmlFor="motion-debug-toggle">
-<span data-layout-text="motion">动作调试</span>
-<Input id="motion-debug-toggle" type="checkbox" role="switch" aria-controls="motion-debug-panel" />
 </Label>
 </div>
 <div id="char-picker" className="character-view hidden">

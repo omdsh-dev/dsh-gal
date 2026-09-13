@@ -33,10 +33,6 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <Button type="button" id="btn-hide" title="Hide window (H / right-click)" variant="ghost" data-slot="button">{"HIDE"}</Button>
 </div>
 </header>
-<aside id="motion-debug-panel" hidden={true} aria-labelledby="motion-debug-title">
-<div className="motion-debug-heading"><span id="motion-debug-title" data-layout-text="motion">动作调试</span><Button id="motion-debug-close" type="button" variant="ghost" aria-label="关闭动作调试">×</Button></div>
-<div id="character-motion-host" />
-</aside>
 <div id="ticker" className="hidden">
 <span id="ticker-text">
 </span>

@@ -179,7 +179,7 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 - The stage sits on one fixed backdrop behind the character. There is no background picker: pack art is full-frame and carries its own environment, so a separate background choice only fought with it.
 - The text box renders replies as plain text. Markdown comes through literally — tables arrive as pipes.
 - Idle loops are 5-second clips, not seamless cycles; the wrap is visible if you stare at it.
-- The bundled Live2D renderer is a prototype for one model, not a general Cubism importer. Details and licensing: [CHARACTER-STATES.md](CHARACTER-STATES.md) and `web/live2d/THIRD-PARTY.md`.
+- Expressions are whole-clip swaps, not a rig. She cannot hold an expression while lip-syncing a specific line, and there is no per-phoneme mouth movement.
 
 ## What this repository distributes
 

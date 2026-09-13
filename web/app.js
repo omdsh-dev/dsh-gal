@@ -21,7 +21,7 @@
   function applyManifest(m) {
     if(manifest.characterId && manifest.characterId!==m.characterId)window.dispatchEvent(new Event('gal-character-changed'));
     manifest = m;
-    $('char-name').textContent = window.galCharacter.state.mode==='live2d'?window.galCharacter.name:m.characterName;
+    $('char-name').textContent = m.characterName;
     document.title = `${m.characterName} · dsh-gal`;
     const theme = m.theme || {};
     const root = document.documentElement.style;
@@ -43,7 +43,7 @@
 
   window.addEventListener('gal-character-state',event=>{
     const state=event.detail;
-    const name=state.mode==='live2d'?window.galCharacter.name:manifest.characterName;
+    const name=manifest.characterName;
     $('char-name').textContent=name;document.title=`${name} · dsh-gal`;
     emotionTag.textContent=window.galCharacter.text(state.emotion==='neutral'?'idle':state.emotion);
     renderSprite(state.emotion);
@@ -335,7 +335,6 @@
     window.dispatchEvent(new CustomEvent('gal-emotion',{detail:{emotion:name}}));
   }
   function renderSprite(name){
-    if(window.galCharacter.state.mode==='live2d'){layerA.pause();layerB.pause();currentEmotion='';return;}
     const emo = manifest.emotions[name] ? name : manifest.defaultEmotion;
     if (emo === currentEmotion) return;
     currentEmotion = emo;

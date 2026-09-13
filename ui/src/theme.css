@@ -78,14 +78,8 @@ body.ui-hidden #btn-restore {display:inline-flex;}
 .gal-dialog .character-tabs {margin:20px 28px 0;padding:4px;border:1px solid #b6d0e119;border-radius:10px;background:#03142270;gap:4px;}
 .gal-dialog .character-tabs button {flex:1;border:0;color:#93adbf;}
 .gal-dialog .character-tabs button.active {background:#28465a;color:#f0e1c2;box-shadow:0 2px 6px #0002;border:0;}
-.gal-dialog .character-display-settings {margin:0;padding:22px 28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;border-bottom:1px solid #9fbacf20;align-items:start;}
+.gal-dialog .character-display-settings {margin:0;padding:22px 28px;display:grid;grid-template-columns:minmax(0,260px);gap:18px;border-bottom:1px solid #9fbacf20;align-items:start;}
 .gal-dialog .character-display-settings select {width:100%;height:42px;}
-.gal-dialog #motion-details {grid-column:1/-1;font-size:12px;}
-.gal-dialog #motion-details summary {padding:7px 0;color:#93adbf;}
-.gal-dialog #character-motion-host .live2d-controls {border-radius:10px;background:#071d2f;max-height:230px;margin:8px 0 0;width:100%;}
-.gal-dialog .motion-buttons {grid-template-columns:repeat(4,minmax(0,1fr));}
-.gal-dialog .live2d-controls button {padding:6px;font-size:11px;border:1px solid #9fbed426;background:#1c3b50;}
-.gal-dialog .live2d-controls label {flex-direction:row;align-items:center;}
 .gal-dialog .native-checkbox,.gal-dialog input[type=checkbox] {height:16px;width:16px;min-width:16px;accent-color:var(--gold);padding:0;border-radius:4px;}
 .gal-dialog #char-list {display:grid;grid-template-columns:1fr 1fr;padding:20px 28px;gap:8px;max-height:36vh;overflow:auto;}
 .gal-dialog .char-option {height:auto;min-height:44px;justify-content:flex-start;padding:12px 14px;border:1px solid #a8c4d31a;background:#081a2b66;color:#c9d9e5;border-radius:9px;white-space:normal;}
@@ -125,9 +119,8 @@ body.ui-hidden #btn-restore {display:inline-flex;}
  .gal-dialog .overlay-head,.gal-dialog #history-head{padding:23px 20px;font-size:16px;}
  .gal-dialog .overlay-body{padding:20px!important;}
  .gal-dialog .character-tabs{margin:16px 16px 0;}.gal-dialog .character-tabs button{padding:8px 6px;font-size:11px;}
- .gal-dialog .character-display-settings{padding:18px 20px;grid-template-columns:1fr 1fr;gap:12px;}
+ .gal-dialog .character-display-settings{padding:18px 20px;grid-template-columns:minmax(0,1fr);gap:12px;}
  .gal-dialog #char-list{padding:16px 20px;}.gal-dialog #char-picker-foot{padding:16px 20px;}
- .gal-dialog .motion-buttons{grid-template-columns:repeat(3,minmax(0,1fr));}
  .gal-dialog #gallery-grid{grid-template-columns:1fr 1fr;padding:20px;}
  .gal-dialog .speech-grid{grid-template-columns:1fr;}
  .gal-dialog .general-settings{padding:14px;}.gal-dialog .language-settings{gap:10px;}
@@ -135,24 +128,10 @@ body.ui-hidden #btn-restore {display:inline-flex;}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 .gal-dialog input:not([type=checkbox]),.gal-dialog textarea,.gal-dialog select {font-weight:400!important;}
 .gal-dialog #character-hub:has(#editor:not(.hidden)) .character-display-settings {display:none;}
-body[data-character-renderer="sprite"] .language-control:has(#live2d-model) {display:none;}
 .gal-dialog .overlay-actions {position:sticky;bottom:-24px;padding:14px 0;background:#0b1e2d;justify-content:flex-end;border-top:1px solid #a4c4d528;}
 .gal-dialog #ed-path {display:none;}
-/* The fixed deep-sea backdrop stays behind both sprite and Live2D renderers. */
+/* The fixed deep-sea backdrop stays behind the character layers. */
 #scene-background {position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:url("/assets/undersea.png") center/cover no-repeat;}
 .gal-dialog #speech-refresh-voices {align-self:flex-start;height:28px;padding:3px 0;color:var(--gold);font-size:11px;}
 #speech-voices-status {font-size:11px;line-height:1.5;color:var(--dim);}
 #speech-voices-status:empty {display:none;}
-.gal-dialog .motion-debug-setting {grid-column:1/-1;display:flex;flex-direction:row;align-items:center;justify-content:space-between;cursor:pointer;font-size:12px;}
-.gal-dialog #motion-debug-toggle {appearance:none;width:36px;height:21px;padding:2px;border-radius:999px;border:1px solid #91aec655;background:#243949;cursor:pointer;flex:none;}
-.gal-dialog #motion-debug-toggle::before {content:'';display:block;width:15px;height:15px;border-radius:50%;background:#b0c5d3;transition:transform .15s;}
-.gal-dialog #motion-debug-toggle:checked {background:#7d6743;border-color:var(--gold);}
-.gal-dialog #motion-debug-toggle:checked::before {transform:translateX(15px);background:#f4dfb5;}
-#motion-debug-panel {position:fixed;z-index:35;top:82px;right:28px;width:300px;max-width:calc(100vw - 32px);max-height:48dvh;overflow:auto;border:1px solid #a6c3d43b;border-radius:12px;background:#0a2032ed;box-shadow:0 12px 35px #0004;backdrop-filter:blur(14px);padding:12px;}
-#motion-debug-panel[hidden],body.ui-hidden #motion-debug-panel {display:none;}
-.motion-debug-heading {display:flex;align-items:center;justify-content:space-between;color:var(--gold);font-size:12px;letter-spacing:.08em;}
-#motion-debug-close {width:28px;height:28px;padding:0;font-size:20px;}
-#motion-debug-panel #character-motion-host .live2d-controls {background:transparent;border:0;padding:0;margin:8px 0 0;max-height:none;backdrop-filter:none;}
-#motion-debug-panel .live2d-controls label {display:flex;align-items:center;gap:6px;font-size:12px;}
-#motion-debug-panel .live2d-controls label span {width:auto;}
-@media(max-width:760px){#motion-debug-panel{top:70px;right:16px;width:250px;max-height:38dvh;}}

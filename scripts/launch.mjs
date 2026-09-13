@@ -56,7 +56,7 @@ try{
   await waitReady(backendReady,child,'对话服务');
  }else console.log('复用已有对话服务。');
  if(!await previewReady()){
-  console.log('正在启动界面服务…');const child=start(process.execPath,[join(root,'scripts/live2d-preview.mjs')]);await waitReady(previewReady,child,'界面服务');
+  console.log('正在启动界面服务…');const child=start(process.execPath,[join(root,'scripts/ui-preview.mjs')]);await waitReady(previewReady,child,'界面服务');
  }else console.log('复用已有界面服务。');
  console.log(`已就绪：${url}`);
  if(args.includes('--smoke')){await cleanup();}

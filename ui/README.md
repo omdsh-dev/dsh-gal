@@ -28,8 +28,8 @@ Do not replace a panel host or re-render its uncontrolled values from React stat
 
 ## Validated
 
-TypeScript and production build pass. Ego Browser checks cover desktop and 390px layouts, modal scrolling, ESC and focus restoration, history focus containment, artwork view, help without speech, UI-language changes, hiding/restoring the scene, and speech-generation cancellation when submitting the next turn (mocked voice/send requests; no cloud key used). Live2D still renders through the existing adapter. Native desktop packaging was not rebuilt for this UI-only change.
+TypeScript and production build pass. Ego Browser checks cover desktop and 390px layouts, modal scrolling, ESC and focus restoration, history focus containment, artwork view, help without speech, UI-language changes, hiding/restoring the scene, and speech-generation cancellation when submitting the next turn (mocked voice/send requests; no cloud key used). Native desktop packaging was not rebuilt for this UI-only change.
 
 ## Background
 
-The stage sits on one fixed deep-sea backdrop (`web/assets/undersea.png`), applied in `src/theme.css` on `#scene-background` behind all character media. There is no scene picker: character art is full-frame and carries its own environment, so a separate background choice only fought with it. Full-frame opaque artwork covers the backdrop entirely; Live2D and transparent artwork show it.
+The stage sits on one fixed deep-sea backdrop (`web/assets/undersea.png`), applied in `src/theme.css` on `#scene-background` behind all character media. There is no scene picker: character art is full-frame and carries its own environment, so a separate background choice only fought with it. Full-frame opaque artwork covers the backdrop entirely; transparent artwork shows it through.

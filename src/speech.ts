@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { localSpeech, localVoices } from './local-speech.js'
-import { speakableText } from './tts.js'
+import { speakableText, type SpokenLanguage } from './tts.js'
 type Language = 'zh' | 'en' | 'ja'
 type Profile = { provider: string; model: string; voice: string }
 type State = { profiles: Record<Language, Profile>; keys: Record<string, string> }
@@ -71,11 +71,21 @@ export class SpeechService {
     this.queue = operation
     return operation
   }
+  /**
+   * Rewrites a dialogue line into the voice's own language. Set by the plugin;
+   * previews and unset hosts synthesize the text as written.
+   */
+  dub?: (text: string, language: SpokenLanguage) => Promise<string>
+
   async synthesize(body: Record<string, unknown>, signal: AbortSignal): Promise<{data:Buffer;type:string}> {
     if (typeof body.text !== 'string' || body.text.length > 6000) throw new Error('invalid_text')
-    const text = speakableText(body.text, 6000)
+    let text = speakableText(body.text, 6000)
     if (!text) throw new Error('invalid_text')
     const state = await this.state(), language = body.language as Language
+    // A dub is an improvement, never a precondition: if it fails, she still speaks.
+    if (body.dub === true && this.dub !== undefined) {
+      try { text = speakableText(await this.dub(text, language as SpokenLanguage), 6000) || text } catch { /* keep the line as written */ }
+    }
     const p = this.profile(language, body.profile ?? state.profiles[language])
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(60000)])
     if (p.provider === 'local') { await this.validateLocalVoice(p,language);return { data:await localSpeech(text,p.voice,timeout), type:'audio/wav' } }

@@ -39,12 +39,32 @@ export function looksJapanese(text: string): boolean {
   return /[぀-ヿ]/.test(text)
 }
 
-/** Prompt for the side LLM call that turns a reply into a spoken Japanese line. */
-export function translationPrompt(text: string, characterName: string, persona: string): string {
+export type SpokenLanguage = 'zh' | 'en' | 'ja'
+
+const LANGUAGE_NAMES: Record<SpokenLanguage, string> = { zh: 'Chinese', en: 'English', ja: 'Japanese' }
+
+/**
+ * Which language a line reads as. Kana means Japanese; Han characters without
+ * kana mean Chinese; anything else is treated as English. Latin technical terms
+ * inside a CJK line do not change the verdict.
+ */
+export function detectLanguage(text: string): SpokenLanguage {
+  if (/[぀-ヿ]/.test(text)) return 'ja'
+  if (/[\u4e00-\u9fff]/.test(text)) return 'zh'
+  return 'en'
+}
+
+/**
+ * Prompt for the side LLM call that turns a reply into a spoken line in the
+ * voice's own language. Handing a Japanese voice a Chinese line does not
+ * produce Japanese — it produces kanji read one at a time.
+ */
+export function translationPrompt(text: string, characterName: string, persona: string, target: SpokenLanguage = 'ja'): string {
+  const language = LANGUAGE_NAMES[target]
   return [
-    `You are dubbing a visual novel. Rewrite the following line, spoken by the character "${characterName}", as natural spoken Japanese for a voice actor.`,
+    `You are dubbing a visual novel. Rewrite the following line, spoken by the character "${characterName}", as natural spoken ${language} for a voice actor.`,
     persona === '' ? '' : `Character voice: ${persona.slice(0, 600)}`,
-    'Rules: keep the meaning and the tone; use casual spoken register that fits the character; keep it concise (drop lists, file names and technical noise, summarise them in a phrase if needed); write everything in Japanese script (kanji/kana), numbers and technical terms may stay in ASCII; output ONLY the Japanese line, no quotes, no notes.',
+    `Rules: keep the meaning and the tone; use casual spoken register that fits the character; keep it concise (drop lists, file names and technical noise, summarise them in a phrase if needed); write everything in ${language}, numbers and technical terms may stay in ASCII; output ONLY the ${language} line, no quotes, no notes.`,
     '',
     'Line:',
     text,

@@ -30,7 +30,7 @@ import { homedir, tmpdir } from 'node:os'
 import { listCharacterPacks, loadCharacterPack, memorySection, personaSection, rememberInPack, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
 import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion } from './emotion.js'
 import { GalServer } from './server.js'
-import { looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize } from './tts.js'
+import { detectLanguage, looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize, type SpokenLanguage } from './tts.js'
 
 /**
  * One transient frame of `agent/assistant-stream`. These are process-local and
@@ -344,6 +344,19 @@ export function apply(ctx: Context, config: Config): void {
       if (!(await checkVoice())) return { available: false, speakers: [] }
       return { available: true, speakers: await voicevoxSpeakers(config.voicevoxUrl ?? 'http://127.0.0.1:50021') }
     },
+    // A voice speaks one language. Handing a Japanese voice a Chinese reply
+    // does not make it speak Japanese — it reads the kanji one at a time — so
+    // the line is rewritten into the voice's language before synthesis.
+    spokenLine: async (text, language) => {
+      if (detectLanguage(text) === language) return text
+      const agent = activeSessionId === undefined ? undefined : ctx.agents.get(SessionId(activeSessionId))
+      const started = Date.now()
+      const line = await translateForVoice(text, agent, language)
+      voiceStats.dubs += 1
+      voiceStats.translateMs += Date.now() - started
+      voiceStats.lastDub = line.slice(0, 200)
+      return line
+    },
     voiceStatus: () => ({ enabled: config.voiceEnabled !== false, available: voiceAvailable, language: config.voiceLanguage ?? 'ja', speaker: pack.voice.speaker ?? config.voiceSpeaker ?? 3 }),
     debugPrompt: async () => {
       const assembly = await ctx.systemPrompt.assemble()
@@ -486,7 +499,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // ---- voice ----
   const voiceClips = new Map<string, Buffer>()
-  const voiceStats = { calls: 0, ok: 0, failed: 0, translateMs: 0, synthMs: 0, lastError: '' }
+  const voiceStats = { calls: 0, ok: 0, failed: 0, translateMs: 0, synthMs: 0, lastError: '', dubs: 0, lastDub: '' }
   let voiceSeq = 0
   let voiceAvailable: boolean | undefined
   const voiceUrl = (): string => config.voicevoxUrl ?? 'http://127.0.0.1:50021'
@@ -526,8 +539,8 @@ export function apply(ctx: Context, config: Config): void {
     return voiceAvailable
   }
   if (config.voiceEnabled !== false) void checkVoice()
-  /** One-shot side LLM call: reply → spoken Japanese line. */
-  const translateForVoice = async (text: string, agent: AgentLike | undefined): Promise<string> => {
+  /** One-shot side LLM call: reply → a spoken line in the voice's own language. */
+  const translateForVoice = async (text: string, agent: AgentLike | undefined, target: SpokenLanguage = 'ja'): Promise<string> => {
     const provider = config.judgeProvider ?? agent?.options.provider ?? defaultSelection()?.provider
     const model = config.judgeModel ?? agent?.options.model ?? defaultSelection()?.model
     if (provider === undefined || model === undefined) throw new Error('no llm route for translation')
@@ -540,7 +553,7 @@ export function apply(ctx: Context, config: Config): void {
       maxTokens: 2048,
       signal: AbortSignal.timeout(15000),
       messages: [createUserMessage({
-        content: [{ type: 'text', text: translationPrompt(text, pack.name, pack.persona) }],
+        content: [{ type: 'text', text: translationPrompt(text, pack.name, pack.persona, target) }],
         source: { kind: 'plugin', plugin: name },
       })],
     }

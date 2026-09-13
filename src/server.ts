@@ -35,6 +35,8 @@ export interface GalServerOptions {
   saveCharacter: (patch: { name?: string; greeting?: string; persona?: string; memory?: string; playbackRate?: number }) => void
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
+  /** Rewrite a dialogue line into the selected voice's language before synthesis. */
+  spokenLine?: (text: string, language: 'zh' | 'en' | 'ja') => Promise<string>
   /** WAV bytes of a synthesized line, if still cached. */
   voiceClip: (id: string) => Buffer | undefined
   /** VOICEVOX speaker list (empty when the engine is not running). */
@@ -70,7 +72,7 @@ export class GalServer {
   private readonly backlog: GalEvent[] = []
   private server: Server | undefined
 
-  constructor(private readonly options: GalServerOptions) {}
+  constructor(private readonly options: GalServerOptions) { this.speech.dub = options.spokenLine }
 
   /** Push one event to every connected client and remember it for replays. */
   broadcast(event: GalEvent): void {

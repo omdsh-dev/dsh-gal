@@ -7,17 +7,35 @@
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
-    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
     "./package.json": "./package.json"
   },
-  "files": ["lib", "web", "assets/sprites", "assets/motion"],
+  "files": [
+    "lib",
+    "web",
+    "assets/sprites",
+    "assets/motion"
+  ],
   "license": "BSD-3-Clause",
-  "engines": { "dsh": ">=0.0.1" },
+  "engines": {
+    "dsh": ">=0.0.1"
+  },
   "dshx": {
-    "contributes": { "tools": [], "skills": [] }
+    "contributes": {
+      "tools": [],
+      "skills": []
+    }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "start": "node scripts/launch.mjs choose",
+    "start:desktop": "node scripts/launch.mjs desktop",
+    "start:web": "node scripts/launch.mjs web",
+    "build:ui": "npm --prefix ui run build",
+    "check:ui": "npm --prefix ui run check"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1",

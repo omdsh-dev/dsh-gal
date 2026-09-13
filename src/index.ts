@@ -593,7 +593,8 @@ export function apply(ctx: Context, config: Config): void {
         const provisional = heuristicEmotion(text)
         const messageId = `m${++voiceSeq}`
         server.broadcast({ type: 'assistant', id: messageId, text, emotion: provisional, judge: 'pending' })
-        void speak(messageId, text, agent)
+        // Speech is requested by the frontend with its selected provider.
+        // Avoid a second, unsolicited VOICEVOX synthesis / translation.
         void judgeEmotion(text, agent).then(({ emotion, judge, judgeError }) => {
           if (emotion !== provisional || judge === 'llm') server.broadcast({ type: 'emotion', emotion, judge, ...judgeError === undefined ? {} : { judgeError } })
         })

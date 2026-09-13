@@ -19,8 +19,9 @@
 
   // ---------- character manifest / theme ----------
   function applyManifest(m) {
+    if(manifest.characterId && manifest.characterId!==m.characterId)window.dispatchEvent(new Event('gal-character-changed'));
     manifest = m;
-    $('char-name').textContent = m.characterName;
+    $('char-name').textContent = window.galCharacter.state.mode==='live2d'?window.galCharacter.name:m.characterName;
     document.title = `${m.characterName} · dsh-gal`;
     const theme = m.theme || {};
     const root = document.documentElement.style;
@@ -37,19 +38,28 @@
       activeLayer = null;
     }
     setEmotion(m.defaultEmotion);
+    currentEmotion='';renderSprite(window.galCharacter.state.emotion);
   }
+
+  window.addEventListener('gal-character-state',event=>{
+    const state=event.detail;
+    const name=state.mode==='live2d'?window.galCharacter.name:manifest.characterName;
+    $('char-name').textContent=name;document.title=`${name} · dsh-gal`;
+    emotionTag.textContent=window.galCharacter.text(state.emotion==='neutral'?'idle':state.emotion);
+    renderSprite(state.emotion);
+  });
 
   function renderCharacterList() {
     const list = $('char-list');
     list.textContent = '';
     for (const entry of manifest.characters || []) {
-      const btn = document.createElement('button');
+      const btn = window.galUi.button();
       btn.type = 'button';
-      btn.className = 'char-option' + (entry.id === manifest.characterId ? ' active' : '');
+      btn.className += ' char-option' + (entry.id === manifest.characterId ? ' active' : '');
       btn.textContent = entry.promptOnly ? `${entry.name} (prompt only)` : entry.name;
       btn.title = entry.id;
       btn.addEventListener('click', async () => {
-        $('char-picker').classList.add('hidden');
+        closeOverlays();
         if (entry.id === manifest.characterId) return;
         try {
           const res = await fetch(withToken('/character'), {
@@ -64,14 +74,46 @@
       list.appendChild(btn);
     }
   }
-  function toggleCharPicker() { $('char-picker').classList.toggle('hidden'); }
+  function toggleCharPicker() { showOverlay('char-picker', $('char-picker').classList.contains('hidden')); }
 
   // ---------- overlays: editor + gallery ----------
-  function showOverlay(id, value) {
-    $(id).classList.toggle('hidden', !value);
-    if (value) { $('history').classList.add('hidden'); $('char-picker').classList.add('hidden'); }
+  const overlayIds=['character-hub','history','help-panel','speech-panel'];
+  let overlayRequest=0,returnFocus=null;
+  const activeOverlay=()=>overlayIds.map($).find(el=>!el.classList.contains('hidden'));
+  function closeOverlays(){
+    overlayRequest++;
+    const open=activeOverlay();
+    if(open)window.dispatchEvent(new Event('gal-overlay-closed'));
+    [...overlayIds,'editor','gallery','char-picker'].forEach(id=>$(id).classList.add('hidden'));
+    document.querySelectorAll('#gallery video').forEach(v=>v.pause());
+    window.galUi.close();
+    if(open){(returnFocus?.isConnected?returnFocus:input).focus();returnFocus=null;}
   }
-  document.querySelectorAll('.overlay-close').forEach((btn) => btn.addEventListener('click', () => showOverlay(btn.dataset.close, false)));
+  function showOverlay(id,value){
+    if(!value){closeOverlays();return;}
+    const origin=returnFocus||document.activeElement;
+    closeOverlays();returnFocus=origin;
+    if(['editor','gallery','char-picker'].includes(id)){
+      const view=id;$('character-hub').classList.remove('hidden');$(view).classList.remove('hidden');
+      document.querySelectorAll('[data-character-view]').forEach(button=>{button.classList.toggle('active',button.dataset.characterView===view);button.setAttribute('aria-pressed',String(button.dataset.characterView===view));});
+      id='character-hub';
+    }
+    $(id).classList.remove('hidden');
+    window.galUi.open(id);
+    const first=[...$(id).querySelectorAll('button,input,textarea,select')].find(el=>!el.disabled&&el.tabIndex>=0&&el.getClientRects().length);
+    (first||$(id).closest('[role=dialog]')).focus();
+  }
+  window.addEventListener('gal-request-close',closeOverlays);
+  $('btn-help').onclick=()=>showHelp();
+  $('btn-restore').onclick=()=>setUiHidden(false);
+  $('btn-speech-settings').onclick=()=>{window.galVoice.stop();showOverlay('speech-panel',true);void window.galSpeechSettings.load();};
+  document.querySelectorAll('.overlay-close').forEach(btn=>btn.addEventListener('click',closeOverlays));
+  document.addEventListener('keydown',ev=>{
+    if(ev.isComposing)return;
+    if(ev.key==='Escape'){ev.preventDefault();ev.stopImmediatePropagation();closeOverlays();setUiHidden(false);return;}
+    const modal=activeOverlay();if(!modal)return;
+    if(!ev.target.closest('input,textarea,select,button,[contenteditable=true]'))ev.stopImmediatePropagation();
+  },true);
 
   let characterConfig = null;
   async function loadCharacterConfig() {
@@ -81,8 +123,10 @@
     return characterConfig;
   }
   async function openEditor() {
+    const ticket=++overlayRequest;
     try {
       const c = await loadCharacterConfig();
+      if(ticket!==overlayRequest)return;
       $('editor-title').textContent = `${c.name} · persona & memory`;
       $('ed-name').value = c.name;
       $('ed-greeting').value = c.greeting;
@@ -145,8 +189,10 @@
   }
 
   async function openGallery() {
+    const ticket=++overlayRequest;
     try {
       const c = await loadCharacterConfig();
+      if(ticket!==overlayRequest)return;
       $('gallery-title').textContent = `${c.name} · sprites & loops`;
       const grid = $('gallery-grid');
       grid.textContent = '';
@@ -159,8 +205,8 @@
         const cap = document.createElement('div');
         cap.className = 'g-cap';
         cap.textContent = `${asset.emotion}${asset.video ? ' · ' + asset.video : ''}${asset.image ? ' · ' + asset.image : ''}${asset.image || asset.video ? '' : ' · missing'}`;
-        const up = document.createElement('button');
-        up.type = 'button'; up.className = 'g-up'; up.textContent = '↑'; up.title = `Upload a .png or .mp4 for ${asset.emotion}`;
+        const up = window.galUi.button();
+        up.type = 'button'; up.className += ' g-up'; up.textContent = '↑'; up.title = `Upload a .png or .mp4 for ${asset.emotion}`;
         up.addEventListener('click', (ev) => { ev.stopPropagation(); pickAsset(asset.emotion); });
         tile.append(media, cap, up);
         tile.addEventListener('click', () => { if (manifest.emotions[asset.emotion]) { setEmotion(asset.emotion); } });
@@ -207,7 +253,7 @@
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
-      $('char-picker').classList.add('hidden');
+      closeOverlays();
       const hint = file.name.replace(/\.zip$/i, '').replace(/-pack$/i, '');
       say(`Importing ${file.name}…`, 'thinking');
       try {
@@ -221,22 +267,25 @@
     input.click();
   });
   $('btn-export').addEventListener('click', () => {
-    $('char-picker').classList.add('hidden');
+    closeOverlays();
     const a = document.createElement('a');
     a.href = withToken('/character/export');
     a.download = `${manifest.characterId || 'character'}.zip`;
     document.body.appendChild(a); a.click(); a.remove();
   });
 
-  /** Put a line in the dialogue box without touching the session. */
-  function say(text, emotion) {
-    msgQueue.length = 0;
-    msgQueue.push({ text, emotion });
-    typing = false; waitingAdvance = false; pageRest = '';
-    clearTimeout(typeTimer);
-    playNext();
+  // Utility results are UI notices, never character dialogue or speech.
+  let noticeTimer;
+  function say(text){$('ui-notice').textContent=text;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('ui-notice').textContent='',6500);}
+  function showHelp(){
+    window.galVoice.stop();
+    const language=window.galVoice.language;
+    const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定和记忆','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','設定とメモリを編集','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
+    $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
+    $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
+    $('help-keys').textContent={zh:'ESC 关闭面板 · Enter 发送 · 点击对白继续 · L 记录 · V 自动朗读。输入时快捷键不会触发。',ja:'ESC で閉じる · Enter で送信 · L 履歴 · V 音声。入力中はショートカット無効。',en:'ESC closes panels · Enter sends · Click dialogue to advance · L history · V auto voice. Shortcuts are inactive while typing.'}[language];
+    showOverlay('help-panel',true);
   }
-
   // ---------- slash commands ----------
   const COMMANDS = {
     '/new': 'start a fresh session (the current one stays in dsh web)',
@@ -267,10 +316,10 @@
         return;
       case '/edit': openEditor(); return;
       case '/gallery': openGallery(); return;
-      case '/voice': toggleVoice(); say(voiceOn ? 'Voice on.' : 'Voice off.', 'neutral'); return;
+      case '/voice': toggleVoice(); say('Voice preference updated.', 'neutral'); return;
       case '/log': toggleHistory(); return;
       case '/help':
-        say(Object.entries(COMMANDS).map(([k, v]) => `${k} — ${v}`).join('\n'), 'neutral');
+        showHelp();
         return;
       default:
         say(`Unknown command ${cmd}. Try /help.`, 'surprised');
@@ -278,15 +327,19 @@
   }
   let currentEmotion = '';
   let activeLayer = null; // which video layer is showing
-  let busy = false;
+  let busy = false, sending = false;
   let autoMode = false;
 
   // ---------- character emotion layers ----------
   function setEmotion(name) {
+    window.dispatchEvent(new CustomEvent('gal-emotion',{detail:{emotion:name}}));
+  }
+  function renderSprite(name){
+    if(window.galCharacter.state.mode==='live2d'){layerA.pause();layerB.pause();currentEmotion='';return;}
     const emo = manifest.emotions[name] ? name : manifest.defaultEmotion;
     if (emo === currentEmotion) return;
     currentEmotion = emo;
-    emotionTag.textContent = emo;
+
     const asset = manifest.emotions[emo];
     if (!asset) return;
     if (asset.video) {
@@ -313,6 +366,16 @@
   let typeTimer = null;
   let autoTimer = null;
 
+
+  function updateAdvanceButton(){
+    const button=$('btn-skip');const lang=window.galVoice.language;
+    button.hidden=!typing&&!waitingAdvance;
+    button.textContent=typing?({zh:'立即显示',en:'Reveal now',ja:'すぐに表示'}[lang]):({zh:'继续',en:'Continue',ja:'続ける'}[lang]);
+    button.title=button.textContent;
+  }
+  window.addEventListener('gal-language',updateAdvanceButton);
+  updateAdvanceButton();
+
   function overflowing() {
     const win = $('text-window');
     return win.scrollHeight > win.clientHeight + 2;
@@ -331,7 +394,7 @@
   }
 
   function typePage() {
-    typing = true;
+    typing = true;updateAdvanceButton();
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
     const step = () => {
@@ -363,11 +426,13 @@
       advance.classList.remove('hidden');
       if (autoMode) autoTimer = setTimeout(advanceNow, 2400);
     }
+    updateAdvanceButton();
   }
 
   function revealRestOfPage() {
     // fast-forward: fill until the window is full (or text ends)
     clearTimeout(typeTimer);
+    dialogueText.querySelector('.cursor')?.remove();
     while (pageRest.length > 0) {
       const ch = pageRest[0];
       dialogueText.textContent += ch;
@@ -386,30 +451,17 @@
     clearTimeout(autoTimer);
     if (typing) { revealRestOfPage(); return; }
     if (!waitingAdvance) return;
+    window.galVoice.stop();
     if (pageRest.length > 0) { nextPage(); return; }
-    waitingAdvance = false;
+    waitingAdvance = false;updateAdvanceButton();
     advance.classList.add('hidden');
     playNext();
   }
 
   // ---------- voice ----------
-  const voiceAudio = new Audio();
-  const pendingVoice = new Map(); // message id → clip url (arrived before the line was shown)
   let currentMessageId = null;
-  let voiceOn = localStorage.getItem('gal-voice') !== 'off';
-  function renderVoiceButton() { $('btn-voice').classList.toggle('active', voiceOn); $('btn-voice').textContent = voiceOn ? 'VOICE' : 'MUTE'; }
-  function toggleVoice() {
-    voiceOn = !voiceOn;
-    localStorage.setItem('gal-voice', voiceOn ? 'on' : 'off');
-    if (!voiceOn) { voiceAudio.pause(); }
-    renderVoiceButton();
-  }
-  function playVoice(url) {
-    if (!voiceOn) return;
-    try { voiceAudio.pause(); voiceAudio.src = withToken(url); voiceAudio.currentTime = 0; voiceAudio.play().catch(() => {}); } catch (_) { /* autoplay policy */ }
-  }
+  function toggleVoice() { return window.galVoice.toggle(); }
   $('btn-voice').addEventListener('click', toggleVoice);
-  renderVoiceButton();
 
   function playNext() {
     if (typing || waitingAdvance) return;
@@ -418,7 +470,7 @@
     if (next.emotion) setEmotion(next.emotion);
     currentMessageId = next.id || null;
     beginMessage(next.text);
-    if (currentMessageId && pendingVoice.has(currentMessageId)) { playVoice(pendingVoice.get(currentMessageId)); pendingVoice.delete(currentMessageId); }
+    window.galVoice.setMessage(currentMessageId, next.text);
   }
 
   // VN conventions: click anywhere on the stage advances; right-click (or H)
@@ -428,18 +480,20 @@
   }
   $('stage').addEventListener('click', (ev) => {
     const el = ev.target;
+    if(activeOverlay()||el.closest('button,input,textarea,select,a,label,summary,[role=button],#motion-debug-panel'))return;
     if (el.closest('#input-row') || el.closest('#menu-row') || el.closest('#history') || el.closest('#char-picker') || el.closest('.overlay')) return;
-    if (!$('char-picker').classList.contains('hidden')) { $('char-picker').classList.add('hidden'); return; }
+    if (!$('char-picker').classList.contains('hidden')) { closeOverlays(); return; }
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
     advanceNow();
   });
   $('stage').addEventListener('contextmenu', (ev) => {
-    if (ev.target.closest('#history')) return;
+    if (activeOverlay()||ev.target.closest('input,textarea,select,[contenteditable=true]')) return;
     ev.preventDefault();
     setUiHidden(!document.body.classList.contains('ui-hidden'));
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.target === input || ev.target.closest('#editor')) return;
+    if(ev.isComposing||ev.metaKey||ev.altKey||ev.ctrlKey&&ev.key!=='Control'||activeOverlay())return;
+    if (ev.target.closest('input,textarea,select,button,[contenteditable=true]') || ev.target.closest('#editor')) return;
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
     if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); advanceNow(); }
     if (ev.key === 'Control') revealRestOfPage();
@@ -450,9 +504,9 @@
     if (ev.key === 'c' || ev.key === 'C') toggleCharPicker();
     if (ev.key === 'e' || ev.key === 'E') openEditor();
     if (ev.key === 'g' || ev.key === 'G') openGallery();
-    if (ev.key === 'Escape') { $('char-picker').classList.add('hidden'); showOverlay('editor', false); showOverlay('gallery', false); }
   });
   $('btn-char').addEventListener('click', toggleCharPicker);
+  $('btn-character-select').addEventListener('click',()=>showOverlay('char-picker',true));
   $('btn-skip').addEventListener('click', () => { if (typing) revealRestOfPage(); else advanceNow(); });
   $('btn-hide').addEventListener('click', () => setUiHidden(true));
 
@@ -472,7 +526,7 @@
     historyList.appendChild(entry);
   }
   function toggleHistory() {
-    historyEl.classList.toggle('hidden');
+    showOverlay('history',historyEl.classList.contains('hidden'));
     if (!historyEl.classList.contains('hidden')) historyList.scrollTop = historyList.scrollHeight;
   }
   $('btn-history').addEventListener('click', toggleHistory);
@@ -481,6 +535,7 @@
   function toggleAuto() {
     autoMode = !autoMode;
     $('btn-auto').classList.toggle('active', autoMode);
+    clearTimeout(autoTimer);
     if (autoMode && waitingAdvance) autoTimer = setTimeout(advanceNow, 1200);
   }
   $('btn-auto').addEventListener('click', toggleAuto);
@@ -488,9 +543,9 @@
   // ---------- busy / ticker ----------
   function setBusy(value) {
     busy = value;
-    btnSend.disabled = value;
+    window.dispatchEvent(new CustomEvent('gal-busy',{detail:{busy:value}}));
+    btnSend.disabled = sending;
     if (value) {
-      setEmotion('thinking');
       ticker.classList.remove('hidden');
       if (tickerText.textContent === '') tickerText.textContent = 'thinking…';
     } else {
@@ -500,12 +555,16 @@
   }
 
   // ---------- input ----------
+  input.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.isComposing){ev.preventDefault();ev.stopPropagation();}});
   $('input-row').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const text = input.value.trim();
     if (text === '') return;
+    if(ev.isComposing)return;
     if (text.startsWith('/')) { input.value = ''; runCommand(text); return; }
-    if (busy) return;
+    if (sending) return;
+    sending=true;btnSend.disabled=true;
+    interruptPresentation();
     input.value = '';
     try {
       const res = await fetch(withToken('/send'), {
@@ -515,15 +574,21 @@
       });
       if (!res.ok) throw new Error(await res.text());
     } catch (err) {
-      msgQueue.push({ text: `(failed to send: ${err.message})`, emotion: 'sad' });
-      playNext();
-    }
+      if(!input.value)input.value=text;
+      say(`发送失败：${err.message}`);
+    } finally {sending=false;btnSend.disabled=false;if(!activeOverlay())input.focus();}
   });
 
+  function interruptPresentation(){
+    window.dispatchEvent(new Event('gal-dialogue-interrupt'));
+    window.galVoice.stop();clearTimeout(typeTimer);clearTimeout(autoTimer);
+    msgQueue.length=0;typing=false;waitingAdvance=false;pageRest='';updateAdvanceButton();advance.classList.add('hidden');dialogueText.querySelector('.cursor')?.remove();
+  }
   // ---------- event stream ----------
   function handleEvent(ev) {
     switch (ev.type) {
       case 'user':
+        interruptPresentation();
         pushHistory('user', ev.text);
         $('last-user').classList.remove('hidden');
         $('last-user-text').textContent = ev.text;
@@ -551,15 +616,14 @@
         break;
       case 'voice':
         if (ev.line && ev.line !== '') pushHistory('voice', ev.line);
-        if (ev.id === currentMessageId) playVoice(ev.url);
-        else pendingVoice.set(ev.id, ev.url);
+        window.galVoice.receive(ev.id, withToken(ev.url));
         break;
       case 'session': {
         history.length = 0;
         historyList.textContent = '';
         $('last-user').classList.add('hidden');
         setBusy(false);
-        say(`${manifest.greeting}`, manifest.defaultEmotion);
+        interruptPresentation();msgQueue.push({text:window.galVoice.greeting(manifest.greeting),emotion:manifest.defaultEmotion});playNext();
         pushHistory('status', `— new session ${ev.id} —`);
         break;
       }
@@ -570,7 +634,7 @@
         applyManifest(ev.manifest);
         if (ev.silent) break;
         msgQueue.length = 0;
-        msgQueue.push({ text: ev.manifest.greeting, emotion: ev.manifest.defaultEmotion });
+        msgQueue.push({ text: window.galVoice.greeting(ev.manifest.greeting), emotion: ev.manifest.defaultEmotion });
         typing = false; waitingAdvance = false; pageRest = '';
         clearTimeout(typeTimer);
         playNext();
@@ -601,7 +665,7 @@
     .then((m) => {
       applyManifest(m);
       connect();
-      const greeting = m.greeting ?? 'Hello! I am listening — say something below.';
+      const greeting = window.galVoice.greeting(m.greeting);
       msgQueue.push({ text: greeting, emotion: m.defaultEmotion });
       playNext();
     })

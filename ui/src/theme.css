@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+ --background: 211 49% 9%; --foreground: 205 32% 94%;
+ --primary: 40 51% 75%; --primary-foreground: 213 45% 12%;
+ --secondary: 208 33% 18%; --secondary-foreground: 202 33% 91%;
+ --muted: 210 29% 16%; --muted-foreground: 207 20% 65%;
+ --ui-accent: 210 32% 23%; --destructive: 0 60% 53%;
+ --border: 208 24% 28%; --input: 210 25% 30%; --ring: 40 51% 75%;
+ --gold: #dec99c; --text: #e9f0f5; --dim: #9db1c1;
+ font-synthesis: none;
+}
+body {font-family:'PingFang SC','Hiragino Sans','Segoe UI',sans-serif;letter-spacing:.015em;}
+[hidden],.hidden {display:none!important;}
+button,input,select,textarea {font-family:inherit!important;}
+button {touch-action:manipulation;}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible {outline:2px solid var(--gold)!important;outline-offset:3px;}
+button:disabled {cursor:not-allowed;opacity:.4;}
+::selection {background:#40657c;color:#fff;}
+* {scrollbar-width:thin;scrollbar-color:#35566b transparent;}
+
+/* The scene stays quiet; global actions live above it. */
+#topbar {padding:24px 32px;align-items:center;}
+#title {font-size:11px;letter-spacing:.26em;color:#dceaf3;text-shadow:0 2px 9px #001b2d;}
+#topbar .app-controls {gap:6px;padding:5px;border:1px solid #95bdd32b;border-radius:12px;background:#071b2bbb;backdrop-filter:blur(20px);}
+#topbar button {height:36px;padding:0 15px;color:#c2d3df;font-size:12px;border-radius:8px;letter-spacing:.04em;}
+#topbar button:hover {color:#fff;background:#c5dce815;}
+#conn-dot {box-shadow:0 0 10px #6ecda333;}
+#dialogue {bottom:26px;width:min(1100px,calc(100vw - 80px));}
+#msgbox {border:1px solid #bed6e542;border-radius:16px;background:linear-gradient(140deg,#0c2336ed,#091523f0);outline:none;box-shadow:0 24px 80px #0007,inset 0 1px #ffffff0a;backdrop-filter:blur(24px);}
+#msgbox::before {width:32px;height:1px;left:32px;top:-1px;border:0;background:var(--gold);opacity:1;}
+#msgbox::after {display:none;}
+#nameplate {top:-17px;left:28px;clip-path:none;border:1px solid #bbd3e440;border-radius:6px;padding:8px 18px;background:#142f44;gap:16px;align-items:center;letter-spacing:.12em;font-size:15px;box-shadow:0 3px 18px #0003;}
+#nameplate::after {display:none;}
+#emotion-tag {font-size:10px;color:var(--gold);letter-spacing:.1em;}
+#text-window {padding:35px 32px 10px;min-height:120px;max-height:27vh;}
+#dialogue-text {font-size:18px;line-height:1.8;font-weight:400;letter-spacing:.025em;text-shadow:none;}
+#advance {right:29px;bottom:13px;}
+#message-tools {padding:4px 24px 12px;gap:4px;min-height:40px;}
+#message-tools button {border-radius:7px;height:30px;padding:5px 10px;font-size:11px;color:#a5bccd;}
+#message-tools button:hover {background:#c5dce810;color:var(--gold);}
+#message-tools #voice-feedback {font-size:11px;color:#a5bccd;padding-right:8px;}
+#box-bottom {padding:14px 24px 16px;gap:8px;border-top:1px solid #a2c5db17;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;}
+#input-row {gap:8px;}
+#input {height:44px;background:#04142066;border:1px solid #a7c6db33;border-radius:9px;font-size:14px;padding:0 15px;box-shadow:none;}
+#input::placeholder {color:#879fb1;}
+#input:focus {border-color:var(--gold);outline:none;}
+#btn-send {height:42px;min-width:72px;border:0;border-radius:8px;background:var(--gold);color:#162a3b;font-size:13px;font-weight:600;padding:0 20px;letter-spacing:.05em;box-shadow:none;}
+#btn-send:hover {background:#ead8b4;filter:none;}
+#menu-row {gap:0;}
+#menu-row button {height:40px;min-width:48px;padding:0 10px;font-size:11px;color:#9fb8ca;border:0;border-radius:7px;letter-spacing:0;}
+#menu-row button:hover {background:#afced710;color:#e8d6af;}
+#menu-row button.active {color:var(--gold);background:#ddc48c12;}
+#ui-notice {grid-column:1/-1;font-size:12px;color:var(--gold);}
+#last-user {font-size:12px;max-width:80%;margin:12px auto 0;text-align:center;opacity:.75;}
+#btn-restore {display:none;position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:60;border:1px solid #acc9d94d;background:#0b2134dd;color:var(--text);backdrop-filter:blur(16px);}
+body.ui-hidden #btn-restore {display:inline-flex;}
+
+/* shadcn Dialog owns backdrop, focus trap, scroll lock and dismissal. */
+[data-state=open][data-aria-hidden] {pointer-events:none;}
+.gal-dialog {width:min(800px,calc(100vw - 48px))!important;max-width:none!important;max-height:calc(100dvh - 80px);padding:0!important;gap:0!important;display:flex!important;flex-direction:column;border:1px solid #8eb5ce44;border-radius:18px!important;background:linear-gradient(150deg,#10283cf5,#081724fa);box-shadow:0 40px 120px #0009,0 0 0 1px #ffffff05;backdrop-filter:blur(28px);color:var(--text);overflow:hidden;}
+.gal-dialog > button {top:19px;right:21px;width:30px;height:30px;display:grid;place-items:center;border:1px solid #a0bed22b;border-radius:8px;color:#bad0df;opacity:1;}
+.gal-dialog > button:hover {background:#c9dee51c;color:#fff;}
+.panel-mount {min-height:0;overflow:auto;width:100%;}
+.gal-dialog .gal-panel {position:static!important;inset:auto!important;transform:none!important;width:100%!important;max-width:none!important;max-height:none!important;min-height:0;background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;overflow:visible!important;display:flex;flex-direction:column;}
+.gal-dialog .overlay-head,.gal-dialog #history-head {padding:25px 28px 22px;border-bottom:1px solid #a6c9df20;min-height:70px;color:#e4eef5;font-size:18px;font-weight:500;letter-spacing:.08em;background:transparent;}
+.gal-dialog .overlay-body {padding:24px 28px;gap:18px;overflow:visible;}
+.gal-dialog label,.gal-dialog .language-control {display:flex;flex-direction:column;align-items:stretch;gap:9px;white-space:normal;font-size:12px;line-height:1.5;letter-spacing:.025em;color:#a7bdcd;min-width:0;}
+.gal-dialog input:not([type=checkbox]),.gal-dialog textarea,.gal-dialog select {height:42px;min-width:0;max-width:100%;border:1px solid #8faec332!important;border-radius:8px!important;background:#05162588!important;color:#e6eef5!important;font:inherit!important;font-size:14px!important;padding:10px 12px!important;box-shadow:inset 0 1px 4px #0001;}
+.gal-dialog textarea {height:auto;min-height:80px;line-height:1.65!important;resize:vertical;}
+.gal-dialog select {padding-right:30px!important;color-scheme:dark;}
+.gal-dialog input:focus,.gal-dialog textarea:focus,.gal-dialog select:focus {border-color:var(--gold)!important;outline:none;}
+.gal-dialog button[data-slot=button] {height:38px;padding:8px 14px;font:inherit;font-size:12px;border-radius:8px;letter-spacing:.015em;}
+.gal-dialog button:hover {background-color:#a8c9e017;}
+.gal-dialog #ed-save,.gal-dialog #speech-save {background:var(--gold);color:#132b3c;border:0;font-weight:600;}
+.gal-dialog .character-tabs {margin:20px 28px 0;padding:4px;border:1px solid #b6d0e119;border-radius:10px;background:#03142270;gap:4px;}
+.gal-dialog .character-tabs button {flex:1;border:0;color:#93adbf;}
+.gal-dialog .character-tabs button.active {background:#28465a;color:#f0e1c2;box-shadow:0 2px 6px #0002;border:0;}
+.gal-dialog .character-display-settings {margin:0;padding:22px 28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;border-bottom:1px solid #9fbacf20;align-items:start;}
+.gal-dialog .character-display-settings select {width:100%;height:42px;}
+.gal-dialog #motion-details {grid-column:1/-1;font-size:12px;}
+.gal-dialog #motion-details summary {padding:7px 0;color:#93adbf;}
+.gal-dialog #character-motion-host .live2d-controls {border-radius:10px;background:#071d2f;max-height:230px;margin:8px 0 0;width:100%;}
+.gal-dialog .motion-buttons {grid-template-columns:repeat(4,minmax(0,1fr));}
+.gal-dialog .live2d-controls button {padding:6px;font-size:11px;border:1px solid #9fbed426;background:#1c3b50;}
+.gal-dialog .live2d-controls label {flex-direction:row;align-items:center;}
+.gal-dialog .native-checkbox,.gal-dialog input[type=checkbox] {height:16px;width:16px;min-width:16px;accent-color:var(--gold);padding:0;border-radius:4px;}
+.gal-dialog #char-list {display:grid;grid-template-columns:1fr 1fr;padding:20px 28px;gap:8px;max-height:36vh;overflow:auto;}
+.gal-dialog .char-option {height:auto;min-height:44px;justify-content:flex-start;padding:12px 14px;border:1px solid #a8c4d31a;background:#081a2b66;color:#c9d9e5;border-radius:9px;white-space:normal;}
+.gal-dialog .char-option.active {background:#31516566;color:#efdeb9;border-color:#d9c39577;}
+.gal-dialog #char-picker-foot {gap:10px;padding:16px 28px;border-top:1px solid #a2c2d61f;}
+.gal-dialog #char-picker-foot button {border:1px solid #a2c2d62b;color:#b6cad9;background:transparent;}
+.gal-dialog #gallery-grid {padding:22px 28px;gap:14px;}
+.gal-dialog .g-tile {border-radius:10px;border-color:#9eb8ca2f;}
+.gal-dialog .g-up {opacity:1;width:30px;height:30px;padding:0;}
+.gal-dialog #gallery-hint {padding:0 28px 24px;line-height:1.8;font-size:12px;}
+.gal-dialog .general-settings {border:1px solid #9fbcd52b;border-radius:12px;padding:18px;background:#16324655;}
+.gal-dialog .language-settings {width:100%;display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0;}
+.gal-dialog #btn-voice {border:1px solid #b2ccde44;}
+.gal-dialog #speech-panel .speech-intro {color:#b1c6d4;margin:2px 0 0;font-size:13px;}
+.gal-dialog #speech-panel p {line-height:1.7;}
+.gal-dialog #speech-panel .speech-muted {font-size:12px;color:#8fa9bc;}
+.gal-dialog .speech-grid {gap:18px;}
+.gal-dialog .speech-checkbox {flex-direction:row;align-items:center;}
+.gal-dialog .speech-actions {padding-top:16px;border-top:1px solid #9bbbd02b;gap:8px;}
+.gal-dialog .speech-actions button {border:1px solid #a8c4d633;}
+.gal-dialog #speech-status:empty {display:none;}
+.gal-dialog #history-list {padding:0 28px 24px;max-height:65vh;overflow:auto;}
+.gal-dialog .h-entry {padding:20px 0;border-color:#9bbacf20;display:block;}
+.gal-dialog .h-role {font-size:11px;color:var(--gold);margin-bottom:8px;}
+.gal-dialog .h-text {font-size:14px;line-height:1.8;user-select:text;}
+.gal-dialog #help-list>div {font-size:13px;padding:14px 0;grid-template-columns:100px 1fr;}
+.gal-dialog #help-list code {color:var(--gold);font-size:12px;}
+.gal-dialog #help-keys {font-size:12px;}
+@media(max-width:760px){
+ #topbar{padding:16px;}#title{font-size:10px;letter-spacing:.14em;}
+ #topbar button{padding:0 10px;font-size:11px;}#topbar .app-controls{gap:0;}
+ #dialogue{width:calc(100vw - 28px);bottom:14px;}#nameplate{left:18px;}
+ #text-window{padding:30px 22px 8px;min-height:110px;}#dialogue-text{font-size:16px;}
+ #box-bottom{grid-template-columns:minmax(0,1fr);padding:12px 16px;gap:4px;}#menu-row{justify-content:flex-end;}
+ #message-tools{padding:4px 14px 8px;}#message-tools #voice-feedback{flex-basis:100%;padding:0 10px;}
+ .gal-dialog{width:calc(100vw - 24px)!important;max-height:calc(100dvh - 28px);border-radius:14px!important;}
+ .gal-dialog .overlay-head,.gal-dialog #history-head{padding:23px 20px;font-size:16px;}
+ .gal-dialog .overlay-body{padding:20px!important;}
+ .gal-dialog .character-tabs{margin:16px 16px 0;}.gal-dialog .character-tabs button{padding:8px 6px;font-size:11px;}
+ .gal-dialog .character-display-settings{padding:18px 20px;grid-template-columns:1fr 1fr;gap:12px;}
+ .gal-dialog #char-list{padding:16px 20px;}.gal-dialog #char-picker-foot{padding:16px 20px;}
+ .gal-dialog .motion-buttons{grid-template-columns:repeat(3,minmax(0,1fr));}
+ .gal-dialog #gallery-grid{grid-template-columns:1fr 1fr;padding:20px;}
+ .gal-dialog .speech-grid{grid-template-columns:1fr;}
+ .gal-dialog .general-settings{padding:14px;}.gal-dialog .language-settings{gap:10px;}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+.gal-dialog input:not([type=checkbox]),.gal-dialog textarea,.gal-dialog select {font-weight:400!important;}
+.gal-dialog #character-hub:has(#editor:not(.hidden)) .character-display-settings {display:none;}
+body[data-character-renderer="sprite"] .language-control:has(#live2d-model) {display:none;}
+.gal-dialog .overlay-actions {position:sticky;bottom:-24px;padding:14px 0;background:#0b1e2d;justify-content:flex-end;border-top:1px solid #a4c4d528;}
+.gal-dialog #ed-path {display:none;}
+/* The fixed deep-sea backdrop stays behind both sprite and Live2D renderers. */
+#scene-background {position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:url("/assets/undersea.png") center/cover no-repeat;}
+.gal-dialog #speech-refresh-voices {align-self:flex-start;height:28px;padding:3px 0;color:var(--gold);font-size:11px;}
+#speech-voices-status {font-size:11px;line-height:1.5;color:var(--dim);}
+#speech-voices-status:empty {display:none;}
+.gal-dialog .motion-debug-setting {grid-column:1/-1;display:flex;flex-direction:row;align-items:center;justify-content:space-between;cursor:pointer;font-size:12px;}
+.gal-dialog #motion-debug-toggle {appearance:none;width:36px;height:21px;padding:2px;border-radius:999px;border:1px solid #91aec655;background:#243949;cursor:pointer;flex:none;}
+.gal-dialog #motion-debug-toggle::before {content:'';display:block;width:15px;height:15px;border-radius:50%;background:#b0c5d3;transition:transform .15s;}
+.gal-dialog #motion-debug-toggle:checked {background:#7d6743;border-color:var(--gold);}
+.gal-dialog #motion-debug-toggle:checked::before {transform:translateX(15px);background:#f4dfb5;}
+#motion-debug-panel {position:fixed;z-index:35;top:82px;right:28px;width:300px;max-width:calc(100vw - 32px);max-height:48dvh;overflow:auto;border:1px solid #a6c3d43b;border-radius:12px;background:#0a2032ed;box-shadow:0 12px 35px #0004;backdrop-filter:blur(14px);padding:12px;}
+#motion-debug-panel[hidden],body.ui-hidden #motion-debug-panel {display:none;}
+.motion-debug-heading {display:flex;align-items:center;justify-content:space-between;color:var(--gold);font-size:12px;letter-spacing:.08em;}
+#motion-debug-close {width:28px;height:28px;padding:0;font-size:20px;}
+#motion-debug-panel #character-motion-host .live2d-controls {background:transparent;border:0;padding:0;margin:8px 0 0;max-height:none;backdrop-filter:none;}
+#motion-debug-panel .live2d-controls label {display:flex;align-items:center;gap:6px;font-size:12px;}
+#motion-debug-panel .live2d-controls label span {width:auto;}
+@media(max-width:760px){#motion-debug-panel{top:70px;right:16px;width:250px;max-height:38dvh;}}

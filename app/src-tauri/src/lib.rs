@@ -231,6 +231,23 @@ fn kill_tree(child: &mut Child) {
 }
 
 fn boot(app: AppHandle) {
+    // Explicit launcher mode: attach to the same current UI as the browser.
+    // The launcher owns its services, so closing this shell must not kill them.
+    if std::env::var("DSH_GAL_USE_PREVIEW").as_deref() == Ok("1") {
+        let url = "http://127.0.0.1:4878/";
+        let ready = ureq::get("http://127.0.0.1:4878/_gal/health")
+            .config().timeout_global(Some(Duration::from_secs(3))).build().call()
+            .map(|response| response.status() == 200).unwrap_or(false);
+        if ready {
+            emit(&app, "ready", url);
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window.navigate(url.parse().unwrap()) {
+                    emit(&app, "error", error.to_string());
+                }
+            }
+        } else { emit(&app, "error", "界面服务尚未启动，请使用启动客户端.command。"); }
+        return;
+    }
     let root = app_support();
     let result: Result<(), String> = (|| {
         if gal_alive() {

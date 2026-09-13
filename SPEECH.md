@@ -1,0 +1,22 @@
+# Voice providers
+
+Open **语音设置 / Voice settings** in the dialogue toolbar. Chinese, English and Japanese each have an independent provider/model/voice profile. The speech language selector determines which profile dialogue playback uses; it does not translate dialogue.
+
+Default: free installed macOS system speech (Tingting / Samantha / Kyoko), with no cloud requests or API key. This is system TTS, not a newly installed neural model. Japanese can also use the free local VOICEVOX engine on 127.0.0.1:50021 with a speaker style ID.
+
+Cloud providers:
+- ElevenLabs: Multilingual v2, Eleven v3, Flash v2.5; supply a voice ID and your API key. https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+- Fish Audio: S2.1 Pro, S2 Pro, S1; supply a reference_id and your API key. https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech
+- MiniMax: Speech 2.8 HD/Turbo and 2.6 HD; separate China and Global endpoints/keys. A system voice is prefilled for each language and can be replaced. https://platform.minimax.io/docs/api-reference/speech-t2a-http and https://platform.minimaxi.com/docs/api-reference/speech-t2a-http
+
+Preview uses the current unsaved form values and the matching saved key if the key input is blank. Save applies the profile to future dialogue. Switching language/provider discards unsaved form changes. Stop or ESC cancels a preview. Sending a new message cancels pending dialogue audio; late legacy VOICEVOX events are ignored. No cloud error silently switches to another provider. A cancelled HTTP request cannot guarantee that a cloud provider stops billing work already accepted.
+
+Keys are stored as plaintext in ~/.config/dsh-gal/speech.json with file permissions 0600 (parent created as 0700). They are never returned by the configuration API, placed in browser storage, or included in character exports. The password field stays blank for a saved key. Check the deletion checkbox and Save to remove a provider's saved key. MiniMax China and Global credentials are stored independently. This is a local single-user setup, not an encrypted key vault.
+
+Implementation: src/speech.ts is shared by the plugin server and scripts/live2d-preview.mjs. Compile TypeScript before starting the preview; the preview imports lib/speech.js. Normal build: npm run build. If the checkout's pre-existing pnpm tsc shim is broken, npx --yes --package typescript@5.9.3 tsc -p tsconfig.json also works. Start the existing backend on 4877 and run node scripts/live2d-preview.mjs for the preview on 4878.
+
+Verification: node scripts/check-speech.mjs covers provider request formats, redaction, persistence, deletion, auth/rate/business errors, invalid audio, cancellation, HTTP origin/content-type restrictions and real local zh/en/ja WAV generation. All tests use temporary credentials/config and mocked cloud responses, with no billable cloud calls. Ego Browser verified local preview, Escape cancellation/focus, missing-key feedback, saved profiles and a 390 px layout. Paid provider audio quality remains unverified without the user's own keys.
+
+The running legacy upstream backend may still pre-generate its old VOICEVOX clips until it is restarted with this build. The new frontend ignores them. The updated plugin source removes automatic duplicate generation.
+
+Local voice selection: settings now enumerates installed macOS voices for the configured language instead of locking it to a single default. The dropdown preserves the real voice ID, supports preview/save, and rejects unavailable or wrong-language IDs on the server. VOICEVOX uses its `/speakers` endpoint to list character/style names; cloud providers retain their text Voice ID field. `/voice/voices?provider=local&language=zh` (or `voicevox` / `ja`) exposes only voice metadata under the same local-origin guard. Failed/empty lists disable preview and save until a usable voice is selected; Refresh retries the list. Browser verification covered Meijia playback, saving/reopening, restoring the original Tingting preference, cloud-field switching, and 127 live VOICEVOX character/style options.

@@ -5,6 +5,8 @@
  * ?token=). Static files come from the plugin's own web/ and assets/ dirs.
  */
 
+import { SpeechService } from './speech.js'
+
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { createReadStream, existsSync, rmSync, statSync } from 'node:fs'
 import { dirname, extname, join, normalize, sep } from 'node:path'
@@ -53,6 +55,7 @@ const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json',
   '.png': 'image/png',
   '.webp': 'image/webp',
@@ -62,6 +65,7 @@ const MIME: Record<string, string> = {
 }
 
 export class GalServer {
+  private readonly speech = new SpeechService()
   private readonly clients = new Set<ServerResponse>()
   private readonly backlog: GalEvent[] = []
   private server: Server | undefined
@@ -122,6 +126,8 @@ export class GalServer {
       res.end('unauthorized')
       return
     }
+
+    if (await this.speech.handle(req, res)) return
 
     if (url.pathname === '/events') { this.handleEvents(res); return }
     if (url.pathname === '/manifest.json') {

@@ -12,7 +12,7 @@ import { createReadStream, existsSync, rmSync, statSync } from 'node:fs'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 
 export interface GalEvent {
-  type: 'user' | 'assistant' | 'status' | 'busy' | 'emotion' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice'
+  type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'emotion' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice'
   [key: string]: unknown
 }
 

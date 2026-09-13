@@ -47,10 +47,9 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div id="text-window" tabIndex={0}>
 <p id="dialogue-text">
 </p>
-<div id="advance" className="hidden">{"◆"}</div>
 </div>
 <div id="message-tools" aria-label="当前消息操作">
-<Button type="button" id="btn-skip" title="Reveal instantly (Ctrl)" variant="ghost" data-slot="button">{"SKIP"}</Button>
+<Button type="button" id="btn-skip" hidden={true} variant="ghost" data-slot="button">{"回到最新"}</Button>
 <Button type="button" id="btn-replay" disabled={true} variant="ghost" data-slot="button">{"重读本段"}</Button>
 <Button type="button" id="btn-stop-voice" disabled={true} variant="ghost" data-slot="button">{"停止朗读"}</Button>
 <div id="voice-feedback" role="status" aria-live="polite">
@@ -63,7 +62,6 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 </form>
 <nav id="menu-row" aria-label="对话与应用控制">
 <div className="conversation-controls">
-<Button type="button" id="btn-auto" title="Auto mode (A)" variant="ghost" data-slot="button">{"AUTO"}</Button>
 <Button type="button" id="btn-history" title="Backlog (L)" variant="ghost" data-slot="button">{"LOG"}</Button>
 </div>
 </nav>

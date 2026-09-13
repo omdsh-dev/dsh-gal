@@ -9,7 +9,6 @@
   const $ = (id) => document.getElementById(id);
   const layerA = $('layer-a'), layerB = $('layer-b'), layerImg = $('layer-img');
   const dialogueText = $('dialogue-text');
-  const advance = $('advance');
   const ticker = $('ticker'), tickerText = $('ticker-text');
   const historyEl = $('history'), historyList = $('history-list');
   const input = $('input'), btnSend = $('btn-send');
@@ -129,7 +128,7 @@
       if(ticket!==overlayRequest)return;
       $('editor-title').textContent = `${c.name} · persona & memory`;
       $('ed-name').value = c.name;
-      $('ed-greeting').value = c.greeting;
+      $('ed-greeting').value = window.galVoice.greeting(c.greeting);
       $('ed-persona').value = c.persona;
       $('ed-memory').value = c.memory;
       $('ed-rate').value = c.playbackRate || 1;
@@ -283,7 +282,7 @@
     const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定和记忆','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','設定とメモリを編集','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
     $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
     $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
-    $('help-keys').textContent={zh:'ESC 关闭面板 · Enter 发送 · 点击对白继续 · L 记录 · V 自动朗读。输入时快捷键不会触发。',ja:'ESC で閉じる · Enter で送信 · L 履歴 · V 音声。入力中はショートカット無効。',en:'ESC closes panels · Enter sends · Click dialogue to advance · L history · V auto voice. Shortcuts are inactive while typing.'}[language];
+    $('help-keys').textContent={zh:'ESC 关闭面板 · Enter 发送 · L 记录 · V 自动朗读。输入时快捷键不会触发。',ja:'ESC で閉じる · Enter で送信 · L 履歴 · V 音声。入力中はショートカット無効。',en:'ESC closes panels · Enter sends · L history · V auto voice. Shortcuts are inactive while typing.'}[language];
     showOverlay('help-panel',true);
   }
   // ---------- slash commands ----------
@@ -328,7 +327,6 @@
   let currentEmotion = '';
   let activeLayer = null; // which video layer is showing
   let busy = false, sending = false;
-  let autoMode = false;
 
   // ---------- character emotion layers ----------
   function setEmotion(name) {
@@ -357,104 +355,74 @@
     }
   }
 
-  // ---------- typewriter with galgame paging ----------
-  const msgQueue = [];   // pending assistant messages
-  let typing = false;    // currently animating a page
-  let pageRest = '';     // text not yet shown (later pages)
-  let waitingAdvance = false;
-  let typeTimer = null;
-  let autoTimer = null;
+  // ---------- dialogue: a live stream into one scrolling box ----------
+  // Replies arrive token by token (SSE `delta`), so the reveal runs at the
+  // model's real pace instead of replaying a typewriter over text we already
+  // have. There is no paging: the box scrolls and stays pinned to the newest
+  // line until the reader scrolls up themselves.
+  const msgQueue = [];       // queued non-streamed lines (greeting, notices)
+  let streaming = false;     // a reply is currently arriving
+  let streamText = '';       // what has arrived so far
+  let paintHandle = null;
+  let following = true;      // stay pinned to the bottom
 
+  const textWindow = $('text-window');
 
-  function updateAdvanceButton(){
-    const button=$('btn-skip');const lang=window.galVoice.language;
-    button.hidden=!typing&&!waitingAdvance;
-    button.textContent=typing?({zh:'立即显示',en:'Reveal now',ja:'すぐに表示'}[lang]):({zh:'继续',en:'Continue',ja:'続ける'}[lang]);
-    button.title=button.textContent;
+  function atBottom() { return textWindow.scrollHeight - textWindow.scrollTop - textWindow.clientHeight < 24; }
+
+  function updateJumpButton() {
+    const button = $('btn-skip'), lang = window.galVoice.language;
+    button.hidden = following || atBottom();
+    button.textContent = { zh: '回到最新', en: 'Jump to latest', ja: '最新へ' }[lang] || 'Jump to latest';
+    button.title = button.textContent;
   }
-  window.addEventListener('gal-language',updateAdvanceButton);
-  updateAdvanceButton();
+  window.addEventListener('gal-language', updateJumpButton);
 
-  function overflowing() {
-    const win = $('text-window');
-    return win.scrollHeight > win.clientHeight + 2;
+  textWindow.addEventListener('scroll', () => { following = atBottom(); updateJumpButton(); });
+
+  function scrollToLatest() {
+    following = true;
+    textWindow.scrollTop = textWindow.scrollHeight;
+    updateJumpButton();
   }
 
-  function beginMessage(text) {
-    pageRest = text;
-    nextPage();
+  function paint(text) {
+    dialogueText.innerHTML = window.galMarkdown.render(text);
+    if (following) textWindow.scrollTop = textWindow.scrollHeight;
+    updateJumpButton();
   }
 
-  function nextPage() {
-    waitingAdvance = false;
-    advance.classList.add('hidden');
+  // At most one repaint per frame: a fast stream would otherwise re-render the
+  // whole reply for every token that lands.
+  function schedulePaint() {
+    if (paintHandle !== null) return;
+    paintHandle = requestAnimationFrame(() => { paintHandle = null; paint(streamText); });
+  }
+
+  function cancelPaint() {
+    if (paintHandle === null) return;
+    cancelAnimationFrame(paintHandle);
+    paintHandle = null;
+  }
+
+  function beginStream() {
+    streaming = true; streamText = ''; following = true;
     dialogueText.textContent = '';
-    typePage();
+    updateJumpButton();
   }
 
-  function typePage() {
-    typing = true;updateAdvanceButton();
-    const cursor = document.createElement('span');
-    cursor.className = 'cursor';
-    const step = () => {
-      if (!typing) return;
-      if (pageRest.length === 0) { finishPage(cursor, false); return; }
-      const ch = pageRest[0];
-      dialogueText.textContent += ch;
-      pageRest = pageRest.slice(1);
-      dialogueText.appendChild(cursor);
-      if (overflowing()) {
-        // took one character too many for this page — give it back and hold
-        dialogueText.removeChild(cursor);
-        dialogueText.textContent = dialogueText.textContent.slice(0, -1);
-        pageRest = ch + pageRest;
-        finishPage(cursor, true);
-        return;
-      }
-      typeTimer = setTimeout(step, ch === '\n' ? 90 : 18);
-    };
-    step();
+  function pushStream(text) {
+    if (!streaming) beginStream();
+    streamText += text;
+    schedulePaint();
   }
 
-  function finishPage(cursor, more) {
-    typing = false;
-    clearTimeout(typeTimer);
-    cursor.remove();
-    if (more || msgQueue.length > 0) {
-      waitingAdvance = true;
-      advance.classList.remove('hidden');
-      if (autoMode) autoTimer = setTimeout(advanceNow, 2400);
-    }
-    updateAdvanceButton();
-  }
-
-  function revealRestOfPage() {
-    // fast-forward: fill until the window is full (or text ends)
-    clearTimeout(typeTimer);
-    dialogueText.querySelector('.cursor')?.remove();
-    while (pageRest.length > 0) {
-      const ch = pageRest[0];
-      dialogueText.textContent += ch;
-      pageRest = pageRest.slice(1);
-      if (overflowing()) {
-        dialogueText.textContent = dialogueText.textContent.slice(0, -1);
-        pageRest = ch + pageRest;
-        break;
-      }
-    }
-    typing = false;
-    finishPage(document.createElement('span'), pageRest.length > 0);
-  }
-
-  function advanceNow() {
-    clearTimeout(autoTimer);
-    if (typing) { revealRestOfPage(); return; }
-    if (!waitingAdvance) return;
-    window.galVoice.stop();
-    if (pageRest.length > 0) { nextPage(); return; }
-    waitingAdvance = false;updateAdvanceButton();
-    advance.classList.add('hidden');
-    playNext();
+  // The committed message is authoritative: a retried or interrupted attempt
+  // can differ from the frames already painted.
+  function showMessage(text) {
+    streaming = false; streamText = text; following = true;
+    cancelPaint();
+    paint(text);
   }
 
   // ---------- voice ----------
@@ -463,12 +431,11 @@
   $('btn-voice').addEventListener('click', toggleVoice);
 
   function playNext() {
-    if (typing || waitingAdvance) return;
     const next = msgQueue.shift();
     if (next === undefined) return;
     if (next.emotion) setEmotion(next.emotion);
     currentMessageId = next.id || null;
-    beginMessage(next.text);
+    showMessage(next.text);
     window.galVoice.setMessage(currentMessageId, next.text);
   }
 
@@ -483,7 +450,7 @@
     if (el.closest('#input-row') || el.closest('#menu-row') || el.closest('#history') || el.closest('#char-picker') || el.closest('.overlay')) return;
     if (!$('char-picker').classList.contains('hidden')) { closeOverlays(); return; }
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
-    advanceNow();
+    scrollToLatest();
   });
   $('stage').addEventListener('contextmenu', (ev) => {
     if (activeOverlay()||ev.target.closest('input,textarea,select,[contenteditable=true]')) return;
@@ -494,10 +461,8 @@
     if(ev.isComposing||ev.metaKey||ev.altKey||ev.ctrlKey&&ev.key!=='Control'||activeOverlay())return;
     if (ev.target.closest('input,textarea,select,button,[contenteditable=true]') || ev.target.closest('#editor')) return;
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
-    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); advanceNow(); }
-    if (ev.key === 'Control') revealRestOfPage();
+    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); scrollToLatest(); }
     if (ev.key === 'l' || ev.key === 'L') toggleHistory();
-    if (ev.key === 'a' || ev.key === 'A') toggleAuto();
     if (ev.key === 'v' || ev.key === 'V') toggleVoice();
     if (ev.key === 'h' || ev.key === 'H') setUiHidden(true);
     if (ev.key === 'c' || ev.key === 'C') toggleCharPicker();
@@ -506,7 +471,7 @@
   });
   $('btn-char').addEventListener('click', toggleCharPicker);
   $('btn-character-select').addEventListener('click',()=>showOverlay('char-picker',true));
-  $('btn-skip').addEventListener('click', () => { if (typing) revealRestOfPage(); else advanceNow(); });
+  $('btn-skip').addEventListener('click', scrollToLatest);
   $('btn-hide').addEventListener('click', () => setUiHidden(true));
 
   // ---------- history ----------
@@ -530,14 +495,6 @@
   }
   $('btn-history').addEventListener('click', toggleHistory);
   $('btn-close-history').addEventListener('click', toggleHistory);
-
-  function toggleAuto() {
-    autoMode = !autoMode;
-    $('btn-auto').classList.toggle('active', autoMode);
-    clearTimeout(autoTimer);
-    if (autoMode && waitingAdvance) autoTimer = setTimeout(advanceNow, 1200);
-  }
-  $('btn-auto').addEventListener('click', toggleAuto);
 
   // ---------- busy / ticker ----------
   function setBusy(value) {
@@ -580,8 +537,9 @@
 
   function interruptPresentation(){
     window.dispatchEvent(new Event('gal-dialogue-interrupt'));
-    window.galVoice.stop();clearTimeout(typeTimer);clearTimeout(autoTimer);
-    msgQueue.length=0;typing=false;waitingAdvance=false;pageRest='';updateAdvanceButton();advance.classList.add('hidden');dialogueText.querySelector('.cursor')?.remove();
+    window.galVoice.stop();
+    msgQueue.length = 0; streaming = false; streamText = '';
+    cancelPaint(); updateJumpButton();
   }
   // ---------- event stream ----------
   function handleEvent(ev) {
@@ -604,8 +562,11 @@
         // newest reply (everything stays readable in History)
         msgQueue.length = 0;
         msgQueue.push({ id: ev.id, text: ev.text, emotion: ev.emotion });
-        if (waitingAdvance && pageRest.length === 0) advanceNow();
-        else playNext();
+        playNext();
+        break;
+      case 'delta':
+        if (ev.reset) { beginStream(); break; }
+        if (typeof ev.text === 'string') pushStream(ev.text);
         break;
       case 'busy':
         setBusy(ev.value);
@@ -634,8 +595,7 @@
         if (ev.silent) break;
         msgQueue.length = 0;
         msgQueue.push({ text: window.galVoice.greeting(ev.manifest.greeting), emotion: ev.manifest.defaultEmotion });
-        typing = false; waitingAdvance = false; pageRest = '';
-        clearTimeout(typeTimer);
+        streaming = false; streamText = ''; cancelPaint();
         playNext();
         break;
       }

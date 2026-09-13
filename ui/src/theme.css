@@ -35,8 +35,28 @@ button:disabled {cursor:not-allowed;opacity:.4;}
 #nameplate {top:-17px;left:28px;clip-path:none;border:1px solid #bbd3e440;border-radius:6px;padding:8px 18px;background:#142f44;gap:16px;align-items:center;letter-spacing:.12em;font-size:15px;box-shadow:0 3px 18px #0003;}
 #nameplate::after {display:none;}
 #emotion-tag {font-size:10px;color:var(--gold);letter-spacing:.1em;}
-#text-window {padding:35px 32px 10px;min-height:120px;max-height:27vh;}
+#text-window {padding:32px 32px 14px;min-height:120px;max-height:38vh;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;}
 #dialogue-text {font-size:18px;line-height:1.8;font-weight:400;letter-spacing:.025em;text-shadow:none;}
+/* Markdown inside the dialogue box: quieter than a document, still structured. */
+#dialogue-text>*:first-child {margin-top:0;}
+#dialogue-text>*:last-child {margin-bottom:0;}
+#dialogue-text p {margin:0 0 .85em;}
+#dialogue-text h3,#dialogue-text h4,#dialogue-text h5,#dialogue-text h6 {margin:1.1em 0 .5em;font-size:1em;font-weight:600;color:var(--gold);letter-spacing:.04em;}
+#dialogue-text strong {font-weight:600;color:#fff;}
+#dialogue-text em {font-style:italic;color:#cfe0ec;}
+#dialogue-text ul,#dialogue-text ol {margin:0 0 .85em;padding-left:1.4em;}
+#dialogue-text ul {list-style:disc;}
+#dialogue-text ol {list-style:decimal;}
+#dialogue-text li {margin:.25em 0;}
+#dialogue-text code {padding:.1em .4em;border-radius:5px;background:#04141f99;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em;color:#e6d6ae;}
+#dialogue-text pre {margin:0 0 .85em;padding:12px 14px;border:1px solid #9fbed426;border-radius:9px;background:#04141fcc;overflow-x:auto;}
+#dialogue-text pre code {padding:0;background:none;font-size:.8em;line-height:1.65;color:#dbe7f0;}
+#dialogue-text blockquote {margin:0 0 .85em;padding:.1em 0 .1em 14px;border-left:2px solid #a8c6d955;color:#b3c7d6;}
+#dialogue-text hr {margin:1.1em 0;border:0;border-top:1px solid #9fbacf33;}
+#dialogue-text table {width:100%;margin:0 0 .85em;border-collapse:collapse;font-size:.82em;}
+#dialogue-text th,#dialogue-text td {padding:7px 10px;border:1px solid #9fbacf2b;text-align:left;vertical-align:top;}
+#dialogue-text th {background:#122c3f;color:var(--gold);font-weight:600;}
+#dialogue-text a {color:var(--gold);text-decoration:underline;text-underline-offset:2px;}
 #advance {right:29px;bottom:13px;}
 #message-tools {padding:4px 24px 12px;gap:4px;min-height:40px;}
 #message-tools button {border-radius:7px;height:30px;padding:5px 10px;font-size:11px;color:#a5bccd;}
@@ -112,7 +132,7 @@ body.ui-hidden #btn-restore {display:inline-flex;}
  #topbar{padding:16px;}#title{font-size:10px;letter-spacing:.14em;}
  #topbar button{padding:0 10px;font-size:11px;}#topbar .app-controls{gap:0;}
  #dialogue{width:calc(100vw - 28px);bottom:14px;}#nameplate{left:18px;}
- #text-window{padding:30px 22px 8px;min-height:110px;}#dialogue-text{font-size:16px;}
+ #text-window{padding:28px 22px 10px;min-height:110px;max-height:42vh;}#dialogue-text{font-size:16px;}
  #box-bottom{grid-template-columns:minmax(0,1fr);padding:12px 16px;gap:4px;}#menu-row{justify-content:flex-end;}
  #message-tools{padding:4px 14px 8px;}#message-tools #voice-feedback{flex-basis:100%;padding:0 10px;}
  .gal-dialog{width:calc(100vw - 24px)!important;max-height:calc(100dvh - 28px);border-radius:14px!important;}

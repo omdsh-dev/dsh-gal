@@ -24,7 +24,7 @@
   function stop(){autoBlocked=true;generation++;request?.abort();request=null;audio.pause();if(audioObjectUrl){URL.revokeObjectURL(audioObjectUrl);audioObjectUrl=null;}window.speechSynthesis?.cancel();currentUtterance=null;speaking(false);notify('ready');$('btn-stop-voice').disabled=true;}
   function render(){
     document.documentElement.lang=lang==='zh'?'zh-CN':lang;
-    for(const [id,key] of Object.entries({'btn-replay':'replay','btn-stop-voice':'stop','btn-skip':'skip','btn-auto':'auto','btn-history':'log','btn-char':'char','btn-edit':'edit','btn-gallery':'gallery','btn-hide':'hide','btn-send':'send'}))$(id).textContent=t(key);
+    for(const [id,key] of Object.entries({'btn-replay':'replay','btn-stop-voice':'stop','btn-history':'log','btn-char':'char','btn-edit':'edit','btn-gallery':'gallery','btn-hide':'hide','btn-send':'send'}))$(id).textContent=t(key);
     $('btn-voice').textContent=t(enabled?'voice':'mute');$('btn-voice').classList.toggle('active',enabled);$('btn-voice').setAttribute('aria-pressed',String(enabled));
     $('input').placeholder=t('placeholder');$('language-label').textContent=t('language');select.value=uiPreference;select.title=t('hint');speechSelect.value=speechPreference;speechSelect.title=t('hint');$('speech-language-label').textContent=t('speechLanguage');status.textContent=t(statusKey);$('language-hint').textContent=t('hint');
     select.querySelector('[value=auto]').textContent=t('system');speechSelect.querySelector('[value=auto]').textContent=t('followUI');
@@ -55,7 +55,7 @@
     }
   }
   window.galVoice={
-    greeting(value){return !value||['Welcome back! I am all ears — say something below and I will get to work.','Hello! I am listening — say something below.'].includes(value)?t('greeting'):value;},get language(){return lang;},get speechLanguage(){return speechLang;},t,
+    greeting(value){if(value&&typeof value==='object')return value[lang]||value.en||Object.values(value)[0]||t('greeting');return value?value:t('greeting');},get language(){return lang;},get speechLanguage(){return speechLang;},t,
     stop,
     toggle(){enabled=!enabled;localStorage.setItem('gal-voice',enabled?'on':'off');if(!enabled)stop();render();return enabled;},
     setMessage(id,text){window.dispatchEvent(new Event('gal-dialogue-interrupt'));stop();message={id,text};$('btn-replay').disabled=!text.trim();autoBlocked=false;void speak(text,null);},

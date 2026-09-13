@@ -39,6 +39,6 @@ function ModalManager(){
 function App(){return <><Stage/>{Object.entries(definitions).map(([id,Panel])=>createPortal(<Panel/>,hosts[id as PanelId],id))}<ModalManager/></>;}
 flushSync(()=>createRoot(document.getElementById('root')!).render(<App/>));
 // Load imperative controllers only after all persistent React UI nodes exist.
-for(const file of ['voice-controls.js','speech-settings.js','character-state.js','app.js','layout-labels.js','ui-labels.js']){
+for(const file of ['markdown.js','voice-controls.js','speech-settings.js','character-state.js','app.js','layout-labels.js','ui-labels.js']){
  await new Promise<void>((resolve,reject)=>{const script=document.createElement('script');script.src='./'+file;script.onload=()=>resolve();script.onerror=()=>reject(Error('Cannot load '+file));document.body.append(script);});
 }

@@ -21,7 +21,7 @@ Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网
 ## How a turn works
 
 1. You type in the VN input box. It sends a real user turn into the live dsh session — same tools and preset the browser UI gets. With no session open, the first message creates one.
-2. The reply streams into the text box with a typewriter effect and pages like a VN (`click` / `Space` to advance, `Ctrl` reveals the rest of the page, **自动翻页** auto-advances). While the agent works, she switches to `thinking` and a ticker shows tool activity.
+2. The reply streams into the text box token by token, at the model's real pace, rendered as markdown. The box scrolls and stays pinned to the newest line; scroll up to read back and a **回到最新 / Jump to latest** control appears. While the agent works, she switches to `thinking` and a ticker shows tool activity.
 3. A tiny side LLM call classifies the finished reply into one of six expressions; a keyword heuristic covers the fallback. The stage crossfades to that expression's idle loop.
 4. If voice is on, the reply is spoken — optionally rewritten into spoken Japanese first, so you read subtitles and hear a VN-style voice track.
 
@@ -64,9 +64,7 @@ Everything has a button; the shortcuts are for when you are reading, not clickin
 
 | | |
 | --- | --- |
-| `Space` / `Enter` / click | advance the text box |
-| `Ctrl` | reveal the rest of the current page |
-| `A` | auto-advance |
+| `Space` / `Enter` / click | jump back to the newest line |
 | `L` | backlog — the full scrollable log |
 | `C` | 角色 › 选择角色 — switch pack live |
 | `G` | 角色 › 立绘素材 — browse the six expressions, click to preview, drop a `.png` / `.mp4` on a tile to replace it |
@@ -167,7 +165,9 @@ The fastest reliable route — the one the bundled Cetus pack was built with:
 1. **One base portrait.** Generate the character full-body on a plain background. This is the design reference; nothing after this step is allowed to redraw her.
 2. **One stage keyframe.** Regenerate her *in the scene*, 16:9, framed from about mid-thigh up, with the lower third kept visually calm because the dialogue box sits there. Keep the base portrait as the reference image.
 3. **Five more expressions — with two references.** Pass both the base portrait (who she is) and the stage keyframe (composition, palette, lighting, camera distance), and let the prompt change only the face and arms. Two references is what stops the background and framing from drifting between expressions; one reference is not enough.
-4. **Idle loops.** `scripts/animate.sh <still.png> <out.mp4> "<motion prompt>" [h3]` turns each still into a 5-second loop on fal.ai (Seedance 2.0 mini by default, MiniMax H3 with `h3` — H3 is the more permissive of the two for stylised characters). Write the motion prompt as *breathing, blinking, hair and cloth drifting*, and say explicitly that the camera is locked off and the pose unchanged.
+4. **Idle loops.** `scripts/animate.sh <still.png> <out.mp4> "<motion prompt>" [h3]` turns each still into a looping clip on fal.ai (Seedance 2.0 mini by default, MiniMax H3 with `h3` — H3 is the more permissive of the two for stylised characters). Write the motion prompt as *breathing, blinking, hair and cloth drifting*, and say explicitly that the camera is locked off and the pose unchanged.
+
+   A loop needs its last frame to lead back into its first, or it pops once per cycle. The script does that in two steps: it passes the still as the end frame as well as the start frame, and then crossfades the tail back onto the head locally. The model alone is not enough — asking for the end frame gets the pose close but does not land on it.
 5. **Install.** Upload each file from **立绘素材**, or drop everything plus a `character.json` into `~/.dsh/gal/characters/<id>/`.
 
 Quickest path of all: pick a prompt-only pack from **角色**, open **人设与记忆** to copy its image prompts into the image model of your choice, and drop the six results onto the gallery tiles.
@@ -177,7 +177,6 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 ## Status and limitations
 
 - The stage sits on one fixed backdrop behind the character. There is no background picker: pack art is full-frame and carries its own environment, so a separate background choice only fought with it.
-- The text box renders replies as plain text. Markdown comes through literally — tables arrive as pipes.
 - Idle loops are 5-second clips, not seamless cycles; the wrap is visible if you stare at it.
 - Expressions are whole-clip swaps, not a rig. She cannot hold an expression while lip-syncing a specific line, and there is no per-phoneme mouth movement.
 

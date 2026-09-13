@@ -14,8 +14,12 @@ import { EMOTIONS, type Emotion } from './emotion.js'
 export interface CharacterManifestFile {
   /** Display name on the nameplate. */
   name: string
-  /** First line spoken when the page opens. */
-  greeting?: string
+  /**
+   * First line spoken when the page opens. A character's opening line is
+   * dialogue, not interface text, so a pack may give one per language and the
+   * frontend picks by the interface language.
+   */
+  greeting?: string | Partial<Record<'zh' | 'en' | 'ja', string>>
   /**
    * Voice layer appended to the agent's system prompt: how the character
    * talks. It must not change what the agent does — only how replies sound.
@@ -42,7 +46,7 @@ export interface CharacterPack {
   id: string
   dir: string
   name: string
-  greeting: string
+  greeting: string | Partial<Record<'zh' | 'en' | 'ja', string>>
   persona: string
   /** Free-form notes the character keeps about the user (`memory.md`). */
   memory: string

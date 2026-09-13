@@ -32,6 +32,16 @@ import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion }
 import { GalServer } from './server.js'
 import { looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize } from './tts.js'
 
+/**
+ * One transient frame of `agent/assistant-stream`. These are process-local and
+ * are never persisted: the durable `assistant/message` that follows stays
+ * authoritative. Only the shape this plugin reads is declared here.
+ */
+type AssistantStreamFrameLike =
+  | { readonly type: 'start' }
+  | { readonly type: 'chunk'; readonly chunk: { readonly type: string; readonly text?: string } }
+  | { readonly type: 'end' }
+
 /** The agent surface this plugin consumes (`ctx.agents`). */
 interface AgentLike {
   readonly id: string
@@ -171,7 +181,8 @@ export function apply(ctx: Context, config: Config): void {
   if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
 
   const displayName = (): string => config.characterName ?? pack.name
-  const greeting = (): string => config.greeting ?? pack.greeting
+  /** A pack may localize its opening line; the frontend picks by interface language. */
+  const greeting = (): CharacterPack['greeting'] => config.greeting ?? pack.greeting
 
   const manifest = (): unknown => {
     const emotions: Record<string, { video?: string; image?: string }> = {}
@@ -570,6 +581,21 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   // ---- observe the conversation ----
+  // Live token stream. `assistant/message` only commits once the whole reply
+  // exists, so without this the dialogue box shows nothing until generation
+  // ends and then has to fake a typewriter over text it already has. Reasoning
+  // deltas are deliberately dropped: they are not something she says.
+  ;(ctx as unknown as { on(event: string, listener: (payload: { agent: AgentLike; frame: AssistantStreamFrameLike }) => void): () => void })
+    .on('agent/assistant-stream', ({ agent, frame }) => {
+      if (activeSessionId !== undefined && agent.id !== activeSessionId) return
+      if (frame.type === 'start') { server.broadcast({ type: 'delta', reset: true }); return }
+      if (frame.type !== 'chunk') return
+      if (frame.chunk.type !== 'text-delta') return
+      const text = frame.chunk.text
+      if (text === undefined || text === '') return
+      server.broadcast({ type: 'delta', text })
+    })
+
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     const header = session.header as { origin?: string }
     if (header.origin === 'subagent') return

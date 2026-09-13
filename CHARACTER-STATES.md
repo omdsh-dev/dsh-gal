@@ -7,7 +7,7 @@
 - **Inputs**: the `gal-emotion`, `gal-busy`, `gal-speaking` and `gal-character-changed` events.
 - **Output**: the `gal-character-state` event. Consumers that initialize late can read `window.galCharacter.state`.
 
-The renderer is one crossfading pair of `<video>` layers plus a still-image fallback. It consumes the state, picks the pack's asset for that emotion, and falls back to the pack's default asset when an expression is missing. `playbackRate` in `character.json` scales loop playback.
+The renderer is one crossfading pair of `<video>` layers plus a still-image fallback. It consumes the state, picks the pack's asset for that emotion, and falls back to the pack's default asset when an expression is missing. Loops are authored so their last frame leads back into their first (see `scripts/animate.sh`), so `<video loop>` does not pop once per cycle. `playbackRate` in `character.json` scales loop playback.
 
 The **表情预览 / Expression preview** selector in the character panel pins one expression for inspection; **跟随对话 / Follow dialogue** hands control back to the conversation. A preview is temporary and is cleared when the character pack changes.
 

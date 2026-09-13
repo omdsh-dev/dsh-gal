@@ -49,7 +49,7 @@ try{
  if(!await backendReady()){
   temporary=await mkdtemp(join(tmpdir(),'dsh-gal-launch-'));
   const patch=join(temporary,'gal.patch.yml');
-  await writeFile(patch,`- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.DSH_GAL_CHARACTER||'cetus')}\n`,{mode:0o600});
+  await writeFile(patch,`- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.DSH_GAL_CHARACTER||'xiaoheiyu')}\n`,{mode:0o600});
   const privateDsh=join(homedir(),'Library/Application Support/dsh-gal/runtime/node_modules/.bin/dsh');
   console.log('正在启动对话服务…');
   const child=existsSync(privateDsh)?start(process.execPath,[privateDsh,'--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()}):start('dsh',['--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()});

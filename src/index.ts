@@ -143,7 +143,7 @@ export interface Config {
 export const Config: z<Config> = z.object({
   port: z.number().step(1).min(0).max(65_535).default(4877),
   token: z.string().role('secret').default(''),
-  character: z.string().default('cetus'),
+  character: z.string().default('xiaoheiyu'),
   characterName: z.string(),
   greeting: z.string(),
   personaEnabled: z.boolean().default(true),
@@ -176,8 +176,8 @@ export function apply(ctx: Context, config: Config): void {
   const promptsDir = join(PKG_ROOT, 'prompts')
 
   // ---- character pack ----
-  let pack: CharacterPack = resolveCharacterPack(config.character ?? 'cetus', bundledDir, promptsDir)
-    ?? resolveCharacterPack('cetus', bundledDir)
+  let pack: CharacterPack = resolveCharacterPack(config.character ?? 'xiaoheiyu', bundledDir, promptsDir)
+    ?? resolveCharacterPack('xiaoheiyu', bundledDir)
     ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, emotions: {} }
   if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
 

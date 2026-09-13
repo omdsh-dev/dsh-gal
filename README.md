@@ -43,7 +43,7 @@ Emotion, activity and character are tracked as one semantic state (`window.galCh
 A pack is a directory: `character.json` plus six expression stills, and optionally six idle-motion loops.
 
 ```
-characters/cetus/
+characters/xiaoheiyu/
   character.json        name, greeting, persona, theme, playbackRate, voice, art prompts
   neutral.png  neutral.mp4
   happy.png    happy.mp4
@@ -53,7 +53,7 @@ characters/cetus/
   excited.png  excited.mp4
 ```
 
-- **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships; her pack id is `cetus`.
+- **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
 - **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
 - **Prompt-only packs** ship text and image prompts but no art — pick one, generate the six images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
 - **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
@@ -136,7 +136,7 @@ Register it in `~/.dsh/cordis.patch.yml`:
       name: /absolute/path/to/dsh-gal/lib/index.js
       config:
         port: 4877          # UI at http://127.0.0.1:4877/
-        character: cetus    # pack id, or a path to a pack directory
+        character: xiaoheiyu    # pack id, or a path to a pack directory
 ```
 
 Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested against dsh 0.1.5-rc.1; `scripts/build.sh` links against the install behind `dsh` on your PATH (override with `DSH_PKG_ROOT`).
@@ -147,7 +147,7 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | --- | --- | --- |
 | `port` | `4877` | Listen port on 127.0.0.1 |
 | `token` | `""` | Optional shared token appended to the URL |
-| `character` | `cetus` | Pack id (`~/.dsh/gal/characters/<id>`, then bundled `characters/<id>`) or a path |
+| `character` | `xiaoheiyu` | Pack id (`~/.dsh/gal/characters/<id>`, then bundled `characters/<id>`) or a path |
 | `characterName` | pack name | Override the nameplate |
 | `greeting` | pack greeting | Override the opening line |
 | `personaEnabled` | `true` | Register the pack persona as a system-prompt voice layer |

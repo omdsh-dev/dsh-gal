@@ -144,7 +144,57 @@
     } catch (err) { say(`(failed to load character config: ${err.message})`, 'sad'); }
   }
   // Memory is about the user, not about the character on stage: its own panel,
-  // its own endpoint, and it survives switching packs.
+  // its own endpoint, and it survives switching packs. It is a list of facts
+  // rather than a page of prose — one line is one thing she knows, and each one
+  // can be dropped on its own without rewriting the rest.
+  let memoryEntries = [];
+
+  function renderMemory() {
+    const list = $('mem-list'), label = window.galLabels || {};
+    list.replaceChildren();
+    memoryEntries.forEach((entry, index) => {
+      const row = document.createElement('div');
+      row.className = 'mem-row';
+      const when = document.createElement('span');
+      when.className = 'mem-date';
+      when.textContent = entry.date || '';
+      const text = document.createElement('input');
+      text.className = 'mem-fact';
+      text.type = 'text';
+      text.value = entry.text;
+      text.spellcheck = false;
+      // Editing in place: commit on blur or Enter, revert on Escape.
+      text.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); text.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); text.value = entry.text; text.blur(); }
+      });
+      text.addEventListener('change', () => {
+        const value = text.value.trim();
+        if (value === entry.text) return;
+        if (value === '') { text.value = entry.text; return; }
+        void saveMemory(memoryEntries.map((item, i) => i === index ? { ...item, text: value } : item));
+      });
+      const drop = document.createElement('button');
+      drop.type = 'button';
+      drop.className = 'mem-drop';
+      drop.textContent = '×';
+      drop.title = label['memory-delete'] || 'Forget this';
+      drop.onclick = () => saveMemory(memoryEntries.filter((_, i) => i !== index));
+      row.append(when, text, drop);
+      list.append(row);
+    });
+    $('mem-empty').classList.toggle('hidden', memoryEntries.length > 0);
+  }
+
+  async function saveMemory(entries) {
+    try {
+      const res = await fetch(withToken('/memory'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entries }) });
+      if (!res.ok) throw new Error(await res.text());
+      memoryEntries = (await res.json()).entries;
+      renderMemory();
+    } catch (err) { say(`(save failed: ${err.message})`, 'sad'); }
+  }
+
   async function openMemory() {
     const ticket=++overlayRequest;
     try {
@@ -152,18 +202,22 @@
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       if(ticket!==overlayRequest)return;
-      $('mem-text').value = data.memory;
+      memoryEntries = data.entries;
+      renderMemory();
       showOverlay('memory-panel', true);
+      // Opening the panel is for reading the list, not for editing its first
+      // row: the cursor belongs in the box where a new fact is added.
+      $('mem-new').focus();
     } catch (err) { say(`(failed to load memory: ${err.message})`, 'sad'); }
   }
-  $('memory-form').addEventListener('submit', async (ev) => {
+
+  $('memory-add').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    try {
-      const res = await fetch(withToken('/memory'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ memory: $('mem-text').value }) });
-      if (!res.ok) throw new Error(await res.text());
-      showOverlay('memory-panel', false);
-      say('Saved. Memory applies from the next reply, whichever character is on stage.', 'happy');
-    } catch (err) { say(`(save failed: ${err.message})`, 'sad'); }
+    if (ev.isComposing) return;
+    const text = $('mem-new').value.trim();
+    if (text === '') return;
+    $('mem-new').value = '';
+    await saveMemory([...memoryEntries, { date: new Date().toISOString().slice(0, 10), text }]);
   });
 
   $('editor-form').addEventListener('submit', async (ev) => {
@@ -708,9 +762,10 @@
         break;
       }
       case 'memory':
-        // Only when the panel is open and untouched, so a note saved mid-edit
-        // does not overwrite what is being typed.
-        if (activeOverlay() === $('memory-panel') && document.activeElement !== $('mem-text')) $('mem-text').value = ev.memory;
+        // She remembered something while you were looking at the list. Only
+        // repaint when nothing in it is being edited.
+        memoryEntries = ev.entries;
+        if (activeOverlay() === $('memory-panel') && !document.activeElement?.closest?.('#mem-list')) renderMemory();
         break;
       case 'manifest': {
         applyManifest(ev.manifest);

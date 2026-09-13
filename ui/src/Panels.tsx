@@ -199,18 +199,16 @@ export const MemoryPanel=React.memo(function MemoryPanel(){return (<>
 <span id="memory-title" data-ui-text="memory-title">{"记忆"}</span>
 <Button type="button" className="overlay-close" data-close="memory-panel" hidden={true} variant="ghost" data-slot="button">{"关闭 / ESC"}</Button>
 </div>
-<form id="memory-form" className="overlay-body">
+<div className="overlay-body">
 <p id="memory-hint" className="dim" data-ui-text="memory-hint">{"这些是关于你的笔记，所有角色共用，换角色也不会丢。"}</p>
-<Label>
-<Textarea id="mem-text" rows={14} placeholder="- 2026-09-11: …">
-</Textarea>
-</Label>
-<div className="overlay-actions">
-<span id="memory-path" className="dim">
-</span>
-<Button type="submit" id="mem-save" data-ui-text="save" variant="default" data-slot="button">{"SAVE"}</Button>
+<div id="mem-list">
 </div>
+<p id="mem-empty" className="dim hidden" data-ui-text="memory-empty">{"还没有记住任何事。"}</p>
+<form id="memory-add" className="overlay-actions">
+<Input id="mem-new" type="text" data-ui-placeholder="memory-add" placeholder="记住一件事…" spellCheck={false} />
+<Button type="submit" id="mem-add" data-ui-text="memory-add-button" variant="default" data-slot="button">{"ADD"}</Button>
 </form>
+</div>
 </>);});
 export const HelpPanel=React.memo(function HelpPanel(){return (<>
 <div className="overlay-head">

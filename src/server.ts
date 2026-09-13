@@ -34,9 +34,9 @@ export interface GalServerOptions {
   /** Persist edits to the active pack. */
   saveCharacter: (patch: { name?: string; greeting?: string; persona?: string; playbackRate?: number }) => void
   /** What the agent remembers about the user — shared by every character. */
-  memory: () => string
-  /** Replace the remembered notes; returns the stored text. */
-  saveMemory: (text: string) => string
+  memory: () => { date: string; text: string }[]
+  /** Replace the remembered notes; returns the stored list. */
+  saveMemory: (entries: { date: string; text: string }[]) => { date: string; text: string }[]
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
   /** Rewrite a dialogue line into the selected voice's language before synthesis. */
@@ -145,16 +145,16 @@ export class GalServer {
     if (url.pathname === '/character' && req.method === 'POST') { await this.handleSwitch(req, res); return }
     if (url.pathname === '/memory' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ memory: this.options.memory() }))
+      res.end(JSON.stringify({ entries: this.options.memory() }))
       return
     }
     if (url.pathname === '/memory' && req.method === 'POST') {
       const body = await this.readJson(req)
       try {
-        const memory = this.options.saveMemory(typeof body['memory'] === 'string' ? body['memory'] : '')
-        this.broadcast({ type: 'memory', memory })
+        const entries = this.options.saveMemory(Array.isArray(body['entries']) ? body['entries'] as { date: string; text: string }[] : [])
+        this.broadcast({ type: 'memory', entries })
         res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ memory }))
+        res.end(JSON.stringify({ entries }))
       } catch (error) {
         res.writeHead(500, { 'content-type': 'text/plain' })
         res.end(String(error instanceof Error ? error.message : error))

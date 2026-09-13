@@ -60,6 +60,34 @@ export function remember(note: string): string {
   return writeMemory(current === '' ? line : `${current}\n${line}`)
 }
 
+/** One remembered fact. The date is when it was learned, and may be missing. */
+export interface MemoryEntry { date: string; text: string }
+
+/**
+ * The file is a list, not a document: one `- YYYY-MM-DD: fact` per line. A line
+ * that does not follow the convention is still an entry, just undated, so
+ * hand-edited files are never silently dropped.
+ */
+export function memoryEntries(): MemoryEntry[] {
+  return readMemory().split('\n')
+    .map(line => line.replace(/^\s*[-*]\s*/, '').trim())
+    .filter(line => line !== '')
+    .map(line => {
+      const dated = line.match(/^(\d{4}-\d{2}-\d{2})\s*[:：]\s*(.*)$/)
+      return dated === null ? { date: '', text: line } : { date: dated[1] as string, text: (dated[2] as string).trim() }
+    })
+    .filter(entry => entry.text !== '')
+}
+
+export function writeEntries(entries: MemoryEntry[]): MemoryEntry[] {
+  writeMemory(entries
+    .map(entry => ({ date: String(entry.date ?? '').trim(), text: String(entry.text ?? '').replace(/\s*\n\s*/g, ' ').trim() }))
+    .filter(entry => entry.text !== '')
+    .map(entry => `- ${/^\d{4}-\d{2}-\d{2}$/.test(entry.date) ? `${entry.date}: ` : ''}${entry.text}`)
+    .join('\n'))
+  return memoryEntries()
+}
+
 /** Prompt section carrying what is known about the user. */
 export function memorySection(): string {
   const memory = readMemory().trim()

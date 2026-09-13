@@ -159,3 +159,17 @@ body.ui-hidden #btn-restore {display:inline-flex;}
 .gal-dialog #speech-refresh-voices {align-self:flex-start;height:28px;padding:3px 0;color:var(--gold);font-size:11px;}
 #speech-voices-status {font-size:11px;line-height:1.5;color:var(--dim);}
 #speech-voices-status:empty {display:none;}
+
+/* Memory is a list of facts, one row each: the date she learned it, the fact
+   itself (editable in place), and a way to drop just that one. */
+#mem-list {display:flex;flex-direction:column;gap:6px;margin:0 0 14px;max-height:46vh;overflow-y:auto;}
+.mem-row {display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid #9fbacf22;border-radius:8px;background:#0e1c2a4d;}
+.mem-row:hover {border-color:#9fbacf44;}
+.mem-date {flex:none;font-size:.76em;letter-spacing:.04em;color:#9fbacf8c;font-variant-numeric:tabular-nums;min-width:5.6em;}
+/* The row is the frame; the field inside it is not its own box. */
+.mem-row input.mem-fact {flex:1;min-width:0;background:none;border:none;border-radius:0;box-shadow:none;padding:2px 0;height:auto;color:inherit;font:inherit;font-size:.92em;}
+.mem-row input.mem-fact:focus,.mem-row input.mem-fact:focus-visible {outline:none;box-shadow:none;border-bottom:1px solid #9fbacf66;}
+.mem-drop {flex:none;width:22px;height:22px;line-height:1;border:none;border-radius:6px;background:none;color:#9fbacf80;cursor:pointer;font-size:15px;}
+.mem-drop:hover {background:#c2606033;color:#e59a9a;}
+#memory-add {display:flex;gap:10px;align-items:center;}
+#memory-add #mem-new {flex:1;}

@@ -28,7 +28,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { existsSync as fileExists, mkdirSync, mkdtempSync, readdirSync, rmSync, cpSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { listCharacterPacks, loadCharacterPack, personaSection, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
-import { memorySection, readMemory, remember, writeMemory } from './memory.js'
+import { memoryEntries, memorySection, remember, writeEntries } from './memory.js'
 import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion } from './emotion.js'
 import { GalServer } from './server.js'
 import { detectLanguage, looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize, type SpokenLanguage } from './tts.js'
@@ -374,8 +374,8 @@ export function apply(ctx: Context, config: Config): void {
     log: message => ctx.logger.warn(`dsh-gal: ${message}`),
     characterConfig,
     saveCharacter,
-    memory: () => readMemory(),
-    saveMemory: (text: string) => writeMemory(text),
+    memory: () => memoryEntries(),
+    saveMemory: entries => writeEntries(entries),
     uploadAsset,
     importPack,
     exportPack,
@@ -430,7 +430,8 @@ export function apply(ctx: Context, config: Config): void {
     execute: async (args: unknown) => {
       const note = String((args as { note?: unknown }).note ?? '').trim()
       if (note === '') throw new Error('gal_remember: note is required')
-      server.broadcast({ type: 'memory', memory: remember(note) })
+      remember(note)
+      server.broadcast({ type: 'memory', entries: memoryEntries() })
       return `Remembered: ${note}`
     },
   } as never)), 'dsh-gal.tool.remember')

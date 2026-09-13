@@ -16157,7 +16157,7 @@ const CT = z.memo(function() {
     /* @__PURE__ */ y.jsxs("div", { id: "dialogue", children: [
       /* @__PURE__ */ y.jsxs("div", { id: "msgbox", children: [
         /* @__PURE__ */ y.jsxs("div", { id: "nameplate", children: [
-          /* @__PURE__ */ y.jsx("span", { id: "char-name", children: "Cetus" }),
+          /* @__PURE__ */ y.jsx("span", { id: "char-name", children: "小黑鱼" }),
           /* @__PURE__ */ y.jsx("span", { id: "emotion-tag" })
         ] }),
         /* @__PURE__ */ y.jsx("div", { id: "text-window", tabIndex: 0, children: /* @__PURE__ */ y.jsx("p", { id: "dialogue-text" }) }),

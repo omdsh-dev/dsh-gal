@@ -9,7 +9,7 @@ Why: fan art of licensed characters — including AI-generated fan art — is a 
 | id | character | source |
 |---|---|---|
 | `xiaolanyu` | 小蓝鱼 — the lazy, hungry blue whale girl (DeepSeek娘 meme) | DeepSeek logo fan meme |
-| `xiaoheiyu` | 小黑鱼 — the cool night-shift orca girl (Cetus, the bundled art pack, is her art-backed sibling) | original |
+| `xiaoheiyu` | 小黑鱼 · 夜班 — the same orca girl in her night-shift look: dim office, black turtleneck, fewer words. The bundled `cetus` pack is her, drawn, in the undersea house | original |
 | `haibara` | 灰原哀 | Detective Conan |
 | `frieren` | Frieren | Frieren: Beyond Journey's End |
 | `maomao` | 猫猫 | The Apothecary Diaries |

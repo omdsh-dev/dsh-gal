@@ -41,7 +41,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div id="dialogue">
 <div id="msgbox">
 <div id="nameplate">
-<span id="char-name">{"Cetus"}</span>
+<span id="char-name">{"小黑鱼"}</span>
 <span id="emotion-tag">
 </span>
 </div>

@@ -17,7 +17,7 @@ characters/<id>/
 
 ```json
 {
-  "name": "Cetus",
+  "name": "小黑鱼",
   "greeting": "First line she speaks when the page opens.",
   "persona": "How she talks. Appended to the system prompt as a voice layer only — it never changes what the agent does.",
   "theme": { "accent": "#8fd8ff", "frame": "rgba(168,214,255,0.55)", "box": "linear-gradient(...)" },

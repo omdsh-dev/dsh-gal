@@ -53,7 +53,7 @@ characters/cetus/
   excited.png  excited.mp4
 ```
 
-- **Bundled pack: Cetus**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships.
+- **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships; her pack id is `cetus`.
 - **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
 - **Prompt-only packs** ship text and image prompts but no art — pick one, generate the six images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
 - **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
@@ -162,7 +162,7 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 
 ## Making a character pack
 
-The fastest reliable route — the one the bundled Cetus pack was built with:
+The fastest reliable route — the one the bundled 小黑鱼 pack was built with:
 
 1. **One base portrait.** Generate the character full-body on a plain background. This is the design reference; nothing after this step is allowed to redraw her.
 2. **One stage keyframe.** Regenerate her *in the scene*, 16:9, framed from about mid-thigh up, with the lower third kept visually calm because the dialogue box sits there. Keep the base portrait as the reference image.
@@ -184,7 +184,7 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 
 ## What this repository distributes
 
-Text only, for third-party characters: persona prompts, greetings, themes, and image-prompt descriptions under [`prompts/`](prompts/README.md). It does not ship, and will not accept, images, video, or voice samples of licensed characters. You generate those yourself, on your own machine, for your own use, and keep them in `~/.dsh/gal/characters/<id>/`, outside the repository. The only bundled art is Cetus, an original character.
+Text only, for third-party characters: persona prompts, greetings, themes, and image-prompt descriptions under [`prompts/`](prompts/README.md). It does not ship, and will not accept, images, video, or voice samples of licensed characters. You generate those yourself, on your own machine, for your own use, and keep them in `~/.dsh/gal/characters/<id>/`, outside the repository. The only bundled art is 小黑鱼, an original character.
 
 ## UI development
 

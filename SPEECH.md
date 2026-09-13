@@ -6,7 +6,7 @@ Default: free installed macOS system speech (Tingting / Samantha / Kyoko), with 
 
 Cloud providers:
 - ElevenLabs: Multilingual v2, Eleven v3, Flash v2.5; supply a voice ID and your API key. https://elevenlabs.io/docs/api-reference/text-to-speech/convert
-- Fish Audio: S2.1 Pro, S2 Pro, S1; supply a reference_id and your API key. https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech
+- Fish Audio: s2.1-pro-free, s2-pro, s2.1-pro, s1; supply your API key. The first two synthesize on a zero-credit account; s2.1-pro and s1 answer 402 without API credit (which is billed separately from platform credit). Voices are community models, so the popular ones for the chosen language are listed in the panel — no reference_id to copy by hand. https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech
 - MiniMax: Speech 2.8 HD/Turbo and 2.6 HD; separate China and Global endpoints/keys. A system voice is prefilled for each language and can be replaced. https://platform.minimax.io/docs/api-reference/speech-t2a-http and https://platform.minimaxi.com/docs/api-reference/speech-t2a-http
 
 Preview uses the current unsaved form values and the matching saved key if the key input is blank. Save applies the profile to future dialogue. Switching language/provider discards unsaved form changes. Stop or ESC cancels a preview. Sending a new message cancels pending dialogue audio; late legacy VOICEVOX events are ignored. No cloud error silently switches to another provider. A cancelled HTTP request cannot guarantee that a cloud provider stops billing work already accepted.

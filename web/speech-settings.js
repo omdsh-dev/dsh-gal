@@ -18,11 +18,13 @@
   function stop() {sequence++;request?.abort();request=null;audio?.pause();audio=null;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;$('speech-stop').disabled=true;}
   let voicesRequest=null,voicesSequence=0,voiceReady=true,voicesStatus='';
   const isLocal=()=>['local','voicevox'].includes($('speech-provider').value);
+  // Providers whose voices can be listed rather than typed in as an id.
+  const browsable=()=>isLocal()||$('speech-provider').value==='fish';
   function voiceActions(){ $('speech-test').disabled=!voiceReady;$('speech-save').disabled=!voiceReady; }
-  function voiceLabel(){document.querySelector('[data-speech-text=voice]').textContent=t(isLocal()?'localVoice':'voice');$('speech-voices-status').textContent=voicesStatus?t(voicesStatus):'';}
+  function voiceLabel(){document.querySelector('[data-speech-text=voice]').textContent=t(browsable()?'localVoice':'voice');$('speech-voices-status').textContent=voicesStatus?t(voicesStatus):'';}
   async function loadVoices(){
     voicesRequest?.abort();const ticket=++voicesSequence;const provider=$('speech-provider').value;
-    if(!isLocal())return;
+    if(!browsable())return;
     voicesRequest=new AbortController();voiceReady=false;voicesStatus='voicesLoading';voiceActions();voiceLabel();
     const select=$('speech-local-voice'),saved=$('speech-voice').value;select.disabled=true;select.replaceChildren(new Option(t('voicesLoading'),''));
     try {
@@ -40,9 +42,9 @@
     $('speech-model').replaceChildren(...p.models.map(id=>new Option(id==='system'?t('local'):id,id)));
     $('speech-model').value=profile?.model || p.models[0];
     $('speech-voice').value=profile?.voice || p.voices[language] || '';
-    const local=isLocal();$('speech-voice').hidden=local;$('speech-voice').disabled=local;$('speech-voice').required=!local;$('speech-voice').readOnly=false;
-    $('speech-local-voice').hidden=!local;$('speech-refresh-voices').hidden=!local;
-    voicesRequest?.abort();voicesSequence++;voicesStatus='';voiceReady=!local;voiceActions();voiceLabel();if(local)void loadVoices();
+    const list=browsable();$('speech-voice').hidden=list;$('speech-voice').disabled=list;$('speech-voice').required=!list;$('speech-voice').readOnly=false;
+    $('speech-local-voice').hidden=!list;$('speech-refresh-voices').hidden=!list;
+    voicesRequest?.abort();voicesSequence++;voicesStatus='';voiceReady=!list;voiceActions();voiceLabel();if(list)void loadVoices();
     $('speech-key').value='';$('speech-clear-key').checked=false;
     $('speech-key-fields').hidden=!p.key;
     $('speech-voice-hint').hidden=!p.key;

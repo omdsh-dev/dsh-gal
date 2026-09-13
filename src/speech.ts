@@ -13,7 +13,7 @@ export const catalog = [
   { id: 'local', name: 'Local', models: ['system'], key: false, languages: ['zh','en','ja'], voices: { zh:'Tingting', en:'Samantha', ja:'Kyoko' }, docs: '' },
   { id: 'voicevox', name: 'VOICEVOX', models: ['voicevox'], key: false, languages: ['ja'], voices: { ja:'3' }, docs:'https://voicevox.hiroshiba.jp/' },
   { id: 'elevenlabs', name: 'ElevenLabs', models: ['eleven_multilingual_v2','eleven_v3','eleven_flash_v2_5'], key: true, languages: ['zh','en','ja'], voices: {}, docs:'https://elevenlabs.io/docs/api-reference/text-to-speech/convert' },
-  { id: 'fish', name: 'Fish Audio', models: ['s2.1-pro','s2-pro','s1'], key: true, languages: ['zh','en','ja'], voices: {}, docs:'https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech' },
+  { id: 'fish', name: 'Fish Audio', models: ['s2.1-pro-free','s2-pro','s2.1-pro','s1'], key: true, languages: ['zh','en','ja'], voices: { zh:'7f92f8afb8ec43bf81429cc1c9199cb1', en:'7f92f8afb8ec43bf81429cc1c9199cb1', ja:'7f92f8afb8ec43bf81429cc1c9199cb1' }, docs:'https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech' },
   { id: 'minimax-cn', name: 'MiniMax · 中国', models: ['speech-2.8-hd','speech-2.8-turbo','speech-2.6-hd'], key: true, languages: ['zh','en','ja'], voices: { zh:'female-shaonv', en:'English_captivating_female1', ja:'Japanese_DependableWoman' }, docs:'https://platform.minimaxi.com/docs/faq/system-voice-id' },
   { id: 'minimax', name: 'MiniMax · Global', models: ['speech-2.8-hd','speech-2.8-turbo','speech-2.6-hd'], key: true, languages: ['zh','en','ja'], voices: { zh:'female-shaonv', en:'English_captivating_female1', ja:'Japanese_DependableWoman' }, docs:'https://platform.minimax.io/docs/faq/system-voice-id' },
 ]
@@ -41,6 +41,29 @@ export class SpeechService {
   async voices(provider: string, language: string, signal: AbortSignal) {
     if (!['zh','en','ja'].includes(language)) throw new Error('invalid_settings')
     if (provider === 'local') return (await localVoices()).filter(v => v.locale.startsWith(language+'_'))
+    // Fish voices are community models addressed by id. Nobody remembers those,
+    // so the popular ones for this language are offered as a list.
+    if (provider === 'fish') {
+      const key = (await this.state()).keys['fish']
+      if (key === undefined || key === '') throw new Error('key_required')
+      try {
+        const response = await this.fetcher(`https://api.fish.audio/model?page_size=40&page_number=1&language=${language}&sort_by=task_count`, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+          redirect: 'error',
+        })
+        if (response.status === 401 || response.status === 403) throw new Error('auth_error')
+        if (!response.ok) throw new Error('network_error')
+        const body = await response.json() as { items?: { _id?: string; title?: string; tags?: string[] }[] }
+        const locale = { zh: 'zh_CN', en: 'en_US', ja: 'ja_JP' }[language] ?? 'zh_CN'
+        return (body.items ?? [])
+          .filter(item => typeof item._id === 'string' && typeof item.title === 'string')
+          .map(item => ({ id: item._id as string, name: `${item.title as string}${(item.tags ?? []).length > 0 ? ` · ${(item.tags ?? []).slice(0, 3).join(', ')}` : ''}`, locale }))
+      } catch (error) {
+        signal.throwIfAborted()
+        throw new Error(error instanceof Error && error.message === 'auth_error' ? 'auth_error' : 'network_error')
+      }
+    }
     if (provider !== 'voicevox' || language !== 'ja') throw new Error('invalid_settings')
     try {
       const response = await this.fetcher('http://127.0.0.1:50021/speakers', { signal:AbortSignal.any([signal,AbortSignal.timeout(5000)]), redirect:'error' })

@@ -3,9 +3,10 @@ lib/
 assets/work/
 *.log
 .DS_Store
-# private / third-party character packs stay out of the public repo
+# private / third-party character packs stay out of the public repo:
+# deny by default, and name the one original pack that ships
 characters/*
-!characters/cetus/
+!characters/xiaoheiyu/
 !characters/README.md
 app/node_modules/
 app/plugin/

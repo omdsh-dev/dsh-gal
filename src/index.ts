@@ -349,12 +349,24 @@ export function apply(ctx: Context, config: Config): void {
     // the line is rewritten into the voice's language before synthesis.
     spokenLine: async (text, language) => {
       if (detectLanguage(text) === language) return text
+      // Replaying a line, or hearing it again after switching languages back,
+      // must not pay for the rewrite twice.
+      const key = `${language}\n${text}`
+      const cached = dubCache.get(key)
+      if (cached !== undefined) {
+        dubCache.delete(key)
+        dubCache.set(key, cached)
+        voiceStats.dubHits += 1
+        return cached
+      }
       const agent = activeSessionId === undefined ? undefined : ctx.agents.get(SessionId(activeSessionId))
       const started = Date.now()
       const line = await translateForVoice(text, agent, language)
       voiceStats.dubs += 1
       voiceStats.translateMs += Date.now() - started
       voiceStats.lastDub = line.slice(0, 200)
+      dubCache.set(key, line)
+      if (dubCache.size > DUB_CACHE_LIMIT) dubCache.delete(dubCache.keys().next().value as string)
       return line
     },
     voiceStatus: () => ({ enabled: config.voiceEnabled !== false, available: voiceAvailable, language: config.voiceLanguage ?? 'ja', speaker: pack.voice.speaker ?? config.voiceSpeaker ?? 3 }),
@@ -499,7 +511,11 @@ export function apply(ctx: Context, config: Config): void {
 
   // ---- voice ----
   const voiceClips = new Map<string, Buffer>()
-  const voiceStats = { calls: 0, ok: 0, failed: 0, translateMs: 0, synthMs: 0, lastError: '', dubs: 0, lastDub: '' }
+  const voiceStats = { calls: 0, ok: 0, failed: 0, translateMs: 0, synthMs: 0, lastError: '', dubs: 0, dubHits: 0, lastDub: '' }
+  // Recently dubbed lines, oldest first. A conversation is short; this only has
+  // to outlive the replay button and a round trip through the language menu.
+  const DUB_CACHE_LIMIT = 64
+  const dubCache = new Map<string, string>()
   let voiceSeq = 0
   let voiceAvailable: boolean | undefined
   const voiceUrl = (): string => config.voicevoxUrl ?? 'http://127.0.0.1:50021'

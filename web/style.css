@@ -317,6 +317,17 @@ body.ui-hidden #dialogue, body.ui-hidden #topbar, body.ui-hidden #ticker {
 .ed-art-head code { color: var(--accent); }
 #ed-art textarea { font-size: 0.8rem; color: var(--dim); }
 
+/* Her backlog entries are rendered markdown, so the newlines between block
+   elements are markup, not content: pre-wrap would show them as blank lines. */
+.h-entry.assistant .h-text { white-space: normal; }
+.h-entry.assistant .h-text p { margin: 0 0 .7em; }
+.h-entry.assistant .h-text > :last-child { margin-bottom: 0; }
+.h-entry.assistant .h-text ul,.h-entry.assistant .h-text ol { margin: 0 0 .7em; padding-left: 1.4em; }
+.h-entry.assistant .h-text table { width: 100%; border-collapse: collapse; font-size: .9em; margin: 0 0 .7em; }
+.h-entry.assistant .h-text th,.h-entry.assistant .h-text td { padding: 6px 9px; border: 1px solid #9fbacf2b; text-align: left; vertical-align: top; }
+.h-entry.assistant .h-text td:first-child,.h-entry.assistant .h-text th:first-child { white-space: nowrap; width: 1%; }
+.h-entry.assistant .h-text pre { overflow-x: auto; }
+
 .h-entry.voice .h-text { color: var(--dim); font-style: italic; }
 #btn-voice.active { color: var(--accent); }
 

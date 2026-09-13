@@ -15,6 +15,9 @@ export interface VoicevoxSpeaker {
 /** Strip markdown/code/urls so the voice reads dialogue, not syntax. */
 export function speakableText(text: string, maxChars = 360): string {
   let out = text
+    // Parentheses carry stage directions — （放下托盘）— which are read, not spoken.
+    .replace(/（[^（）]*）/g, ' ')
+    .replace(/\([^()]*\)/g, ' ')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`[^`]*`/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')

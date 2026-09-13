@@ -55,6 +55,10 @@ button:disabled {cursor:not-allowed;opacity:.4;}
 #dialogue-text hr {margin:1.1em 0;border:0;border-top:1px solid #9fbacf33;}
 #dialogue-text table {width:100%;margin:0 0 .85em;border-collapse:collapse;font-size:.82em;}
 #dialogue-text th,#dialogue-text td {padding:7px 10px;border:1px solid #9fbacf2b;text-align:left;vertical-align:top;}
+/* A first column of identifiers should set the column width, not be broken
+   across lines to fit whatever the prose column wants. */
+#dialogue-text td:first-child,#dialogue-text th:first-child {white-space:nowrap;width:1%;}
+#dialogue-text td code,#dialogue-text th code {white-space:nowrap;}
 #dialogue-text th {background:#122c3f;color:var(--gold);font-weight:600;}
 #dialogue-text a {color:var(--gold);text-decoration:underline;text-underline-offset:2px;}
 #advance {right:29px;bottom:13px;}

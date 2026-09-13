@@ -6,8 +6,11 @@ import {buttonVariants} from '@/components/ui/button';
 import {Stage} from './Stage';
 import {CharacterHub,MemoryPanel,SpeechPanel,HelpPanel,History} from './Panels';
 import './theme.css';
+import {render as renderMarkdown} from './markdown';
 
-declare global { interface Window {galUi:any;galVoice:any;} }
+declare global { interface Window {galUi:any;galVoice:any;galMarkdown:any;} }
+// The imperative controllers below expect this to exist before they load.
+window.galMarkdown={render:renderMarkdown};
 const definitions={'character-hub':CharacterHub,'memory-panel':MemoryPanel,'speech-panel':SpeechPanel,'help-panel':HelpPanel,history:History};
 type PanelId=keyof typeof definitions;
 const parking=document.createElement('div');parking.id='panel-parking';parking.hidden=true;document.body.append(parking);
@@ -39,6 +42,6 @@ function ModalManager(){
 function App(){return <><Stage/>{Object.entries(definitions).map(([id,Panel])=>createPortal(<Panel/>,hosts[id as PanelId],id))}<ModalManager/></>;}
 flushSync(()=>createRoot(document.getElementById('root')!).render(<App/>));
 // Load imperative controllers only after all persistent React UI nodes exist.
-for(const file of ['markdown.js','voice-controls.js','speech-settings.js','character-state.js','app.js','layout-labels.js','ui-labels.js']){
+for(const file of ['voice-controls.js','speech-settings.js','character-state.js','app.js','layout-labels.js','ui-labels.js']){
  await new Promise<void>((resolve,reject)=>{const script=document.createElement('script');script.src='./'+file;script.onload=()=>resolve();script.onerror=()=>reject(Error('Cannot load '+file));document.body.append(script);});
 }

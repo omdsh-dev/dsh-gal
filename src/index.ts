@@ -616,6 +616,9 @@ export function apply(ctx: Context, config: Config): void {
     .on('agent/assistant-stream', ({ agent, frame }) => {
       if (activeSessionId !== undefined && agent.id !== activeSessionId) return
       if (frame.type === 'start') { server.broadcast({ type: 'delta', reset: true }); return }
+      // A stream that ends without text was reasoning or a tool call. The UI
+      // has to hear about it, or the empty line it opened holds the box.
+      if (frame.type === 'end') { server.broadcast({ type: 'delta', done: true }); return }
       if (frame.type !== 'chunk') return
       if (frame.chunk.type !== 'text-delta') return
       const text = frame.chunk.text

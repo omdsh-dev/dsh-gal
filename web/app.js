@@ -471,7 +471,12 @@
 
   function scheduleFinish() {
     if (finishTimer !== null) { clearTimeout(finishTimer); finishTimer = null; }
-    if (current === null || !current.complete || queue.length === 0) return;
+    if (current === null || queue.length === 0) return;
+    // An unfinished line with nothing in it has no claim on the box.
+    if (!current.complete) {
+      if (current.text.trim() !== '') return;
+      current = null; presentNext(); return;
+    }
     if (voiceActive) return;                       // being spoken right now
     const awaitingVoice = current.voiceRequested && !current.voicePlayed
       && window.galVoice.enabled && current.voiceWait < VOICE_WAIT_LIMIT;
@@ -497,6 +502,19 @@
       if (current === live) { live.text = ''; paint(''); }
     }
     live = enqueue({ text: '', complete: false });
+  }
+
+  // A stream can end with nothing to say — the turn was reasoning, or a tool
+  // call. That empty line must not keep the box: everything queued behind it
+  // would wait forever for a message that is never coming.
+  function endStream() {
+    if (live === null || live.complete) { live = null; return; }
+    if (live.text.trim() !== '') return;   // real text: the commit finalizes it
+    const ended = live;
+    live = null;
+    const index = queue.indexOf(ended);
+    if (index !== -1) { queue.splice(index, 1); updateAdvanceButton(); return; }
+    if (current === ended) { current = null; presentNext(); updateAdvanceButton(); }
   }
 
   function pushStream(text) {
@@ -587,7 +605,9 @@
     roleEl.textContent = role === 'user' ? 'You' : role === 'assistant' ? manifest.characterName : role === 'voice' ? `${manifest.characterName} · voice` : 'Action';
     const textEl = document.createElement('div');
     textEl.className = 'h-text';
-    textEl.textContent = text;
+    // Her lines are markdown in the box; the backlog is the same lines.
+    if (role === 'assistant') textEl.innerHTML = window.galMarkdown.render(text);
+    else textEl.textContent = text;
     entry.append(roleEl, textEl);
     historyList.appendChild(entry);
   }
@@ -665,6 +685,7 @@
         break;
       case 'delta':
         if (ev.reset) { beginStream(); break; }
+        if (ev.done) { endStream(); break; }
         if (typeof ev.text === 'string') pushStream(ev.text);
         break;
       case 'busy':

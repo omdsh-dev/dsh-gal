@@ -29,6 +29,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div className="app-controls">
 <Button id="btn-help" type="button" data-ui-text="help" variant="ghost" data-slot="button">{"帮助"}</Button>
 <Button type="button" id="btn-char" title="Switch character (C)" variant="ghost" data-slot="button">{"CHAR"}</Button>
+<Button type="button" id="btn-memory" title="What I remember about you (M)" variant="ghost" data-slot="button">{"MEMORY"}</Button>
 <Button type="button" id="btn-speech-settings" variant="ghost" data-slot="button">{"语音设置"}</Button>
 <Button type="button" id="btn-hide" title="Hide window (H / right-click)" variant="ghost" data-slot="button">{"HIDE"}</Button>
 </div>

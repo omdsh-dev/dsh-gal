@@ -27,7 +27,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { execFileSync, spawn } from 'node:child_process'
 import { existsSync as fileExists, mkdirSync, mkdtempSync, readdirSync, rmSync, cpSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { listCharacterPacks, loadCharacterPack, memorySection, personaSection, rememberInPack, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
+import { listCharacterPacks, loadCharacterPack, personaSection, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
+import { memorySection, readMemory, remember, writeMemory } from './memory.js'
 import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion } from './emotion.js'
 import { GalServer } from './server.js'
 import { detectLanguage, looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize, type SpokenLanguage } from './tts.js'
@@ -177,7 +178,7 @@ export function apply(ctx: Context, config: Config): void {
   // ---- character pack ----
   let pack: CharacterPack = resolveCharacterPack(config.character ?? 'cetus', bundledDir, promptsDir)
     ?? resolveCharacterPack('cetus', bundledDir)
-    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', memory: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, emotions: {} }
+    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, emotions: {} }
   if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
 
   const displayName = (): string => config.characterName ?? pack.name
@@ -208,13 +209,12 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
 
-  // Persona voice layer + memory: system-prompt sections, re-registered on switch.
+  // The persona is the character's, and is re-registered when the pack changes.
+  // Memory is the user's: it is registered once and outlives every switch.
   let disposePersona: (() => void) | undefined
-  let disposeMemory: (() => void) | undefined
   const registerPersona = (): void => {
     disposePersona?.()
-    disposeMemory?.()
-    disposePersona = disposeMemory = undefined
+    disposePersona = undefined
     if (config.personaEnabled === false) return
     const text = personaSection(pack)
     if (text === '') return
@@ -225,8 +225,6 @@ export function apply(ctx: Context, config: Config): void {
         order: 9500,
         text,
       })
-      // Memory is read at every assembly so `gal_remember` takes effect on the next turn.
-      disposeMemory = ctx.systemPrompt.section({ name: 'dsh-gal.memory', order: 9510, text: () => memorySection(pack) })
       void ctx.systemPrompt.assemble().then(
         assembly => ctx.logger.info(`dsh-gal: persona "${pack.id}" registered; prompt sections: ${assembly.sections.map(section => section.name).join(', ')}`),
         () => { /* diagnostics only */ },
@@ -242,7 +240,6 @@ export function apply(ctx: Context, config: Config): void {
     name: pack.name,
     greeting: pack.greeting,
     persona: pack.persona,
-    memory: pack.memory,
     theme: pack.theme,
     playbackRate: pack.playbackRate,
     voiceSpeaker: pack.voice.speaker,
@@ -303,7 +300,7 @@ export function apply(ctx: Context, config: Config): void {
   const exportPack = (): string => {
     const work = mkdtempSync(join(tmpdir(), 'dsh-gal-export-'))
     const out = join(work, `${pack.id}.zip`)
-    execFileSync('zip', ['-q', '-r', out, pack.id, '-x', `${pack.id}/memory.md`, `${pack.id}/*.log`, `${pack.id}/orig24/*`, `${pack.id}/.DS_Store`], { cwd: join(pack.dir, '..') })
+    execFileSync('zip', ['-q', '-r', out, pack.id, '-x', `${pack.id}/memory.md`, `${pack.id}/memory.md.migrated`, `${pack.id}/*.log`, `${pack.id}/orig24/*`, `${pack.id}/.DS_Store`], { cwd: join(pack.dir, '..') })
     return out
   }
 
@@ -377,6 +374,8 @@ export function apply(ctx: Context, config: Config): void {
     log: message => ctx.logger.warn(`dsh-gal: ${message}`),
     characterConfig,
     saveCharacter,
+    memory: () => readMemory(),
+    saveMemory: (text: string) => writeMemory(text),
     uploadAsset,
     importPack,
     exportPack,
@@ -423,7 +422,7 @@ export function apply(ctx: Context, config: Config): void {
   // ---- the character's own memory tool ----
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'gal_remember',
-    description: `Save one short note about the user to ${'the character'}'s long-term memory (shown to you in every future session). Use it when the user tells you something worth keeping: preferences, ongoing projects, how they like to work, facts about their life they share. One concise sentence per call.`,
+    description: `Save one short note about the user to your long-term memory (shown to you in every future session). Use it when the user tells you something worth keeping: preferences, ongoing projects, how they like to work, facts about their life they share. One concise sentence per call.`,
     parameters: {
       note: { type: 'string', required: true, description: 'One concise sentence to remember, written in the user\'s language' },
     },
@@ -431,8 +430,7 @@ export function apply(ctx: Context, config: Config): void {
     execute: async (args: unknown) => {
       const note = String((args as { note?: unknown }).note ?? '').trim()
       if (note === '') throw new Error('gal_remember: note is required')
-      pack = rememberInPack(pack, note, bundledDir, promptsDir)
-      server.broadcast({ type: 'memory', memory: pack.memory })
+      server.broadcast({ type: 'memory', memory: remember(note) })
       return `Remembered: ${note}`
     },
   } as never)), 'dsh-gal.tool.remember')
@@ -680,6 +678,10 @@ export function apply(ctx: Context, config: Config): void {
     registerPersona()
     return () => { disposePersona?.(); disposePersona = undefined }
   }, 'dsh-gal.persona')
+
+  // Memory belongs to the user, so it is registered independently of the pack
+  // and read at every assembly — `gal_remember` takes effect on the next turn.
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.memory', order: 9510, text: () => memorySection() }), 'dsh-gal.memory')
 
   ctx.effect(() => {
     server.start().then(

@@ -51,14 +51,13 @@ characters/cetus/
   sad.png      sad.mp4
   surprised.png surprised.mp4
   excited.png  excited.mp4
-  memory.md             optional — what she already knows about you
 ```
 
 - **Bundled pack: Cetus**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships.
 - **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
 - **Prompt-only packs** ship text and image prompts but no art — pick one, generate the six images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
-- **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; `memory.md` stays on your machine.
-- **Memory** — every pack keeps a `memory.md` that is injected each turn. She writes to it herself through the `gal_remember` tool when you tell her something worth keeping, and you can edit it by hand.
+- **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
+- **Memory** — notes about *you*, not about the character: they live in one file, `~/.dsh/gal/memory.md`, and every pack shares them, so switching characters does not lose what she knows. The file is injected each turn. She writes to it herself through the `gal_remember` tool when you tell her something worth keeping; open **MEMORY** (`M`) to read or edit it. Notes kept per-pack by an older version are folded in on first run.
 
 ## Controls
 
@@ -70,12 +69,13 @@ Everything has a button; the shortcuts are for when you are reading, not clickin
 | `L` | backlog — the full scrollable log |
 | `C` | 角色 › 选择角色 — switch pack live |
 | `G` | 角色 › 立绘素材 — browse the six expressions, click to preview, drop a `.png` / `.mp4` on a tile to replace it |
-| `E` | 角色 › 人设与记忆 — edit name, greeting, persona and memory in place |
+| `E` | 角色 › 角色设定 — edit name, greeting and persona in place |
+| `M` | 记忆 — what she remembers about you, shared by every character |
 | `V` | mute / unmute voice |
 | `H` | hide the interface and just watch her |
 | `Esc` | close any panel, or restore a hidden interface |
 
-Slash commands in the input box: `/new`, `/char [id]`, `/edit`, `/gallery`, `/voice`, `/log`, `/help`.
+Slash commands in the input box: `/new`, `/char [id]`, `/edit`, `/memory`, `/gallery`, `/voice`, `/log`, `/help`.
 
 ![Interface hidden with H](assets/docs/screenshot-hidden.png)
 

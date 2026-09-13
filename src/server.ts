@@ -32,7 +32,11 @@ export interface GalServerOptions {
   /** Editable view of the active pack. */
   characterConfig: () => unknown
   /** Persist edits to the active pack. */
-  saveCharacter: (patch: { name?: string; greeting?: string; persona?: string; memory?: string; playbackRate?: number }) => void
+  saveCharacter: (patch: { name?: string; greeting?: string; persona?: string; playbackRate?: number }) => void
+  /** What the agent remembers about the user — shared by every character. */
+  memory: () => string
+  /** Replace the remembered notes; returns the stored text. */
+  saveMemory: (text: string) => string
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
   /** Rewrite a dialogue line into the selected voice's language before synthesis. */
@@ -139,6 +143,24 @@ export class GalServer {
     }
     if (url.pathname === '/send' && req.method === 'POST') { await this.handleSend(req, res); return }
     if (url.pathname === '/character' && req.method === 'POST') { await this.handleSwitch(req, res); return }
+    if (url.pathname === '/memory' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ memory: this.options.memory() }))
+      return
+    }
+    if (url.pathname === '/memory' && req.method === 'POST') {
+      const body = await this.readJson(req)
+      try {
+        const memory = this.options.saveMemory(typeof body['memory'] === 'string' ? body['memory'] : '')
+        this.broadcast({ type: 'memory', memory })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ memory }))
+      } catch (error) {
+        res.writeHead(500, { 'content-type': 'text/plain' })
+        res.end(String(error instanceof Error ? error.message : error))
+      }
+      return
+    }
     if (url.pathname === '/character/config' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(this.options.characterConfig()))
@@ -147,7 +169,7 @@ export class GalServer {
     if (url.pathname === '/character/config' && req.method === 'POST') {
       const body = await this.readJson(req)
       const patch: Record<string, string | number> = {}
-      for (const key of ['name', 'greeting', 'persona', 'memory']) {
+      for (const key of ['name', 'greeting', 'persona']) {
         if (typeof body[key] === 'string') patch[key] = body[key] as string
       }
       const rate = Number(body['playbackRate'])

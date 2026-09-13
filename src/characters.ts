@@ -48,8 +48,6 @@ export interface CharacterPack {
   name: string
   greeting: string | Partial<Record<'zh' | 'en' | 'ja', string>>
   persona: string
-  /** Free-form notes the character keeps about the user (`memory.md`). */
-  memory: string
   theme: { accent?: string; frame?: string; box?: string }
   playbackRate: number
   voice: { speaker?: number }
@@ -106,7 +104,6 @@ export function loadCharacterPack(dir: string, id = basename(dir)): CharacterPac
     name: file.name || id,
     greeting: file.greeting ?? `Hello. I am ${file.name || id} — say something below and I will get to work.`,
     persona: file.persona ?? '',
-    memory: existsSync(join(dir, 'memory.md')) ? readFileSync(join(dir, 'memory.md'), 'utf8') : '',
     theme: file.theme ?? {},
     playbackRate: typeof file.playbackRate === 'number' && file.playbackRate > 0 ? file.playbackRate : 1,
     voice: typeof file.voice === 'object' && file.voice !== null ? file.voice : {},
@@ -121,7 +118,6 @@ export interface CharacterPatch {
   name?: string
   greeting?: string
   persona?: string
-  memory?: string
   playbackRate?: number
   voiceSpeaker?: number
 }
@@ -149,7 +145,6 @@ export function saveCharacterPack(pack: CharacterPack, patch: CharacterPatch, bu
   if (patch.playbackRate !== undefined && patch.playbackRate > 0) file.playbackRate = patch.playbackRate
   if (patch.voiceSpeaker !== undefined) file.voice = { ...file.voice ?? {}, speaker: patch.voiceSpeaker }
   writeFileSync(manifestPath, `${JSON.stringify(file, null, 2)}\n`)
-  if (patch.memory !== undefined) writeFileSync(join(dir, 'memory.md'), patch.memory.replace(/\s+$/, '') === '' ? '' : `${patch.memory.replace(/\s+$/, '')}\n`)
   const reloaded = loadCharacterPack(dir, pack.id)
   if (reloaded === undefined) throw new Error(`pack ${pack.id} unreadable after save`)
   return reloaded
@@ -172,24 +167,6 @@ export function storePackAsset(pack: CharacterPack, emotion: Emotion, kind: 'ima
   const reloaded = loadCharacterPack(live.dir, live.id)
   if (reloaded === undefined) throw new Error('pack unreadable after upload')
   return reloaded
-}
-
-/** Append one dated bullet to the pack's memory; returns the updated pack. */
-export function rememberInPack(pack: CharacterPack, note: string, bundledDir: string, promptsDir?: string): CharacterPack {
-  const line = `- ${new Date().toISOString().slice(0, 10)}: ${note.trim().replace(/\s*\n\s*/g, ' ')}`
-  const memory = pack.memory.trim() === '' ? line : `${pack.memory.replace(/\s+$/, '')}\n${line}`
-  return saveCharacterPack(pack, { memory }, bundledDir, promptsDir)
-}
-
-/** Prompt section carrying the character's memory of the user. */
-export function memorySection(pack: CharacterPack): string {
-  if (pack.memory.trim() === '') return ''
-  return [
-    `# What ${pack.name} remembers about the user`,
-    'Notes kept across sessions. Use them naturally; do not recite them unprompted.',
-    '',
-    pack.memory.trim(),
-  ].join('\n')
 }
 
 /**

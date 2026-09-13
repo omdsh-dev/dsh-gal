@@ -125,11 +125,10 @@
     try {
       const c = await loadCharacterConfig();
       if(ticket!==overlayRequest)return;
-      $('editor-title').textContent = `${c.name} · persona & memory`;
+      $('editor-title').textContent = `${c.name} · persona`;
       $('ed-name').value = c.name;
       $('ed-greeting').value = window.galVoice.greeting(c.greeting);
       $('ed-persona').value = c.persona;
-      $('ed-memory').value = c.memory;
       $('ed-rate').value = c.playbackRate || 1;
       fillVoiceSelect(c.voiceSpeaker);
       const art = c.art || {};
@@ -144,11 +143,34 @@
       showOverlay('editor', true);
     } catch (err) { say(`(failed to load character config: ${err.message})`, 'sad'); }
   }
+  // Memory is about the user, not about the character on stage: its own panel,
+  // its own endpoint, and it survives switching packs.
+  async function openMemory() {
+    const ticket=++overlayRequest;
+    try {
+      const res = await fetch(withToken('/memory'));
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if(ticket!==overlayRequest)return;
+      $('mem-text').value = data.memory;
+      showOverlay('memory-panel', true);
+    } catch (err) { say(`(failed to load memory: ${err.message})`, 'sad'); }
+  }
+  $('memory-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      const res = await fetch(withToken('/memory'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ memory: $('mem-text').value }) });
+      if (!res.ok) throw new Error(await res.text());
+      showOverlay('memory-panel', false);
+      say('Saved. Memory applies from the next reply, whichever character is on stage.', 'happy');
+    } catch (err) { say(`(save failed: ${err.message})`, 'sad'); }
+  });
+
   $('editor-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const body = {
       name: $('ed-name').value, greeting: $('ed-greeting').value,
-      persona: $('ed-persona').value, memory: $('ed-memory').value,
+      persona: $('ed-persona').value,
       playbackRate: Number($('ed-rate').value) || 1,
     };
     if ($('ed-voice').value !== '') body.voiceSpeaker = Number($('ed-voice').value);
@@ -160,7 +182,7 @@
       manifest.playbackRate = characterConfig.playbackRate || 1;
       for (const layer of [layerA, layerB]) layer.playbackRate = manifest.playbackRate;
       showOverlay('editor', false);
-      say('Saved. The new persona and memory apply from the next reply.', 'happy');
+      say('Saved. The new persona applies from the next reply.', 'happy');
     } catch (err) { say(`(save failed: ${err.message})`, 'sad'); }
   });
 
@@ -278,7 +300,7 @@
   function showHelp(){
     window.galVoice.stop();
     const language=window.galVoice.language;
-    const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定和记忆','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','設定とメモリを編集','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
+    const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定与开场白','查看关于你的记忆（所有角色共用）','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','人格とあいさつを編集','あなたについての記憶（全キャラ共通）','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
     $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
     $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
     $('help-keys').textContent={zh:'ESC 关闭面板 · Enter 发送 · L 记录 · V 自动朗读。输入时快捷键不会触发。',ja:'ESC で閉じる · Enter で送信 · L 履歴 · V 音声。入力中はショートカット無効。',en:'ESC closes panels · Enter sends · L history · V auto voice. Shortcuts are inactive while typing.'}[language];
@@ -288,7 +310,8 @@
   const COMMANDS = {
     '/new': 'start a fresh session (the current one stays in dsh web)',
     '/char [id]': 'switch character, or open the picker',
-    '/edit': 'edit persona, greeting and memory',
+    '/edit': 'edit persona and greeting',
+    '/memory': 'what I remember about you (shared by every character)',
     '/gallery': 'browse sprites and loops',
     '/log': 'open the backlog',
     '/voice': 'toggle voice playback',
@@ -313,6 +336,7 @@
         } catch (err) { say(`(unknown character "${arg}")`, 'sad'); }
         return;
       case '/edit': openEditor(); return;
+      case '/memory': openMemory(); return;
       case '/gallery': openGallery(); return;
       case '/voice': toggleVoice(); say('Voice preference updated.', 'neutral'); return;
       case '/log': toggleHistory(); return;
@@ -544,8 +568,10 @@
     if (ev.key === 'c' || ev.key === 'C') toggleCharPicker();
     if (ev.key === 'e' || ev.key === 'E') openEditor();
     if (ev.key === 'g' || ev.key === 'G') openGallery();
+    if (ev.key === 'm' || ev.key === 'M') openMemory();
   });
   $('btn-char').addEventListener('click', toggleCharPicker);
+  $('btn-memory').addEventListener('click', openMemory);
   $('btn-character-select').addEventListener('click',()=>showOverlay('char-picker',true));
   $('btn-skip').addEventListener('click', advance);
   $('btn-hide').addEventListener('click', () => setUiHidden(true));
@@ -661,7 +687,9 @@
         break;
       }
       case 'memory':
-        if (!$('editor').classList.contains('hidden')) $('ed-memory').value = ev.memory;
+        // Only when the panel is open and untouched, so a note saved mid-edit
+        // does not overwrite what is being typed.
+        if (activeOverlay() === $('memory-panel') && document.activeElement !== $('mem-text')) $('mem-text').value = ev.memory;
         break;
       case 'manifest': {
         applyManifest(ev.manifest);

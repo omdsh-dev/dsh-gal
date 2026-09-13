@@ -12,7 +12,7 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 <nav className="character-tabs" aria-label="角色管理">
 <Button type="button" id="btn-character-select" data-character-view="char-picker" data-layout-text="choose" variant="ghost" data-slot="button">{"选择角色"}</Button>
 <Button type="button" id="btn-gallery" data-character-view="gallery" title="Sprites & loops (G)" variant="ghost" data-slot="button">{"GALLERY"}</Button>
-<Button type="button" id="btn-edit" data-character-view="editor" title="Persona & memory (E)" variant="ghost" data-slot="button">{"EDIT"}</Button>
+<Button type="button" id="btn-edit" data-character-view="editor" title="Persona (E)" variant="ghost" data-slot="button">{"EDIT"}</Button>
 </nav>
 <div className="character-display-settings">
 <Label className="language-control">
@@ -77,11 +77,6 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 </Label>
 <Label hidden={true}>{"Voice — VOICEVOX speaker style ("}<span id="ed-voice-state">{"checking…"}</span>{") "}<NativeSelect id="ed-voice">
 </NativeSelect>
-</Label>
-<Label>
-<span data-ui-text="ed-memory">{"角色记忆"}</span>
-<Textarea id="ed-memory" rows={8} placeholder="- 2026-09-11: …">
-</Textarea>
 </Label>
 <div className="overlay-actions">
 <span id="ed-path" className="dim">
@@ -198,6 +193,24 @@ export const SpeechPanel=React.memo(function SpeechPanel(){return (<>
 <p id="speech-status" role="status" aria-live="polite">
 </p>
 </div>
+</>);});
+export const MemoryPanel=React.memo(function MemoryPanel(){return (<>
+<div className="overlay-head">
+<span id="memory-title" data-ui-text="memory-title">{"记忆"}</span>
+<Button type="button" className="overlay-close" data-close="memory-panel" hidden={true} variant="ghost" data-slot="button">{"关闭 / ESC"}</Button>
+</div>
+<form id="memory-form" className="overlay-body">
+<p id="memory-hint" className="dim" data-ui-text="memory-hint">{"这些是关于你的笔记，所有角色共用，换角色也不会丢。"}</p>
+<Label>
+<Textarea id="mem-text" rows={14} placeholder="- 2026-09-11: …">
+</Textarea>
+</Label>
+<div className="overlay-actions">
+<span id="memory-path" className="dim">
+</span>
+<Button type="submit" id="mem-save" data-ui-text="save" variant="default" data-slot="button">{"SAVE"}</Button>
+</div>
+</form>
 </>);});
 export const HelpPanel=React.memo(function HelpPanel(){return (<>
 <div className="overlay-head">

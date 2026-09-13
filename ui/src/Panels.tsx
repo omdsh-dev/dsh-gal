@@ -4,6 +4,7 @@ import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
 import {Label} from '@/components/ui/label';
 import {NativeSelect} from '@/components/ui/native-select';
+import {Kbd,KbdGroup} from '@/components/ui/kbd';
 export const CharacterHub=React.memo(function CharacterHub(){return (<>
 <div className="overlay-head">
 <span id="character-hub-title" data-layout-text="character">{"角色"}</span>
@@ -217,6 +218,22 @@ export const HelpPanel=React.memo(function HelpPanel(){return (<>
 </div>
 <div className="overlay-body">
 <div id="help-list">
+</div>
+<div id="help-shortcuts">
+<div className="help-key"><KbdGroup><Kbd>{"Space"}</Kbd><Kbd>{"Enter"}</Kbd></KbdGroup><span data-ui-text="key-advance">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"/"}</Kbd></KbdGroup><span data-ui-text="key-input">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"Esc"}</Kbd></KbdGroup><span data-ui-text="key-blur">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"L"}</Kbd></KbdGroup><span data-ui-text="key-log">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"M"}</Kbd></KbdGroup><span data-ui-text="key-memory">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"C"}</Kbd></KbdGroup><span data-ui-text="key-char">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"G"}</Kbd></KbdGroup><span data-ui-text="key-gallery">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"E"}</Kbd></KbdGroup><span data-ui-text="key-edit">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"S"}</Kbd></KbdGroup><span data-ui-text="key-settings">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"V"}</Kbd></KbdGroup><span data-ui-text="key-voice">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"R"}</Kbd></KbdGroup><span data-ui-text="key-replay">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"N"}</Kbd></KbdGroup><span data-ui-text="key-new">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"H"}</Kbd></KbdGroup><span data-ui-text="key-hide">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"?"}</Kbd></KbdGroup><span data-ui-text="key-help">{""}</span></div>
 </div>
 <p id="help-keys">
 </p>

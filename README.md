@@ -63,16 +63,22 @@ characters/xiaoheiyu/
 
 Everything has a button; the shortcuts are for when you are reading, not clicking.
 
+Single-key shortcuts fire when the cursor is **not** in the text box: `/` puts it there, `Esc` takes it back out. The full list is in the help panel (`?`).
+
 | | |
 | --- | --- |
 | `Space` / `Enter` / click | hand over to the next message, or jump back to the newest line |
+| `/` · `Esc` | enter the input box · leave it |
 | `L` | backlog — the full scrollable log |
+| `M` | 记忆 — what she remembers about you, shared by every character |
 | `C` | 角色 › 选择角色 — switch pack live |
 | `G` | 角色 › 立绘素材 — browse the six expressions, click to preview, drop a `.png` / `.mp4` on a tile to replace it |
 | `E` | 角色 › 角色设定 — edit name, greeting and persona in place |
-| `M` | 记忆 — what she remembers about you, shared by every character |
-| `V` | mute / unmute voice |
+| `S` | 设置 — speech provider, voice and languages |
+| `V` · `R` | mute / unmute voice · read the current line again |
+| `N` | start a fresh session |
 | `H` | hide the interface and just watch her |
+| `?` | commands and shortcuts |
 | `Esc` | close any panel, or restore a hidden interface |
 
 Slash commands in the input box: `/new`, `/char [id]`, `/edit`, `/memory`, `/gallery`, `/voice`, `/log`, `/help`.

@@ -104,11 +104,18 @@
   window.addEventListener('gal-request-close',closeOverlays);
   $('btn-help').onclick=()=>showHelp();
   $('btn-restore').onclick=()=>setUiHidden(false);
-  $('btn-speech-settings').onclick=()=>{window.galVoice.stop();showOverlay('speech-panel',true);void window.galSpeechSettings.load();};
+  function openSpeechSettings(){window.galVoice.stop();showOverlay('speech-panel',true);void window.galSpeechSettings.load();}
+  $('btn-speech-settings').onclick=openSpeechSettings;
   document.querySelectorAll('.overlay-close').forEach(btn=>btn.addEventListener('click',closeOverlays));
   document.addEventListener('keydown',ev=>{
     if(ev.isComposing)return;
-    if(ev.key==='Escape'){ev.preventDefault();ev.stopImmediatePropagation();closeOverlays();setUiHidden(false);return;}
+    if(ev.key==='Escape'){
+      ev.preventDefault();ev.stopImmediatePropagation();
+      // With no panel open, Esc hands the keyboard back to the stage so the
+      // single-key shortcuts work.
+      if(!activeOverlay()&&document.activeElement===input){input.blur();return;}
+      closeOverlays();setUiHidden(false);return;
+    }
     const modal=activeOverlay();if(!modal)return;
     if(!ev.target.closest('input,textarea,select,button,[contenteditable=true]'))ev.stopImmediatePropagation();
   },true);
@@ -357,7 +364,7 @@
     const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定与开场白','查看关于你的记忆（所有角色共用）','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','人格とあいさつを編集','あなたについての記憶（全キャラ共通）','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
     $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
     $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
-    $('help-keys').textContent={zh:'ESC 关闭面板 · Enter 发送 · L 记录 · V 自动朗读。输入时快捷键不会触发。',ja:'ESC で閉じる · Enter で送信 · L 履歴 · V 音声。入力中はショートカット無効。',en:'ESC closes panels · Enter sends · L history · V auto voice. Shortcuts are inactive while typing.'}[language];
+    $('help-keys').textContent={zh:'单键快捷键只在光标不在输入框时生效；输入时按 Esc 即可退出输入框。',ja:'単キーのショートカットは入力欄にカーソルが無いときだけ有効です。入力中は Esc で抜けられます。',en:'Single-key shortcuts work when the cursor is not in the input box; press Esc to leave it.'}[language];
     showOverlay('help-panel',true);
   }
   // ---------- slash commands ----------
@@ -629,18 +636,23 @@
     ev.preventDefault();
     setUiHidden(!document.body.classList.contains('ui-hidden'));
   });
+  // One key, one thing — but only while the cursor is not in the text box,
+  // which is where it spends most of its time. `/` puts you in it and Esc
+  // takes you back out, so the letters below are reachable without the mouse.
+  const SHORTCUTS = {
+    l: toggleHistory, v: toggleVoice, h: () => setUiHidden(true), c: toggleCharPicker,
+    e: openEditor, g: openGallery, m: openMemory, s: openSpeechSettings,
+    r: () => window.galVoice.replay(), n: () => runCommand('/new'), '?': showHelp,
+  };
+  const typing = target => Boolean(target.closest('input,textarea,select,button,[contenteditable=true]'));
   document.addEventListener('keydown', (ev) => {
     if(ev.isComposing||ev.metaKey||ev.altKey||ev.ctrlKey&&ev.key!=='Control'||activeOverlay())return;
-    if (ev.target.closest('input,textarea,select,button,[contenteditable=true]') || ev.target.closest('#editor')) return;
+    if (typing(ev.target) || ev.target.closest('#editor')) return;
     if (document.body.classList.contains('ui-hidden')) { setUiHidden(false); return; }
-    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); advance(); }
-    if (ev.key === 'l' || ev.key === 'L') toggleHistory();
-    if (ev.key === 'v' || ev.key === 'V') toggleVoice();
-    if (ev.key === 'h' || ev.key === 'H') setUiHidden(true);
-    if (ev.key === 'c' || ev.key === 'C') toggleCharPicker();
-    if (ev.key === 'e' || ev.key === 'E') openEditor();
-    if (ev.key === 'g' || ev.key === 'G') openGallery();
-    if (ev.key === 'm' || ev.key === 'M') openMemory();
+    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); advance(); return; }
+    if (ev.key === '/') { ev.preventDefault(); input.focus(); return; }
+    const action = SHORTCUTS[ev.key.toLowerCase()];
+    if (action !== undefined) { ev.preventDefault(); action(); }
   });
   $('btn-char').addEventListener('click', toggleCharPicker);
   $('btn-memory').addEventListener('click', openMemory);

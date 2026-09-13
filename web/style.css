@@ -426,3 +426,9 @@ body[data-character-renderer="sprite"] #mao-canvas { display: none !important; }
 
 .model-loading { position:absolute; z-index:4; top:22%; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:12px; padding:20px 28px; max-width:90%; border:1px solid #91b4ca66; border-radius:12px; color:#ecf5fb; background:#0b233bea; box-shadow:0 12px 40px #0005; font-size:14px; }
 .model-loading[hidden] { display:none; }
+
+/* Shortcut table in the help panel: the key first, then what it does. */
+#help-shortcuts { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: center; margin: 4px 0 14px; }
+#help-shortcuts .help-key { display: contents; }
+#help-shortcuts .help-key > span { color: var(--text); font-size: 0.92rem; }
+#help-shortcuts kbd[data-slot=kbd] { background: #9fbacf1f; color: var(--text); border: 1px solid #9fbacf33; }

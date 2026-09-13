@@ -88,14 +88,20 @@ export function writeEntries(entries: MemoryEntry[]): MemoryEntry[] {
   return memoryEntries()
 }
 
-/** Prompt section carrying what is known about the user. */
+/**
+ * Prompt section carrying what is known about the user.
+ *
+ * It is emitted even when nothing is known yet: the part that says *when* to
+ * write a note is what makes the memory fill up in the first place.
+ */
 export function memorySection(): string {
   const memory = readMemory().trim()
-  if (memory === '') return ''
   return [
     '# What you remember about the user',
-    'Notes kept across sessions and across characters. Use them naturally; do not recite them unprompted.',
+    memory === '' ? 'Nothing yet.' : 'Notes kept across sessions and across characters. Use them naturally; do not recite them unprompted.',
     '',
-    memory,
+    ...memory === '' ? [] : [memory, ''],
+    'When the user states something about themselves that will still be true next week — a preference, a constraint, what they are working on, how they like things done — call `gal_remember` in that same turn. A stated dislike ("I cannot eat spicy food") is exactly this. Keep it to one short sentence, and do not announce that you are writing it down; a brief acknowledgement in your reply is enough.',
+    'Do not record one-off details of the current task, anything you inferred rather than were told, or anything the user has since corrected.',
   ].join('\n')
 }

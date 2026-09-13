@@ -100,7 +100,13 @@ export class SpeechService {
    */
   dub?: (text: string, language: SpokenLanguage) => Promise<string>
 
-  async synthesize(body: Record<string, unknown>, signal: AbortSignal): Promise<{data:Buffer;type:string}> {
+  /**
+   * A line of speech. Providers that stream give back their body untouched so
+   * playback can start on the first chunk: Fish answers in ~0.5s but takes ~5s
+   * to finish a long line, and waiting for the last byte was most of the delay
+   * before she said anything.
+   */
+  async synthesize(body: Record<string, unknown>, signal: AbortSignal): Promise<{data?:Buffer;stream?:ReadableStream<Uint8Array>;type:string}> {
     if (typeof body.text !== 'string' || body.text.length > 6000) throw new Error('invalid_text')
     let text = speakableText(body.text, 6000)
     if (!text) throw new Error('invalid_text')
@@ -143,8 +149,10 @@ export class SpeechService {
       if (!hex || !/^(?:[a-f\d]{2})+$/i.test(hex)) throw new Error('invalid_audio')
       return { data:Buffer.from(hex,'hex'), type:'audio/mpeg' }
     }
+    if (!(response.headers.get('content-type') || '').match(/audio|octet-stream/)) { await response.body?.cancel(); throw new Error('invalid_audio') }
+    if (body.stream === true && response.body !== null) return { stream: response.body, type:'audio/mpeg' }
     const data = Buffer.from(await response.arrayBuffer())
-    if (!data.length || !(response.headers.get('content-type') || '').match(/audio|octet-stream/)) throw new Error('invalid_audio')
+    if (!data.length) throw new Error('invalid_audio')
     return {data,type:'audio/mpeg'}
   }
   async handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -171,7 +179,23 @@ export class SpeechService {
       for await (const chunk of req) { size += chunk.length; if (size > 40000) throw new Error('invalid_text'); chunks.push(chunk) }
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string,unknown>
       if (pathname === '/voice/config') { res.setHeader('content-type','application/json');res.end(JSON.stringify(await this.save(body))) }
-      else { const audio = await this.synthesize(body,controller.signal);res.setHeader('content-type',audio.type);res.end(audio.data) }
+      else {
+        const audio = await this.synthesize(body,controller.signal)
+        res.setHeader('content-type',audio.type)
+        if (audio.stream === undefined) { res.end(audio.data); return true }
+        // Headers are already out by the time a provider fails mid-line, so a
+        // late failure can only end the response; the client treats a short
+        // line as a playback error.
+        const reader = audio.stream.getReader()
+        try {
+          for (;;) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (!res.write(Buffer.from(value))) await new Promise<void>(resolve => res.once('drain', resolve))
+          }
+        } catch { /* provider or client went away */ }
+        finally { await reader.cancel().catch(() => {}); res.end() }
+      }
     } catch (error) {
       if (controller.signal.aborted) return true
       const message = error instanceof Error ? error.message : ''

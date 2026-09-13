@@ -746,7 +746,8 @@
         setBusy(ev.value);
         break;
       case 'emotion':
-        setEmotion(ev.emotion);
+        if (ev.transient) window.dispatchEvent(new CustomEvent('gal-reaction', { detail: { emotion: ev.emotion } }));
+        else setEmotion(ev.emotion);
         break;
       case 'voice':
         if (ev.line && ev.line !== '') pushHistory('voice', ev.line);

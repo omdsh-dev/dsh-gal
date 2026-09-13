@@ -17,9 +17,12 @@ export function classifierPrompt(reply: string): string {
   // Long replies carry their tone in the opening and closing; clip the middle.
   const clipped = reply.length <= 1200 ? reply : `${reply.slice(0, 700)}\n…\n${reply.slice(-400)}`
   return [
-    'Classify the emotional tone an anime character should show while SPEAKING the following assistant reply.',
+    'Pick the expression an anime character should wear while SPEAKING the following assistant reply.',
     `Answer with exactly one word from: ${EMOTIONS.join(', ')}. Do not think at length — pick the obvious label and answer immediately.`,
-    'Guidelines: happy = warm/positive/success; excited = enthusiastic/big win/strong emphasis; sad = apology/failure/bad news; surprised = unexpected finding/error discovered; thinking = analysis/plans/uncertainty; neutral = plain factual.',
+    'Guidelines: happy = warm, pleased, reassuring, a recommendation she stands behind, something that worked; excited = enthusiastic, a real win, strong emphasis; sad = apology, failure, bad news, sympathy; surprised = unexpected finding, something caught, a caution or a correction; thinking = weighing options, analysis, plans, uncertainty, a question back to the user.',
+    // A face that never changes is the failure mode here: a person talking
+    // carries something almost all the time, and the six clips exist to be used.
+    'neutral is the exception, not the default: use it only when the line is genuinely flat — a bare fact, a one-word confirmation, a mechanical status report with no attitude in it. If the reply offers advice, reassures, cautions, weighs something up, or asks the user a question, one of the other five fits better. When two fit, take the stronger one.',
     '',
     '--- reply ---',
     clipped,

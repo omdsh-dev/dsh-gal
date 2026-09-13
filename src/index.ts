@@ -662,6 +662,13 @@ export function apply(ctx: Context, config: Config): void {
         server.broadcast({ type: 'status', text: `${event.data.name}…` })
         break
       }
+      case 'tool/result': {
+        if (activeSessionId !== undefined && session.id !== activeSessionId) return
+        // Something went wrong out of sight — she should register it, rather
+        // than the face only ever reacting to the words she ends up saying.
+        if (event.data.error !== undefined) server.broadcast({ type: 'emotion', emotion: 'surprised', judge: 'heuristic', transient: true })
+        break
+      }
       case 'turn/start': {
         if (activeSessionId === undefined || session.id === activeSessionId) {
           server.broadcast({ type: 'busy', value: true })

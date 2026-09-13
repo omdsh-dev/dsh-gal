@@ -30,6 +30,50 @@
     select.querySelector('[value=auto]').textContent=t('system');speechSelect.querySelector('[value=auto]').textContent=t('followUI');
     window.dispatchEvent(new CustomEvent('gal-language',{detail:{language:lang}}));
   }
+  // mp3 through MediaSource: Chromium supports it, and where it is missing
+  // (WebKit) the whole-response path below is used unchanged.
+  const streamable=typeof MediaSource!=='undefined'&&MediaSource.isTypeSupported('audio/mpeg');
+
+  // Resolves as soon as she is audible; the rest of the line keeps arriving in
+  // the background. Waiting for the last chunk here would put the delay back.
+  function playStream(body,ticket){
+    return new Promise((resolve,reject)=>{
+      const media=new MediaSource();
+      audioObjectUrl=URL.createObjectURL(media);
+      audio.src=audioObjectUrl;audio.currentTime=0;
+      media.addEventListener('sourceopen',async()=>{
+        if(ticket!==generation){body.cancel().catch(()=>{});resolve();return;}
+        let buffer;
+        try{buffer=media.addSourceBuffer('audio/mpeg');}catch(error){reject(error);return;}
+        const settled=()=>new Promise(done=>buffer.updating?buffer.addEventListener('updateend',done,{once:true}):done());
+        const reader=body.getReader();
+        let started=false,bytes=0;
+        try{
+          for(;;){
+            const {done,value}=await reader.read();
+            if(done)break;
+            if(ticket!==generation){await reader.cancel().catch(()=>{});resolve();return;}
+            await settled();
+            if(media.readyState!=='open')break;
+            buffer.appendBuffer(value);bytes+=value.length;
+            // Enough for the decoder to start; the rest streams in behind it.
+            // Only after play() resolves: autoplay can still be refused here,
+            // and a refusal must surface as an error, not as silent silence.
+            if(!started&&bytes>8192){await settled();await audio.play();started=true;resolve();}
+          }
+          await settled();
+          if(media.readyState==='open')media.endOfStream();
+          if(bytes===0){reject(new Error('invalid_audio'));return;}
+          if(!started){await audio.play();started=true;resolve();}
+        }catch(error){
+          await reader.cancel().catch(()=>{});
+          if(media.readyState==='open')try{media.endOfStream()}catch{}
+          if(started)resolve(); else reject(error);
+        }
+      },{once:true});
+    });
+  }
+
   async function speak(text,clip,force=false){
     if(!enabled&&!force)return;
     stop();
@@ -39,13 +83,19 @@
     request=new AbortController();
     try{
       const endpoint=window.galSpeechSettings?.api('/voice/read') || '/voice/read';
-      const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text,language:speechLang,dub:true}),signal:request.signal});
+      const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text,language:speechLang,dub:true,stream:streamable}),signal:request.signal});
       if(!response.ok){const body=await response.json().catch(()=>({error:'speech_error'}));throw new Error(body.error);}
-      const blob=await response.blob();if(ticket!==generation)return;
-      audioObjectUrl=URL.createObjectURL(blob);audio.src=audioObjectUrl;audio.currentTime=0;
+      if(ticket!==generation)return;
       audio.onended=()=>{if(ticket===generation)stop();};
       audio.onerror=()=>{if(ticket===generation){stop();notify('error');}};
-      await audio.play();
+      // Streaming starts playback on the first chunk instead of the last one.
+      if(streamable&&response.body&&(response.headers.get('content-type')||'').includes('mpeg')){
+        await playStream(response.body,ticket);
+      } else {
+        const blob=await response.blob();if(ticket!==generation)return;
+        audioObjectUrl=URL.createObjectURL(blob);audio.src=audioObjectUrl;audio.currentTime=0;
+        await audio.play();
+      }
       if(ticket===generation){speaking(true);notify('playing');$('btn-stop-voice').disabled=false;}
     }catch(error){
       if(ticket!==generation)return;

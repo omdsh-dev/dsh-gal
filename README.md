@@ -55,7 +55,7 @@ Activity, speech and character are tracked as one semantic state (`window.galCha
 
 ### She speaks the reply
 
-Replies stream in token by token as real markdown (marked + DOMPurify, so a half-arrived table or fence still renders) and are read aloud through [VOICEVOX](https://voicevox.hiroshiba.jp/) (free, local, Japanese) or a provider configured in **设置**. Parenthetical stage directions like （放下托盘）are shown but never spoken.
+Replies stream in token by token as real markdown (marked + DOMPurify, so a half-arrived table or fence still renders) and are read aloud through [VOICEVOX](https://voicevox.hiroshiba.jp/) (free, local, Japanese) or a provider configured in **Settings › Voice**. Parenthetical stage directions like （放下托盘）are shown but never spoken.
 
 With `voiceLanguage: ja` (the default) a small side LLM call first rewrites the reply as a spoken Japanese line in the character's voice — you read Chinese/English subtitles and hear Japanese, like a real VN. Dubbed lines are cached, so a replay does not pay for the rewrite twice. Each pack picks its own speaker style.
 
@@ -70,7 +70,7 @@ A chat answer is gone the moment it scrolls away. Two things survive it:
 
 ### Memory that belongs to you
 
-Notes about *you*, not about the character. She writes them herself through `gal_remember` when you say something that will still be true next week, and they are injected each turn. Open **MEMORY** (`⌥M`) to read or edit them. They live in the shared store, so every pack sees the same notes and switching characters loses nothing.
+Notes about *you*, not about the character. She writes them herself through `gal_remember` when you say something that will still be true next week, and they are injected each turn. Open **Memory** (`⌥M`) to read or edit them. They live in the shared store, so every pack sees the same notes and switching characters loses nothing.
 
 ### Connectors: what she knows about your day
 
@@ -127,7 +127,7 @@ characters/xiaoheiyu/
 - **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
 - **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
 - **Prompt-only packs** ship text and image prompts but no art — pick one, generate the images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
-- **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
+- **Import / export** a pack as a `.zip` from the **Character** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
 
 Editing or uploading art for a bundled pack copies it to `~/.dsh/gal/characters/<id>` first, so the repo copy stays pristine.
 
@@ -138,22 +138,16 @@ Everything has a button; the shortcuts are for when you are reading, not clickin
 | | |
 | --- | --- |
 | `Enter` · `Shift`+`Enter` | send · new line |
-| `⌥M` | 记忆 — what she remembers about you, shared by every character |
+| `⌥M` | Memory — what she remembers about you, shared by every character |
 | `⌥F` | files she wrote for you |
 | `⌥L` | lists she keeps for you |
 | `⌥D` | connectors — what she can see |
-| `⌥C` | 角色 — switch pack, edit persona, browse and replace the activity art |
-| `⌥S` | 设置 — speech provider, voice and languages |
+| `⌥C` | Character — switch pack, edit persona, browse and replace the activity art |
+| `⌥S` | Settings — speech provider, voice and languages |
 | `⌥V` · `⌥R` | mute / unmute voice · read the current line again |
 | `⌥/` | commands and shortcuts |
 
 Slash commands in the message box: `/new`, `/char [id]`, `/edit`, `/memory`, `/files`, `/lists`, `/data`, `/gallery`, `/voice`, `/help`.
-
-### The classic VN stage
-
-The original one-line-at-a-time layout is still served at `/classic.html`: full-frame art, one message per scene, the backlog one click away, and `H` to hide the interface and just watch her. There, `Space` / `Enter` / a click hands over to the next message, and a message arriving early waits its turn instead of cutting the previous one off.
-
-![The classic stage — one scene at a time, full-frame art](assets/docs/screenshot.png)
 
 ## Your data
 
@@ -223,9 +217,10 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | `token` | `""` | Optional shared token appended to the URL |
 | `character` | `xiaoheiyu` | Pack id (`~/.dsh/gal/characters/<id>`, then bundled `characters/<id>`) or a path |
 | `characterName` | pack name | Override the nameplate |
-| `greeting` | pack greeting | Override the opening line (classic page only; the chat layout opens quietly) |
+| `greeting` | pack greeting | Override the pack's opening line |
 | `personaEnabled` | `true` | Register the pack persona as a system-prompt voice layer |
 | `judgeProvider` / `judgeModel` | agent's route | Route override for the one side call the plugin makes (voice dubbing) |
+| `judgeReasoningEffort` | `off` | Reasoning effort for that side call (`""` = the route's default) |
 | `voiceEnabled` | `true` | Speak replies when a VOICEVOX engine is reachable |
 | `voicevoxUrl` | `http://127.0.0.1:50021` | VOICEVOX engine base URL |
 | `voicevoxEngine` | `~/Library/Application Support/dsh-gal/voicevox/macos-arm64/run` | Local engine binary to auto-start (`""` = never) |
@@ -242,9 +237,9 @@ The fastest reliable route — the one the bundled 小黑鱼 pack was built with
 4. **Idle loops.** `scripts/animate.sh <still.png> <out.mp4> "<motion prompt>" [h3]` turns each still into a looping clip on fal.ai (Seedance 2.0 mini by default, MiniMax H3 with `h3` — H3 is the more permissive of the two for stylised characters). Write the motion prompt as *breathing, blinking, hair and cloth drifting*, and say explicitly that the camera is locked off and the pose unchanged.
 
    A loop needs its last frame to lead back into its first, or it pops once per cycle. The script does that in two steps: it passes the still as the end frame as well as the start frame, and then crossfades the tail back onto the head locally. The model alone is not enough — asking for the end frame gets the pose close but does not land on it.
-5. **Install.** Upload each file from **立绘素材**, or drop everything plus a `character.json` into `~/.dsh/gal/characters/<id>/`.
+5. **Install.** Upload each file from **Character › Art**, or drop everything plus a `character.json` into `~/.dsh/gal/characters/<id>/`.
 
-Quickest path of all: pick a prompt-only pack from **角色**, open **人设与记忆** to copy its image prompts into the image model of your choice, and drop the results onto the gallery tiles.
+Quickest path of all: pick a prompt-only pack from **Character › Pick**, open its **Persona** tab to copy the image prompts into the image model of your choice, and drop the results onto the gallery tiles.
 
 Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to date — they are the recipe for regenerating the pack later, and what a prompt-only pack hands to its next owner.
 
@@ -261,7 +256,7 @@ Text only, for third-party characters: persona prompts, greetings, themes, and i
 
 ## UI development
 
-The default page is the chat layout: the whole conversation on the left, the character on the right. Its source is `ui/src/chat/` and it builds to `web/chat/`. The earlier one-line-at-a-time stage is still served at `/classic.html` from `ui/src/` and `web/ui/`. Both outputs are checked in and shared by the browser and the desktop shell.
+The page is the chat layout: the whole conversation on the left, the character on the right. Its source is `ui/src/chat/` and it builds to `web/chat/`, checked in and shared by the browser and the desktop shell. (`ui/src/` and `web/ui/` are the earlier one-scene-at-a-time stage, kept at `/classic.html` and no longer developed.)
 
 ```bash
 npm ci --prefix ui              # once

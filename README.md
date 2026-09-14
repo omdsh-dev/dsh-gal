@@ -20,9 +20,9 @@
 
 ## Demo
 
-<a href="assets/docs/demo.mp4"><img src="assets/docs/demo-poster.jpg" alt="Watch the demo: two and a half minutes of memory, weather, reminders, a watch-list, a web search and a written file, spoken in Japanese" /></a>
+https://github.com/user-attachments/assets/261b456b-f147-46f5-942a-32c67d12dc2d
 
-**[▶ Watch the demo (2:26, MP4)](assets/docs/demo.mp4)** — she remembers a preference, checks the weekend weather, sets a reminder, keeps a drama watch-list, searches the web, and writes a Markdown plan, speaking each reply in Japanese. Waiting stretches are sped up; the personal data shown in the connectors is blurred.
+Two and a half minutes: she remembers a preference, checks the weekend weather, sets a reminder, keeps a drama watch-list, searches the web, and writes a Markdown plan, speaking each reply in Japanese. Waiting stretches are sped up; the personal data shown in the connectors is blurred. ([MP4 in the repository](assets/docs/demo.mp4) if the player above does not load.)
 
 ## What it is
 

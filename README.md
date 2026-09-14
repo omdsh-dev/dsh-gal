@@ -1,12 +1,28 @@
-# dsh-gal
+<p align="center"><img src="assets/docs/logo.png" width="120" alt="dsh-gal logo" /></p>
 
-A galgame / visual-novel UI for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh), packaged as a dsh plugin — plus a small macOS app that runs it standalone.
+<h1 align="center">dsh-gal</h1>
 
-Your agent becomes a character. Each reply plays as a dialogue scene: typewriter text, one turn at a time, no scrolling wall of history, while she reacts with an animated expression picked by an emotion judge. The backlog is one click away, like a real VN. Swap the character pack and the same agent shows up as someone else — art, persona and voice included.
+<p align="center"><strong>Give your agent a face, a voice, and a room of her own.</strong></p>
 
-![dsh-gal](assets/docs/screenshot.png)
+<p align="center">A galgame / visual-novel companion for the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh), packaged as a dsh plugin — plus a small macOS app that runs it standalone. The agent underneath is unchanged: same tools, same session, same preset. What changes is that you can see her working, hear her answer, and keep what she made.</p>
 
-The agent underneath is unchanged. The pack's persona is registered as a voice-only system-prompt layer: it decides how replies sound, never what the agent does or which tools it runs.
+<p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong></p>
+
+<p align="center">
+  <a href="https://github.com/omdsh-dev/dsh-gal/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/dsh-gal?style=flat" /></a>
+  <a href="LICENSE"><img alt="BSD-3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue" /></a>
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple" />
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white" />
+  <img alt="dsh plugin" src="https://img.shields.io/badge/dsh-plugin-0b7285" />
+</p>
+
+![dsh-gal — the chat layout: conversation on the left, the character on the right, reacting to what the agent is doing](assets/docs/hero.jpg)
+
+## What it is
+
+Your agent becomes a character. The conversation reads like an ordinary chat, but the right half of the window is a stage: while the turn runs she is *shown* reading, writing, searching or running a command — straight from the harness's own tool events, with no side model call and no guessing. Replies are spoken aloud. What she produces along the way — a list, a file — becomes an object you can open later instead of a message that scrolls away.
+
+Swap the character pack and the same agent shows up as someone else: art, persona and voice included. The pack's persona is registered as a voice-only system-prompt layer — it decides how replies sound, never what the agent does or which tools it runs.
 
 ## Quick start
 
@@ -16,82 +32,134 @@ git clone https://github.com/omdsh-dev/dsh-gal && cd dsh-gal
 npm run start:web         # opens the UI in your browser
 ```
 
-Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网页端.command` instead. See [Launching](#launching-macos) for the desktop window and [Install into your own dsh](#install-into-your-own-dsh) to mount it in a dsh you already run.
+Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网页端.command` instead. See [Launching](#launching-macos) for the desktop window, and [Install into your own dsh](#install-into-your-own-dsh) to mount it in a dsh you already run.
 
-## How a turn works
+## Five things dsh-gal adds to your agent
 
-1. You type in the VN input box. It sends a real user turn into the live dsh session — same tools and preset the browser UI gets. With no session open, the first message creates one.
-2. Each assistant message is its own scene. It streams into the text box token by token at the model's real pace, rendered as markdown (marked + DOMPurify, so a half-arrived table or fence still renders), and is read aloud — parenthetical stage directions like （放下托盘）are shown but not spoken — and only when it has been both fully delivered and spoken does the next message take the box. A turn that runs tools produces several messages, and a message arriving early waits its turn instead of cutting the previous one off.
-3. Between messages the box keeps the last line up while a small ticker shows the tool that is running, and she switches to `thinking`. Tool work is not something she says, so it never takes the panel.
-4. The box scrolls and stays pinned to the newest line; scroll up to read back and **回到最新 / Jump to latest** appears. When a message is waiting, that control becomes **下一条 / Next** — click, `Space` or `Enter` hands over early.
-5. A tiny side LLM call classifies the finished reply into one of six expressions; a keyword heuristic covers the fallback. The stage crossfades to that expression's idle loop.
-6. Voice can be rewritten into spoken Japanese first, so you read subtitles and hear a VN-style voice track.
+### She is shown doing what the agent is doing
 
-| expression | when she shows it |
+The stage follows the tool stream, not the text. Each tool call switches her to reading, writing, searching or running; a failed call is a brief beat; an approval waiting on you is `waiting`; a finished turn is `done`. The stage crossfades between the pack's loops, so a long turn is legible at a glance instead of a spinner.
+
+| activity | when she shows it | stands in when missing |
+| --- | --- | --- |
+| `idle` | the resting state between turns | `neutral` |
+| `reading` | the turn is in flight: reasoning, viewing a file, any tool the plugin does not recognise | `thinking` |
+| `writing` | the editor, `present`, memory notes, any write-ish tool | `reading` |
+| `searching` | web search and fetch tools | `reading` |
+| `running` | shells and command runners | `writing` |
+| `waiting` | an approval is open on you (decide it in the dsh web UI) | `idle` |
+| `failed` | a tool call errored — a beat, then back to work | `surprised` |
+| `done` | the turn just finished; fades after the reply | `happy` |
+
+Activity, speech and character are tracked as one semantic state (`window.galCharacter.state`), independently of how it is rendered — see [CHARACTER-STATES.md](CHARACTER-STATES.md).
+
+### She speaks the reply
+
+Replies stream in token by token as real markdown (marked + DOMPurify, so a half-arrived table or fence still renders) and are read aloud through [VOICEVOX](https://voicevox.hiroshiba.jp/) (free, local, Japanese) or a provider configured in **设置**. Parenthetical stage directions like （放下托盘）are shown but never spoken.
+
+With `voiceLanguage: ja` (the default) a small side LLM call first rewrites the reply as a spoken Japanese line in the character's voice — you read Chinese/English subtitles and hear Japanese, like a real VN. Dubbed lines are cached, so a replay does not pay for the rewrite twice. Each pack picks its own speaker style.
+
+Install the engine (`voicevox_engine-macos-*.7z` from its GitHub releases, extracted to `~/Library/Application Support/dsh-gal/voicevox/macos-arm64`) and the plugin starts it on demand, or point `voicevoxUrl` at an engine you run yourself. Without an engine the feature is silently off. Providers and keys: [SPEECH.md](SPEECH.md).
+
+### Lists and files, not just messages
+
+A chat answer is gone the moment it scrolls away. Two things survive it:
+
+- **Lists** (`⌥L`) — when a reply is a set of things you may come back to (dramas to watch, options to compare, things to buy), she puts it in a list in the same turn with `list_create` / `list_add`, and marks items done or drops them with `list_update` when you say you finished one. You edit the same list by hand in the panel.
+- **Files** (`⌥F`) — anything she wrote for you, collected from the write tools she ran, openable from the panel instead of hunted down in a transcript.
+
+### Memory that belongs to you
+
+Notes about *you*, not about the character. She writes them herself through `gal_remember` when you say something that will still be true next week, and they are injected each turn. Open **MEMORY** (`⌥M`) to read or edit them. They live in the shared store, so every pack sees the same notes and switching characters loses nothing.
+
+### Connectors: what she knows about your day
+
+dsh is plugins all the way down, so a data source is its own dsh plugin — it owns its sync, storage, tool and prompt section, and works in any dsh session. When dsh-gal is loaded too, the source registers itself and shows up in the **Data** panel (`⌥D`, `/data`), each with a "Visible to the character" switch that hides it from the prompt without deleting anything.
+
+The official set ships in this repository under `plugins/`; each is still a separate dsh plugin, built to `plugins/<name>/lib/index.js` and mountable on its own:
+
+| plugin | what it brings |
 | --- | --- |
-| `neutral` | ordinary answers, and the resting state between turns |
-| `thinking` | while the agent is working, and for analysis-heavy replies |
-| `happy` | good news, a warm or appreciative reply |
-| `sad` | bad news, apologies, something the user is hurting over |
-| `surprised` | a correction, an unexpected fact, something alarming |
-| `excited` | genuine enthusiasm — rare for a reserved persona |
+| [dsh-health](plugins/health) | Apple Health pushed from the phone (Health Auto Export or a Shortcut) or imported from `export.zip`. Weekly averages, a two-week chart, workouts, what stands out against a 28-day baseline |
+| [dsh-calendar](plugins/calendar) | Calendar and Reminders through EventKit, every synced account. Today, next, the week; overdue reminders; tools to add and complete them |
+| [dsh-weather](plugins/weather) | Open-Meteo, no key. Now, today, tomorrow, a 24-hour chart and the week; location guessed from the time zone |
+| [dsh-contacts](plugins/contacts) | The address book through the Contacts framework. Who a name is, birthdays coming up |
+| [dsh-notes](plugins/notes) | Apple Notes via Automation. Search and read; create and append when asked |
+| [dsh-photos](plugins/photos) | The Photos library (metadata only in the prompt). Photos per day, trip-like clusters, thumbnails a vision model can look at |
+| [dsh-messages](plugins/messages) | iMessage and SMS from the local database (needs Full Disk Access). Who is waiting for a reply; hidden from the character until you turn sharing on |
+| [dsh-location](plugins/location) | CoreLocation with reverse geocoding. Where you are, distance from home, recent places |
+| [dsh-home](plugins/home) | The home, through Shortcuts or a Home Assistant token. Readings and one-tap actions |
+| [dsh-weread](plugins/weread) | 微信读书 shelf, progress and highlights, with the cookie of a logged-in session |
+| [dsh-douban](plugins/douban) | 豆瓣 想看/看过 for films, books and music, so she never recommends what you already watched |
 
-Emotion, activity and character are tracked as one semantic state (`window.galCharacter.state`), independently of how it is rendered — see [CHARACTER-STATES.md](CHARACTER-STATES.md).
+To write a source, inject `galSources` optionally and describe yourself declaratively; the panel never needs source-specific code:
+
+```ts
+ctx.inject(['galSources'], gal => {
+  gal.effect(() => gal.galSources.register({
+    id: 'my-source', label: 'My source', category: 'calendar',
+    describe: () => ({ status: 'connected', summary: '12 events this week', shared: true,
+      stats: [{ label: 'Today', value: '3 events' }], lists: [...], setup: [...], actions: [...] }),
+    act: async (action, input) => { /* POST /sources/my-source/<action>; uploads arrive as input.file */ },
+  }))
+})
+```
+
+`describe()` returns stats, daily series, lists, setup instructions with copyable fields, and actions (`button`, `upload`, `toggle`, `danger`). Call `gal.galSources.changed(id)` after new data so the panel refreshes. See `src/sources.ts` for the contract.
 
 ## Character packs
 
-A pack is a directory: `character.json` plus six expression stills, and optionally six idle-motion loops.
+A pack is a directory: `character.json` plus stills or loops named after activities. The older six expression names still work as stand-ins, so a pack of `neutral` / `thinking` / `happy` / `surprised` covers every activity.
 
 ```
 characters/xiaoheiyu/
   character.json        name, greeting, persona, theme, playbackRate, voice, art prompts
-  neutral.png  neutral.mp4
-  happy.png    happy.mp4
-  thinking.png thinking.mp4
-  sad.png      sad.mp4
-  surprised.png surprised.mp4
-  excited.png  excited.mp4
+  idle.png      idle.mp4        (or neutral.*)
+  reading.png   reading.mp4     (or thinking.*)
+  writing.png   writing.mp4     falls back to reading
+  searching.png searching.mp4   falls back to reading
+  running.png   running.mp4     falls back to writing
+  waiting.png   waiting.mp4     falls back to idle
+  failed.png    failed.mp4      (or surprised.*)
+  done.png      done.mp4        (or happy.*)
 ```
 
-- **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with six 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
+- **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
 - **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
-- **Prompt-only packs** ship text and image prompts but no art — pick one, generate the six images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
+- **Prompt-only packs** ship text and image prompts but no art — pick one, generate the images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
 - **Import / export** a pack as a `.zip` from the **角色** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
-- **Memory** — notes about *you*, not about the character: they live in one file, `~/.dsh/gal/memory.md`, and every pack shares them, so switching characters does not lose what she knows. The file is injected each turn. She writes to it herself through the `gal_remember` tool when you tell her something worth keeping; open **MEMORY** (`M`) to read or edit it. Notes kept per-pack by an older version are folded in on first run.
-
-## Controls
-
-Everything has a button; the shortcuts are for when you are reading, not clicking.
-
-Hold `⌥` and the shortcuts work at any time, including mid-sentence — `⌥M` for memory, `⌥L` for the backlog. Without `⌥` a single key only fires while the cursor is outside the text box: `/` puts it there, `Esc` takes it back out. The full list is in the help panel (`⌥/`).
-
-| | |
-| --- | --- |
-| `Space` / `Enter` / click | hand over to the next message, or jump back to the newest line |
-| `/` · `Esc` | enter the input box · leave it |
-| `⌥L` · `L` | backlog — the full scrollable log |
-| `⌥M` · `M` | 记忆 — what she remembers about you, shared by every character |
-| `⌥C` · `C` | 角色 › 选择角色 — switch pack live |
-| `⌥G` · `G` | 角色 › 立绘素材 — browse the six expressions, click to preview, drop a `.png` / `.mp4` on a tile to replace it |
-| `⌥E` · `E` | 角色 › 角色设定 — edit name, greeting and persona in place |
-| `⌥S` · `S` | 设置 — speech provider, voice and languages |
-| `⌥V` · `⌥R` | mute / unmute voice · read the current line again |
-| `⌥N` · `N` | start a fresh session |
-| `⌥H` · `H` | hide the interface and just watch her |
-| `⌥/` · `?` | commands and shortcuts |
-| `Esc` | close any panel, or restore a hidden interface |
-
-Slash commands in the input box: `/new`, `/char [id]`, `/edit`, `/memory`, `/gallery`, `/voice`, `/log`, `/help`.
-
-![Interface hidden with H](assets/docs/screenshot-hidden.png)
 
 Editing or uploading art for a bundled pack copies it to `~/.dsh/gal/characters/<id>` first, so the repo copy stays pristine.
 
-## Voice
+## Controls
 
-Replies are spoken through [VOICEVOX](https://voicevox.hiroshiba.jp/) (free, local, Japanese) or a provider configured in **设置**. With `voiceLanguage: ja` (the default) a small side LLM call first rewrites the reply as a spoken Japanese line in the character's voice — you read Chinese/English subtitles and hear Japanese, like a real VN. Each pack can pick its own speaker style.
+Everything has a button; the shortcuts are for when you are reading, not clicking. `⌥` shortcuts work anywhere, even mid-sentence. `/` (or `、`, the same key under a Chinese IME) focuses the message box, `Esc` leaves it or closes a panel.
 
-Install the engine (`voicevox_engine-macos-*.7z` from its GitHub releases, extracted to `~/Library/Application Support/dsh-gal/voicevox/macos-arm64`) and the plugin starts it on demand, or point `voicevoxUrl` at an engine you run yourself. Without an engine the feature is silently off. Providers and keys: [SPEECH.md](SPEECH.md).
+| | |
+| --- | --- |
+| `Enter` · `Shift`+`Enter` | send · new line |
+| `⌥M` | 记忆 — what she remembers about you, shared by every character |
+| `⌥F` | files she wrote for you |
+| `⌥L` | lists she keeps for you |
+| `⌥D` | connectors — what she can see |
+| `⌥C` | 角色 — switch pack, edit persona, browse and replace the activity art |
+| `⌥S` | 设置 — speech provider, voice and languages |
+| `⌥V` · `⌥R` | mute / unmute voice · read the current line again |
+| `⌥/` | commands and shortcuts |
+
+Slash commands in the message box: `/new`, `/char [id]`, `/edit`, `/memory`, `/files`, `/lists`, `/data`, `/gallery`, `/voice`, `/help`.
+
+### The classic VN stage
+
+The original one-line-at-a-time layout is still served at `/classic.html`: full-frame art, one message per scene, the backlog one click away, and `H` to hide the interface and just watch her. There, `Space` / `Enter` / a click hands over to the next message, and a message arriving early waits its turn instead of cutting the previous one off.
+
+![The classic stage — one scene at a time, full-frame art](assets/docs/screenshot.png)
+
+## Your data
+
+Everything she keeps for you is in one place: `~/.dsh/gal/store.sqlite`. Memory, lists, the files she wrote, read-aloud settings, the transcript of the current room, and what each connector has synced are documents and append-only logs in that file (`src/store.ts`; a plugin outside this repository gets the same object as the `galStore` service). The room comes back after a restart: the transcript is put back on screen and the dsh session behind it is resumed on your next message, so she continues where she left off. Files written by older versions (`memory.md`, `lists.json`, …) are imported once and renamed `*.migrated`.
+
+Not in the store, on purpose: API keys and cookies (each stays in its own file under `~/.config/dsh-gal/` or `~/.dsh/<connector>/`), compiled helpers and thumbnails (machine-local), and the theme (kept by each browser). The store's shape — documents with an updated-at, logs with a sequence — is what a hosted backend will sync later; nothing else has to change for that.
 
 ## Launching (macOS)
 
@@ -155,11 +223,9 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | `token` | `""` | Optional shared token appended to the URL |
 | `character` | `xiaoheiyu` | Pack id (`~/.dsh/gal/characters/<id>`, then bundled `characters/<id>`) or a path |
 | `characterName` | pack name | Override the nameplate |
-| `greeting` | pack greeting | Override the opening line |
+| `greeting` | pack greeting | Override the opening line (classic page only; the chat layout opens quietly) |
 | `personaEnabled` | `true` | Register the pack persona as a system-prompt voice layer |
-| `judgeEnabled` | `true` | Use an LLM call to pick the expression (heuristic fallback otherwise) |
-| `judgeTimeoutMs` | `8000` | Deadline for the emotion judge before falling back |
-| `judgeProvider` / `judgeModel` | agent's route | Route override for the judge and translation calls |
+| `judgeProvider` / `judgeModel` | agent's route | Route override for the one side call the plugin makes (voice dubbing) |
 | `voiceEnabled` | `true` | Speak replies when a VOICEVOX engine is reachable |
 | `voicevoxUrl` | `http://127.0.0.1:50021` | VOICEVOX engine base URL |
 | `voicevoxEngine` | `~/Library/Application Support/dsh-gal/voicevox/macos-arm64/run` | Local engine binary to auto-start (`""` = never) |
@@ -172,13 +238,13 @@ The fastest reliable route — the one the bundled 小黑鱼 pack was built with
 
 1. **One base portrait.** Generate the character full-body on a plain background. This is the design reference; nothing after this step is allowed to redraw her.
 2. **One stage keyframe.** Regenerate her *in the scene*, 16:9, framed from about mid-thigh up, with the lower third kept visually calm because the dialogue box sits there. Keep the base portrait as the reference image.
-3. **Five more expressions — with two references.** Pass both the base portrait (who she is) and the stage keyframe (composition, palette, lighting, camera distance), and let the prompt change only the face and arms. Two references is what stops the background and framing from drifting between expressions; one reference is not enough.
+3. **More stills — with two references.** The ones that matter most are `writing`, `reading`, `failed` and `done`; anything missing borrows a neighbour (see [CHARACTER-STATES.md](CHARACTER-STATES.md)). Pass both the base portrait (who she is) and the stage keyframe (composition, palette, lighting, camera distance), and let the prompt change only the face and arms. Two references is what stops the background and framing from drifting between stills; one reference is not enough.
 4. **Idle loops.** `scripts/animate.sh <still.png> <out.mp4> "<motion prompt>" [h3]` turns each still into a looping clip on fal.ai (Seedance 2.0 mini by default, MiniMax H3 with `h3` — H3 is the more permissive of the two for stylised characters). Write the motion prompt as *breathing, blinking, hair and cloth drifting*, and say explicitly that the camera is locked off and the pose unchanged.
 
    A loop needs its last frame to lead back into its first, or it pops once per cycle. The script does that in two steps: it passes the still as the end frame as well as the start frame, and then crossfades the tail back onto the head locally. The model alone is not enough — asking for the end frame gets the pose close but does not land on it.
 5. **Install.** Upload each file from **立绘素材**, or drop everything plus a `character.json` into `~/.dsh/gal/characters/<id>/`.
 
-Quickest path of all: pick a prompt-only pack from **角色**, open **人设与记忆** to copy its image prompts into the image model of your choice, and drop the six results onto the gallery tiles.
+Quickest path of all: pick a prompt-only pack from **角色**, open **人设与记忆** to copy its image prompts into the image model of your choice, and drop the results onto the gallery tiles.
 
 Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to date — they are the recipe for regenerating the pack later, and what a prompt-only pack hands to its next owner.
 
@@ -186,7 +252,8 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 
 - The stage sits on one fixed backdrop behind the character. There is no background picker: pack art is full-frame and carries its own environment, so a separate background choice only fought with it.
 - Idle loops are 5-second clips, not seamless cycles; the wrap is visible if you stare at it.
-- Expressions are whole-clip swaps, not a rig. She cannot hold an expression while lip-syncing a specific line, and there is no per-phoneme mouth movement.
+- Activities are whole-clip swaps, not a rig. She cannot hold a pose while lip-syncing a specific line, and there is no per-phoneme mouth movement.
+- Most connectors are macOS-only by nature (EventKit, Contacts, Photos, Messages, Shortcuts).
 
 ## What this repository distributes
 
@@ -194,7 +261,7 @@ Text only, for third-party characters: persona prompts, greetings, themes, and i
 
 ## UI development
 
-The interface source is `ui/src/` (React 19 + shadcn/ui + Tailwind + Vite); the build output in `web/ui/` is shared by the browser and the desktop shell and is checked in.
+The default page is the chat layout: the whole conversation on the left, the character on the right. Its source is `ui/src/chat/` and it builds to `web/chat/`. The earlier one-line-at-a-time stage is still served at `/classic.html` from `ui/src/` and `web/ui/`. Both outputs are checked in and shared by the browser and the desktop shell.
 
 ```bash
 npm ci --prefix ui              # once
@@ -206,4 +273,4 @@ Components, the controller adapter and validation notes: [ui/README.md](ui/READM
 
 ## License
 
-BSD-3-Clause
+[BSD-3-Clause](LICENSE)

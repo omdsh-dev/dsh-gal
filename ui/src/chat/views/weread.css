@@ -1,0 +1,58 @@
+/* WeRead: a shelf of covers, then a book's highlights by chapter. */
+.weread { display: flex; flex-direction: column; gap: 16px; }
+.weread.placeholder .weread-grid { opacity: .5; filter: saturate(.3); pointer-events: none; }
+
+/* connect */
+.weread-connect { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 18px 18px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+.weread-connect-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: color-mix(in oklab, var(--brand) 14%, transparent); color: var(--brand); margin-bottom: 2px; }
+.weread-connect-icon svg { width: 18px; height: 18px; }
+.weread-connect b { font-size: 15px; font-weight: 600; }
+.weread-connect .field-hint { margin: 0; }
+.weread-cookie { display: flex; gap: 8px; width: 100%; margin-top: 6px; }
+.weread-cookie .input { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+/* toolbar */
+.weread-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.weread-filters { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; background: var(--muted); }
+.weread-filter { height: 26px; padding: 0 11px; border: 0; border-radius: 999px; background: none; font-size: 12.5px; font-weight: 500; color: var(--muted-fg); transition: background .15s, color .15s; }
+.weread-filter:hover { color: var(--ink); }
+.weread-filter.active { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.weread-bar .button svg.spinning { animation: spin 1s linear infinite; }
+
+/* shelf */
+.weread-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px 14px; }
+.weread-book { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; color: inherit; cursor: pointer; }
+.weread-book.ghost { pointer-events: none; }
+.weread-book.ghost .weread-title { height: 12px; border-radius: 6px; background: var(--muted); }
+.weread-cover { position: relative; display: grid; place-items: center; aspect-ratio: 3 / 4.3; overflow: hidden; border-radius: 8px; background: linear-gradient(160deg, var(--muted), var(--accent)); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 6px 16px rgba(0,0,0,.08); transition: transform .18s cubic-bezier(.2,0,0,1), box-shadow .18s; }
+.weread-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.weread-cover svg { width: 26px; height: 26px; color: var(--muted-fg); }
+.weread-book:hover .weread-cover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0,0,0,.1), 0 12px 24px rgba(0,0,0,.14); }
+.weread-count { position: absolute; top: 6px; right: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: color-mix(in oklab, var(--ink) 78%, transparent); color: var(--surface); font-size: 10.5px; font-weight: 600; line-height: 18px; text-align: center; backdrop-filter: blur(4px); }
+.weread-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; font-weight: 500; line-height: 1.3; min-height: 2.6em; }
+.weread-progress { position: relative; display: block; height: 4px; border-radius: 2px; background: var(--muted); overflow: hidden; }
+.weread-progress i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--brand); }
+.weread-progress.wide { display: flex; flex-direction: column; gap: 5px; height: auto; overflow: visible; background: none; }
+.weread-progress.wide::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 5px; border-radius: 3px; background: var(--muted); }
+.weread-progress.wide i { position: relative; z-index: 1; display: block; height: 5px; border-radius: 3px; }
+.weread-progress.wide small { font-size: 11.5px; color: var(--muted-fg); }
+.badge.weread-finished { align-self: flex-start; color: var(--ok); border-color: color-mix(in oklab, var(--ok) 35%, var(--border)); background: color-mix(in oklab, var(--ok) 10%, var(--card)); }
+
+/* detail */
+.weread-detail-head { display: grid; grid-template-columns: 96px 1fr; gap: 18px; align-items: start; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.weread-detail-head .weread-cover { aspect-ratio: 3 / 4.3; }
+.weread-detail-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.weread-detail-meta h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
+.weread-detail-meta small { font-size: 12.5px; color: var(--muted-fg); }
+.weread-detail-status { margin: 4px 0; }
+.weread-detail-meta .button { align-self: flex-start; margin-top: 4px; height: 32px; }
+.weread-detail-meta .button svg.spinning { animation: spin 1s linear infinite; }
+.weread-chapter { display: flex; flex-direction: column; gap: 10px; }
+.weread-chapter .section { margin: 6px 0 0; }
+.weread-quote { position: relative; margin: 0; padding: 10px 14px 10px 18px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
+.weread-quote::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: color-mix(in oklab, var(--brand) 70%, transparent); }
+.weread-note { display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding: 10px 14px; border-radius: 12px; background: color-mix(in oklab, var(--brand) 8%, var(--card)); font-size: 13.5px; line-height: 1.55; }
+.weread-note svg { width: 16px; height: 16px; margin-top: 3px; color: var(--brand); }
+.weread-note p { margin: 0; white-space: pre-wrap; }
+.weread-note p + p { margin-top: 4px; }
+.weread-note-ref { font-size: 12.5px; color: var(--muted-fg); padding-left: 10px; border-left: 2px solid var(--border); }

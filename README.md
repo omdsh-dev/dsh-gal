@@ -18,6 +18,12 @@
 
 ![dsh-gal — the chat layout: conversation on the left, the character on the right, reacting to what the agent is doing](assets/docs/hero.jpg)
 
+## Demo
+
+<a href="assets/docs/demo.mp4"><img src="assets/docs/demo-poster.jpg" alt="Watch the demo: two and a half minutes of memory, weather, reminders, a watch-list, a web search and a written file, spoken in Japanese" /></a>
+
+**[▶ Watch the demo (2:26, MP4)](assets/docs/demo.mp4)** — she remembers a preference, checks the weekend weather, sets a reminder, keeps a drama watch-list, searches the web, and writes a Markdown plan, speaking each reply in Japanese. Waiting stretches are sped up; the personal data shown in the connectors is blurred.
+
 ## What it is
 
 Your agent becomes a character. The conversation reads like an ordinary chat, but the right half of the window is a stage: while the turn runs she is *shown* reading, writing, searching or running a command — straight from the harness's own tool events, with no side model call and no guessing. Replies are spoken aloud. What she produces along the way — a list, a file — becomes an object you can open later instead of a message that scrolls away.

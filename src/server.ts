@@ -6,13 +6,16 @@
  */
 
 import { SpeechService } from './speech.js'
+import type { GalSources } from './sources.js'
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { createReadStream, existsSync, rmSync, statSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { pipeline } from 'node:stream/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 
 export interface GalEvent {
-  type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'emotion' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice'
+  type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'activity' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice' | 'artifact' | 'sources' | 'lists' | 'settings' | 'notice'
   [key: string]: unknown
 }
 
@@ -27,7 +30,7 @@ export interface GalServerOptions {
   switchCharacter: (id: string) => boolean
   /** Global prompt sections as assembled right now (diagnostics). */
   debugPrompt: () => Promise<unknown>
-  /** Emotion-judge accounting (calls, latency, tokens). */
+  /** Voice accounting (calls, latency, failures). */
   debugUsage: () => unknown
   /** Editable view of the active pack. */
   characterConfig: () => unknown
@@ -37,6 +40,23 @@ export interface GalServerOptions {
   memory: () => { date: string; text: string }[]
   /** Replace the remembered notes; returns the stored list. */
   saveMemory: (entries: { date: string; text: string }[]) => { date: string; text: string }[]
+  /** Called with every event the backlog keeps, so the transcript outlives the process. */
+  onBacklog?: (event: GalEvent) => void
+  /** UI preferences shared by every browser (read aloud, speech language). */
+  prefs: () => unknown
+  savePrefs: (patch: Record<string, unknown>) => unknown
+  /** Lists she keeps for the user. */
+  lists: () => unknown[]
+  /** Apply one edit from the panel; returns every list afterwards. */
+  listAction: (action: string, payload: Record<string, unknown>) => unknown[]
+  /** Files she has written or presented, oldest first. */
+  artifacts: () => unknown[]
+  /** One artifact as a file on disk, if it still exists. */
+  artifactFile: (id: string) => { path: string; mime: string } | undefined
+  /** Show the file in the desktop file manager; false when it is gone. */
+  revealArtifact: (id: string) => boolean
+  /** Drop one artifact from the list; returns what remains. */
+  forgetArtifact: (id: string) => unknown[]
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
   /** Rewrite a dialogue line into the selected voice's language before synthesis. */
@@ -47,13 +67,15 @@ export interface GalServerOptions {
   voiceSpeakers: () => Promise<{ available: boolean; speakers: unknown[] }>
   /** Current voice settings for the UI. */
   voiceStatus: () => Record<string, unknown>
-  /** Store one uploaded expression asset for the active pack. */
-  uploadAsset: (emotion: string, kind: 'image' | 'video', ext: string, data: Buffer) => void
+  /** Store one uploaded stage asset (by activity name) for the active pack. */
+  uploadAsset: (state: string, kind: 'image' | 'video', ext: string, data: Buffer) => void
   /** Import a zipped pack into the user directory; returns its id. */
   importPack: (zip: Buffer, idHint: string) => string
   /** Zip the active pack; returns the archive path. */
   exportPack: () => string
   onSend: (text: string) => Promise<void>
+  /** Data sources other plugins registered (see sources.ts). */
+  sources: GalSources
   log: (message: string) => void
 }
 
@@ -63,6 +85,8 @@ const MIME: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.mp4': 'video/mp4',
@@ -80,7 +104,14 @@ export class GalServer {
 
   /** Push one event to every connected client and remember it for replays. */
   broadcast(event: GalEvent): void {
-    if (event.type === 'user' || event.type === 'assistant') this.backlog.push(event)
+    // Messages and tool steps are kept so a reloaded page can rebuild the
+    // conversation, including the folded "Worked through N steps" groups.
+    const kept = event.type === 'user' || event.type === 'assistant' || event.type === 'status' || (event.type === 'lists' && typeof event['fresh'] === 'string')
+    if (kept) { this.backlog.push(event); this.options.onBacklog?.(event) }
+    else if (event.type === 'activity' && event['activity'] === 'failed' && event['beat'] === true) {
+      const last = this.backlog[this.backlog.length - 1]
+      if (last?.type === 'status') { last['failed'] = true; this.options.onBacklog?.({ type: 'activity', activity: 'failed', beat: true }) }
+    }
     const line = `data: ${JSON.stringify(event)}\n\n`
     for (const client of this.clients) client.write(line)
   }
@@ -88,6 +119,15 @@ export class GalServer {
   /** Forget the replayed conversation (a new session started). */
   clearBacklog(): void {
     this.backlog.length = 0
+  }
+
+  /** Start from a stored transcript (after a restart), replaying failure marks onto their steps. */
+  seedBacklog(events: GalEvent[]): void {
+    this.backlog.length = 0
+    for (const event of events) {
+      if (event.type === 'activity') { const last = this.backlog[this.backlog.length - 1]; if (last?.type === 'status') last['failed'] = true; continue }
+      this.backlog.push(event)
+    }
   }
 
   get url(): string {
@@ -148,6 +188,37 @@ export class GalServer {
       res.end(JSON.stringify({ entries: this.options.memory() }))
       return
     }
+    if (url.pathname === '/settings' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(this.options.prefs()))
+      return
+    }
+    if (url.pathname === '/settings' && req.method === 'POST') {
+      const body = await this.readJson(req)
+      const prefs = this.options.savePrefs(body)
+      this.broadcast({ type: 'settings', prefs })
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(prefs))
+      return
+    }
+    if (url.pathname === '/lists' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ lists: this.options.lists() }))
+      return
+    }
+    if (url.pathname === '/lists' && req.method === 'POST') {
+      const body = await this.readJson(req)
+      try {
+        const lists = this.options.listAction(String(body['action'] ?? ''), body)
+        this.broadcast({ type: 'lists', lists })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ lists }))
+      } catch (error) {
+        res.writeHead(400, { 'content-type': 'text/plain' })
+        res.end(String(error instanceof Error ? error.message : error))
+      }
+      return
+    }
     if (url.pathname === '/memory' && req.method === 'POST') {
       const body = await this.readJson(req)
       try {
@@ -160,6 +231,44 @@ export class GalServer {
         res.end(String(error instanceof Error ? error.message : error))
       }
       return
+    }
+    if (url.pathname === '/artifacts' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+      res.end(JSON.stringify({ artifacts: this.options.artifacts() }))
+      return
+    }
+    if (url.pathname.startsWith('/artifact/')) {
+      const [id = '', action = ''] = url.pathname.slice('/artifact/'.length).split('/').map(part => decodeURIComponent(part))
+      if (action === 'reveal' && req.method === 'POST') {
+        const ok = this.options.revealArtifact(id)
+        res.writeHead(ok ? 200 : 404, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok }))
+        return
+      }
+      if (action === '' && req.method === 'DELETE') {
+        const artifacts = this.options.forgetArtifact(id)
+        this.broadcast({ type: 'artifact', artifacts })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ artifacts }))
+        return
+      }
+      if (action === '' && (req.method === 'GET' || req.method === 'HEAD')) {
+        const file = this.options.artifactFile(id)
+        if (file === undefined || !existsSync(file.path) || !statSync(file.path).isFile()) {
+          res.writeHead(404, { 'content-type': 'text/plain' })
+          res.end('file not found')
+          return
+        }
+        // The file is read fresh each time: she may have edited it since.
+        const size = statSync(file.path).size
+        // A card preview only needs the opening of the file.
+        const head = Math.min(size, Math.max(0, Number(url.searchParams.get('head')) || 0) || size)
+        res.writeHead(200, { 'content-type': file.mime, 'content-length': head, 'cache-control': 'no-store', 'content-disposition': 'inline' })
+        if (req.method === 'HEAD') { res.end(); return }
+        createReadStream(file.path, head < size ? { start: 0, end: head - 1 } : {}).pipe(res)
+        return
+      }
+      res.writeHead(405); res.end(); return
     }
     if (url.pathname === '/character/config' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -208,14 +317,14 @@ export class GalServer {
       return
     }
     if (url.pathname === '/character/asset' && req.method === 'PUT') {
-      const emotion = url.searchParams.get('emotion') ?? ''
+      const state = url.searchParams.get('state') ?? url.searchParams.get('emotion') ?? ''
       const type = String(req.headers['content-type'] ?? '')
       const ext = type.includes('png') ? '.png' : type.includes('webp') ? '.webp' : type.includes('jpeg') ? '.jpg'
         : type.includes('mp4') ? '.mp4' : type.includes('webm') ? '.webm' : ''
       if (ext === '') { res.writeHead(415, { 'content-type': 'text/plain' }); res.end('png/webp/jpeg/mp4/webm only'); return }
       try {
         const data = await this.readBody(req, 64 * 1024 * 1024)
-        this.options.uploadAsset(emotion, ext === '.mp4' || ext === '.webm' ? 'video' : 'image', ext, data)
+        this.options.uploadAsset(state, ext === '.mp4' || ext === '.webm' ? 'video' : 'image', ext, data)
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify(this.options.characterConfig()))
       } catch (error) {
@@ -244,6 +353,44 @@ export class GalServer {
       } catch (error) {
         res.writeHead(500, { 'content-type': 'text/plain' })
         res.end(String(error instanceof Error ? error.message : error))
+      }
+      return
+    }
+    if (url.pathname === '/sources' && req.method === 'GET') {
+      const views = await Promise.all(this.options.sources.list().map(async source => {
+        try { return { id: source.id, label: source.label, category: source.category, view: await source.describe() } }
+        catch (error) { return { id: source.id, label: source.label, category: source.category, view: { status: 'error', summary: String(error instanceof Error ? error.message : error), shared: false } } }
+      }))
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ sources: views }))
+      return
+    }
+    const sourceAction = url.pathname.match(/^\/sources\/([^/]+)\/([^/]+)$/)
+    if (sourceAction && req.method === 'POST') {
+      const source = this.options.sources.get(decodeURIComponent(sourceAction[1] as string))
+      if (source?.act === undefined) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('unknown source or action'); return }
+      const contentType = String(req.headers['content-type'] ?? '')
+      let tmp: string | undefined
+      try {
+        let input: { raw?: Buffer; json?: unknown; file?: string }
+        if (contentType.includes('application/json') || contentType.startsWith('text/')) {
+          const raw = await this.readBody(req, 64 * 1024 * 1024)
+          input = { raw, ...contentType.includes('application/json') && raw.length > 0 ? { json: JSON.parse(raw.toString('utf8')) as unknown } : {} }
+        } else {
+          // Uploads (an export.zip can be hundreds of MB) stream to disk; the action gets a path.
+          tmp = mkdtempSync(join(tmpdir(), 'gal-upload-'))
+          const file = join(tmp, 'body')
+          await pipeline(req, createWriteStream(file))
+          input = { file }
+        }
+        const result = await source.act(decodeURIComponent(sourceAction[2] as string), { ...input, contentType, query: url.searchParams })
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(result ?? { ok: true }))
+      } catch (error) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }))
+      } finally {
+        if (tmp !== undefined) rmSync(tmp, { recursive: true, force: true })
       }
       return
     }
@@ -328,11 +475,12 @@ export class GalServer {
     })
     res.write(': connected\n\n')
     // replay the conversation so far as one snapshot
-    const entries = this.backlog.map(event => ({
-      role: event.type,
-      text: String(event['text'] ?? ''),
-    }))
-    res.write(`data: ${JSON.stringify({ type: 'snapshot', entries })}\n\n`)
+    const entries = this.backlog.map(event => event.type === 'status'
+      ? { role: 'status', text: String(event['text'] ?? ''), activity: event['activity'], tool: event['tool'], command: event['command'], failed: event['failed'] === true }
+      : event.type === 'lists'
+        ? { role: 'list', text: '', list: (event['lists'] as { id: string }[]).find(list => list.id === event['fresh']) }
+        : { role: event.type, text: String(event['text'] ?? '') })
+    res.write(`data: ${JSON.stringify({ type: 'snapshot', entries, artifacts: this.options.artifacts() })}\n\n`)
     this.clients.add(res)
     const keepalive = setInterval(() => res.write(': ping\n\n'), 25_000)
     res.on('close', () => {

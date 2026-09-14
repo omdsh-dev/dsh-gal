@@ -30,7 +30,7 @@ Picked from what is currently most chatted on character-chat platforms plus the 
 
 1. Pick the pack in the **CHAR** menu — prompt-only packs are listed alongside the others and work immediately with a placeholder stage.
 2. Open **EDIT** and save once. That copies the pack into `~/.dsh/gal/characters/<id>/`, which is where your generated files go.
-3. Generate a neutral base image with any image model using `art.base`, then five variants using `art.expressions` with the base as the reference image so the character stays consistent. Save them as `neutral.png`, `happy.png`, `thinking.png`, `surprised.png`, `sad.png`, `excited.png` in that directory. Optional: `scripts/animate.sh` turns each into an idle loop (`art.motion` is the prompt), and `ffmpeg minterpolate` smooths them to 60 fps.
+3. Generate a neutral base image with any image model using `art.base`, then five variants using `art.expressions` with the base as the reference image so the character stays consistent. Save them in that directory named by activity (`idle.png`, `reading.png`, `writing.png`, `failed.png`, `done.png`, …); the prompt's older names (`neutral`, `thinking`, `surprised`, `happy`) work too as stand-ins, and any activity without a file borrows a neighbour. Optional: `scripts/animate.sh` turns each into an idle loop (`art.motion` is the prompt), and `ffmpeg minterpolate` smooths them to 60 fps.
 4. Switch away and back (or restart) — the stage picks the files up.
 
 ## Writing one

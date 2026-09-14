@@ -5,8 +5,8 @@
  * character "speaks" every assistant reply one scene at a time:
  *   - observes `session/event` for user prompts, assistant replies, and tool
  *     activity (subagent sessions are filtered out),
- *   - judges which expression to show via a tiny side `ctx.llm.stream` call
- *     (keyword heuristic as fallback),
+ *   - turns tool activity into what she is shown doing on stage (reading,
+ *     writing, running, …) — harness signals only, no side LLM call,
  *   - serves the frontend + the active character pack over 127.0.0.1,
  *   - registers the pack's persona as a system-prompt voice layer,
  *   - feeds input from the page back into the live agent via
@@ -15,7 +15,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -27,10 +27,15 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { execFileSync, spawn } from 'node:child_process'
 import { existsSync as fileExists, mkdirSync, mkdtempSync, readdirSync, rmSync, cpSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { listCharacterPacks, loadCharacterPack, personaSection, resolveCharacterPack, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
+import { listCharacterPacks, loadCharacterPack, personaSection, resolveCharacterPack, resolveStateAsset, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
 import { memoryEntries, memorySection, remember, writeEntries } from './memory.js'
-import { EMOTIONS, heuristicEmotion, isEmotion, classifierPrompt, type Emotion } from './emotion.js'
+import { readPrefs, writePrefs } from './prefs.js'
+import { addItems, createList, deleteList, findList, listsSection, readLists, renderList, reorderItems, updateItem, updateList } from './lists.js'
+import { artifactSection, artifactStat, findArtifact, forgetArtifact, listArtifacts, mimeFor, recordArtifact, writtenPath } from './artifacts.js'
+import { ACTIVITIES, ASSET_NAMES, activityForTool, isActivity } from './activity.js'
 import { GalServer } from './server.js'
+import { createSourceRegistry } from './sources.js'
+import { openStore } from './store.js'
 import { detectLanguage, looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize, type SpokenLanguage } from './tts.js'
 
 /**
@@ -112,15 +117,15 @@ export interface Config {
   greeting?: string
   /** Register the pack's persona as a system-prompt voice layer. */
   personaEnabled?: boolean
-  /** Judge each reply's expression with a small LLM call (heuristic fallback otherwise). */
-  judgeEnabled?: boolean
-  /** Deadline for the emotion judge before falling back to keywords. */
-  judgeTimeoutMs?: number
-  /** Judge route override; defaults to the replying agent's own route. */
+  /**
+   * Route for the plugin's one side LLM call — rewriting a line into the
+   * voice's language before synthesis. Defaults to the replying agent's own
+   * route. (The keys keep their historical names.)
+   */
   judgeProvider?: string
   judgeModel?: string
   /**
-   * Reasoning effort for the judge call ('' = the route's default). DeepSeek
+   * Reasoning effort for that side call ('' = the route's default). DeepSeek
    * accepts off/low/high/max; an unsupported value falls back to the default.
    */
   judgeReasoningEffort?: string
@@ -147,8 +152,6 @@ export const Config: z<Config> = z.object({
   characterName: z.string(),
   greeting: z.string(),
   personaEnabled: z.boolean().default(true),
-  judgeEnabled: z.boolean().default(true),
-  judgeTimeoutMs: z.number().step(1).min(200).default(8000),
   judgeProvider: z.string(),
   judgeModel: z.string(),
   judgeReasoningEffort: z.string().default('off'),
@@ -178,7 +181,7 @@ export function apply(ctx: Context, config: Config): void {
   // ---- character pack ----
   let pack: CharacterPack = resolveCharacterPack(config.character ?? 'xiaoheiyu', bundledDir, promptsDir)
     ?? resolveCharacterPack('xiaoheiyu', bundledDir)
-    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, emotions: {} }
+    ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, assets: {} }
   if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
 
   const displayName = (): string => config.characterName ?? pack.name
@@ -186,13 +189,16 @@ export function apply(ctx: Context, config: Config): void {
   const greeting = (): CharacterPack['greeting'] => config.greeting ?? pack.greeting
 
   const manifest = (): unknown => {
-    const emotions: Record<string, { video?: string; image?: string }> = {}
-    for (const emotion of EMOTIONS) {
-      const asset = pack.emotions[emotion]
-      if (asset === undefined) continue
-      emotions[emotion] = {
-        ...asset.video === undefined ? {} : { video: `/character/${encodeURIComponent(asset.video)}` },
-        ...asset.image === undefined ? {} : { image: `/character/${encodeURIComponent(asset.image)}` },
+    // One entry per activity, already resolved through the fallback chain, so
+    // the page never has to know which file stands in for which.
+    const states: Record<string, { video?: string; image?: string; from: string }> = {}
+    for (const activity of ACTIVITIES) {
+      const resolved = resolveStateAsset(pack, activity)
+      if (resolved === undefined) continue
+      states[activity] = {
+        from: resolved.from,
+        ...resolved.asset.video === undefined ? {} : { video: `/character/${encodeURIComponent(resolved.asset.video)}` },
+        ...resolved.asset.image === undefined ? {} : { image: `/character/${encodeURIComponent(resolved.asset.image)}` },
       }
     }
     return {
@@ -203,8 +209,7 @@ export function apply(ctx: Context, config: Config): void {
       playbackRate: pack.playbackRate,
     voiceSpeaker: pack.voice.speaker,
       promptOnly: pack.promptOnly,
-      defaultEmotion: 'neutral' in emotions ? 'neutral' : Object.keys(emotions)[0] ?? 'neutral',
-      emotions,
+      states,
       characters: listCharacterPacks(bundledDir, promptsDir).map(entry => ({ id: entry.id, name: entry.name, promptOnly: entry.promptOnly })),
     }
   }
@@ -247,7 +252,11 @@ export function apply(ctx: Context, config: Config): void {
     promptOnly: pack.promptOnly,
     bundled: pack.dir.startsWith(bundledDir) || pack.dir.startsWith(promptsDir),
     userDir: join(userCharactersDir(), pack.id),
-    assets: EMOTIONS.map(emotion => ({ emotion, ...pack.emotions[emotion] ?? {} })),
+    assets: ACTIVITIES.map(state => {
+      const own = pack.assets[state]
+      const resolved = own === undefined ? resolveStateAsset(pack, state) : undefined
+      return { state, ...own ?? {}, ...resolved === undefined ? {} : { fallback: resolved.from } }
+    }),
   })
 
   const saveCharacter = (patch: CharacterPatch): void => {
@@ -256,9 +265,9 @@ export function apply(ctx: Context, config: Config): void {
     server.broadcast({ type: 'manifest', manifest: manifest(), silent: true })
   }
 
-  const uploadAsset = (emotion: string, kind: 'image' | 'video', ext: string, data: Buffer): void => {
-    if (!EMOTIONS.includes(emotion as Emotion)) throw new Error(`unknown emotion ${emotion}`)
-    pack = storePackAsset(pack, emotion as Emotion, kind, ext, data, bundledDir, promptsDir)
+  const uploadAsset = (state: string, kind: 'image' | 'video', ext: string, data: Buffer): void => {
+    if (!isActivity(state)) throw new Error(`unknown state ${state}`)
+    pack = storePackAsset(pack, state, kind, ext, data, bundledDir, promptsDir)
     server.broadcast({ type: 'manifest', manifest: manifest(), silent: true })
   }
 
@@ -272,7 +281,7 @@ export function apply(ctx: Context, config: Config): void {
       // pack root = the directory holding character.json (or the lone top-level dir)
       const root = join(work, 'x')
       const findRoot = (dir: string, depth: number): string | undefined => {
-        if (fileExists(join(dir, 'character.json')) || EMOTIONS.some(e => fileExists(join(dir, `${e}.png`)))) return dir
+        if (fileExists(join(dir, 'character.json')) || ASSET_NAMES.some(e => fileExists(join(dir, `${e}.png`)))) return dir
         if (depth > 3) return undefined
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
           if (entry.isDirectory() && !entry.name.startsWith('__MACOSX')) {
@@ -316,26 +325,47 @@ export function apply(ctx: Context, config: Config): void {
 
   /** The session the UI mirrors and drives: the root session with the latest activity. */
   let activeSessionId: string | undefined
+  // The user's data: one store shared with the bundled connectors and, as the
+  // `galStore` service, with any other plugin.
+  const store = openStore()
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galStore', store), 'dsh-gal.store')
+  const activeDoc = store.doc<{ id: string; at: number }>('sessions', 'active')
+  const transcript = (id: string) => store.log<Record<string, unknown>>('transcript', id)
+  const rememberActive = (id: string): void => {
+    if (activeSessionId === id) return
+    activeSessionId = id
+    activeDoc.set({ id, at: Date.now() })
+  }
+  // After a restart the last room is put back on screen from its stored
+  // transcript; the dsh session behind it is resumed lazily, on the next send.
+  let pendingResume = activeDoc.get()?.id
+  if (pendingResume !== undefined) activeSessionId = pendingResume
 
   const resolveAgent = (): AgentLike | undefined => {
     if (activeSessionId !== undefined) {
       const active = ctx.agents.get(SessionId(activeSessionId))
       if (active !== undefined) return active
     }
-    return ctx.agents.roots().at(-1)
+    return undefined
   }
 
   const defaultSelection = (): { provider: string; model: string } | undefined =>
     (ctx.get('agentDefaultModel') as { currentSelection?: () => { provider: string; model: string } } | undefined)?.currentSelection?.()
 
+  // The list the page shows: each pointer plus whether the file is still there and how big it is.
+  const artifactsWithStat = () => listArtifacts().map(artifact => ({ ...artifact, ...artifactStat(artifact) }))
+  // Data sources are other plugins' business; they register here and the panel shows them.
+  const sources = createSourceRegistry()
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galSources', sources), 'dsh-gal.sources')
   const server = new GalServer({
     port,
     token: config.token ?? '',
     webRoot: join(PKG_ROOT, 'web'),
+    sources,
     characterDir: () => pack.dir,
     manifest,
     switchCharacter,
-    debugUsage: () => ({ judge: { ...judgeStats }, voice: { ...voiceStats, available: voiceAvailable } }),
+    debugUsage: () => ({ voice: { ...voiceStats, available: voiceAvailable } }),
     voiceClip: (id: string) => voiceClips.get(id),
     voiceSpeakers: async () => {
       if (!(await checkVoice())) return { available: false, speakers: [] }
@@ -358,7 +388,16 @@ export function apply(ctx: Context, config: Config): void {
       }
       const agent = activeSessionId === undefined ? undefined : ctx.agents.get(SessionId(activeSessionId))
       const started = Date.now()
-      const line = await translateForVoice(text, agent, language)
+      let line: string
+      try { line = await translateForVoice(text, agent, language) }
+      catch (error) {
+        // The caller falls back to the line as written; leave a trace so a
+        // reply read in the wrong language can be explained from /debug/usage.
+        voiceStats.failed += 1
+        voiceStats.lastError = `dub: ${String(error).slice(0, 280)}`
+        ctx.logger.warn(`dsh-gal: dub to ${language} failed, reading the line as written (${String(error).slice(0, 200)})`)
+        throw error
+      }
       voiceStats.dubs += 1
       voiceStats.translateMs += Date.now() - started
       voiceStats.lastDub = line.slice(0, 200)
@@ -376,23 +415,70 @@ export function apply(ctx: Context, config: Config): void {
     saveCharacter,
     memory: () => memoryEntries(),
     saveMemory: entries => writeEntries(entries),
+    onBacklog: event => { if (activeSessionId !== undefined) transcript(activeSessionId).append(event) },
+    prefs: () => readPrefs(),
+    savePrefs: patch => writePrefs(patch as never),
+    lists: () => readLists(),
+    listAction: (action, body) => {
+      const ref = String(body['list'] ?? '')
+      switch (action) {
+        case 'create': createList({ title: body['title'], description: body['description'], items: body['items'] }); break
+        case 'rename': updateList(ref, { title: body['title'], description: body['description'] }); break
+        case 'delete': deleteList(ref); break
+        case 'add': addItems(ref, Array.isArray(body['items']) ? body['items'] : [body['text']]); break
+        case 'item': updateItem(ref, String(body['item'] ?? ''), { text: body['text'], note: body['note'], done: body['done'], remove: body['remove'] }); break
+        case 'reorder': reorderItems(ref, Array.isArray(body['ids']) ? body['ids'].map(String) : []); break
+        default: throw new Error(`unknown list action "${action}"`)
+      }
+      return readLists()
+    },
     uploadAsset,
     importPack,
     exportPack,
+    artifacts: () => artifactsWithStat(),
+    artifactFile: (id) => {
+      const artifact = findArtifact(id)
+      if (artifact === undefined || !artifactStat(artifact).exists) return undefined
+      return { path: artifact.path, mime: mimeFor(artifact.kind, artifact.path) }
+    },
+    revealArtifact: (id) => {
+      const artifact = findArtifact(id)
+      if (artifact === undefined || !artifactStat(artifact).exists) return false
+      const [bin, args] = process.platform === 'darwin' ? ['open', ['-R', artifact.path]]
+        : process.platform === 'win32' ? ['explorer', [`/select,${artifact.path}`]]
+        : ['xdg-open', [dirname(artifact.path)]]
+      const child = spawn(bin, args, { stdio: 'ignore', detached: true })
+      child.on('error', (error: unknown) => ctx.logger.warn(`dsh-gal: reveal failed: ${String(error)}`))
+      child.unref()
+      return true
+    },
+    forgetArtifact: (id) => { forgetArtifact(id); return artifactsWithStat() },
     newSession: async () => {
       const agent = await openSession()
-      activeSessionId = agent.id
+      pendingResume = undefined
+      rememberActive(agent.id)
       server.clearBacklog()
       server.broadcast({ type: 'session', id: agent.id })
       ctx.logger.info(`dsh-gal: new session ${agent.id}`)
     },
     onSend: async (text) => {
       let agent = resolveAgent()
+      if (agent === undefined && pendingResume !== undefined) {
+        const id = pendingResume
+        pendingResume = undefined
+        try {
+          agent = await resumeSession(id)
+          ctx.logger.info(`dsh-gal: resumed session ${id}`)
+        } catch (error) {
+          ctx.logger.warn(`dsh-gal: could not resume session ${id} (${String(error)}); starting a new one`)
+          server.broadcast({ type: 'notice', text: 'The previous conversation could not be resumed; this is a new session.' })
+        }
+      }
       if (agent === undefined) {
         agent = await openSession()
         ctx.logger.info(`dsh-gal: opened session ${agent.id}`)
       }
-      activeSessionId = agent.id
+      rememberActive(agent.id)
       agent.followup(createUserMessage({
         content: [{ type: 'text', text }],
         source: { kind: 'user' },
@@ -405,17 +491,27 @@ export function apply(ctx: Context, config: Config): void {
    * agent preset (tools, permissions, persona rows) mounted into the agent's
    * own context before publication.
    */
-  const openSession = async (): Promise<AgentLike> => {
+  const sessionSetup = async (): Promise<{ agentOptions: { provider: string; model: string }; presetId: string | undefined; setup?: (agentCtx: unknown) => Promise<void> }> => {
     const selection = defaultSelection()
     if (selection === undefined) throw new Error('no default model configured')
     const presets = ctx.get('agentPresets') as AgentPresetsLike | undefined
     const presetId = presets === undefined ? undefined : (await presets.resolve(undefined)).id
+    return { agentOptions: { provider: selection.provider, model: selection.model }, presetId, ...presets === undefined ? {} : { setup: async (agentCtx: unknown) => { await presets.mount(agentCtx, presetId) } } }
+  }
+  const openSession = async (): Promise<AgentLike> => {
+    const { agentOptions, presetId, setup } = await sessionSetup()
     const handle = await ctx.agents.create({
       sessionId: SessionId(`dsh-gal-session-${crypto.randomUUID()}`),
-      agentOptions: { provider: selection.provider, model: selection.model },
+      agentOptions,
       meta: { cwd: process.cwd(), ...presetId === undefined ? {} : { agentPreset: presetId } },
-      ...presets === undefined ? {} : { setup: async (agentCtx: unknown) => { await presets.mount(agentCtx, presetId) } },
+      ...setup === undefined ? {} : { setup },
     })
+    return handle.agent
+  }
+  /** Bring a persisted dsh session back to life so the room continues where it left off. */
+  const resumeSession = async (id: string): Promise<AgentLike> => {
+    const { agentOptions, setup } = await sessionSetup()
+    const handle = await (ctx.agents as unknown as { resume(options: unknown): Promise<{ agent: AgentLike }> }).resume({ resumeSessionId: SessionId(id), agentOptions, ...setup === undefined ? {} : { setup } })
     return handle.agent
   }
 
@@ -436,77 +532,79 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-gal.tool.remember')
 
-  /** Judge accounting for evaluation: calls, latency, tokens (from stream usage chunks). */
-  const judgeStats = { calls: 0, llm: 0, heuristic: 0, totalMs: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0 }
-
-  /** Tiny side LLM call that picks the expression for a reply. */
-  const judgeEmotion = async (reply: string, agent: AgentLike | undefined): Promise<{ emotion: Emotion; judge: 'llm' | 'heuristic'; judgeError?: string }> => {
-    if (config.judgeEnabled === false) return { emotion: heuristicEmotion(reply), judge: 'heuristic' }
-    const startedAt = Date.now()
-    judgeStats.calls += 1
-    const finish = <T extends { judge: 'llm' | 'heuristic' }>(result: T): T => {
-      judgeStats.totalMs += Date.now() - startedAt
-      judgeStats[result.judge] += 1
-      return result
-    }
-    const provider = config.judgeProvider ?? agent?.options.provider ?? defaultSelection()?.provider
-    const model = config.judgeModel ?? agent?.options.model ?? defaultSelection()?.model
-    if (provider === undefined || model === undefined) return finish({ emotion: heuristicEmotion(reply), judge: 'heuristic' })
-    const attempt = async (reasoningEffort: string | undefined): Promise<string> => {
-      const timeoutMs = config.judgeTimeoutMs ?? 8000
-      const assembler = new BlockAssembler()
-      const options: GenerateOptions = {
-        provider,
-        model,
-        ...reasoningEffort === undefined || reasoningEffort === '' ? {} : { reasoningEffort: reasoningEffort as GenerateOptions['reasoningEffort'] },
-        // Generous cap: reasoning-capable routes (DeepSeek at `high` effort)
-        // burn thinking tokens before the one-word answer; text blocks alone
-        // are parsed below.
-        maxTokens: 4096,
-        signal: AbortSignal.timeout(timeoutMs),
-        messages: [createUserMessage({
-          content: [{ type: 'text', text: classifierPrompt(reply) }],
-          source: { kind: 'plugin', plugin: name },
-        })],
-      }
-      // Hard deadline around the whole stream: a reply must never be lost to a
-      // judge that outlives its abort signal.
-      await Promise.race([
-        (async () => {
-          for await (const chunk of ctx.llm.stream(options)) {
-            const usage = (chunk as { type?: string; usage?: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number } })
-            if (usage.type === 'usage' && usage.usage !== undefined) {
-              judgeStats.inputTokens += usage.usage.inputTokens ?? 0
-              judgeStats.outputTokens += usage.usage.outputTokens ?? 0
-              judgeStats.reasoningTokens += usage.usage.reasoningTokens ?? 0
-            }
-            assembler.push(chunk as never)
-          }
-        })(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`judge deadline ${timeoutMs * 2}ms exceeded`)), timeoutMs * 2)),
-      ])
-      return assembler.blocks()
-        .map(block => block.type === 'text' ? block.text : '').join('')
-        .trim().toLowerCase().replace(/[^a-z]/g, '')
-    }
-    try {
-      let answer: string
-      try {
-        answer = await attempt(config.judgeReasoningEffort)
-      } catch (error) {
-        // Provider rejected the effort id: retry once on the route's default.
-        if (!/reasoning effort/i.test(String(error)) || (config.judgeReasoningEffort ?? '') === '') throw error
-        answer = await attempt(undefined)
-      }
-      if (isEmotion(answer)) return finish({ emotion: answer, judge: 'llm' })
-      const found = EMOTIONS.find(emotion => answer.includes(emotion))
-      if (found !== undefined) return finish({ emotion: found, judge: 'llm' })
-      return finish({ emotion: heuristicEmotion(reply), judge: 'heuristic', judgeError: `unparsable answer: ${answer.slice(0, 60)}` })
-    } catch (error) {
-      ctx.logger.debug(`dsh-gal: emotion judge fell back (${String(error)})`)
-      return finish({ emotion: heuristicEmotion(reply), judge: 'heuristic', judgeError: String(error).slice(0, 300) })
-    }
-  }
+  // ---- lists: hers to maintain, the user's to edit ----
+  const listsChanged = (fresh?: string): void => server.broadcast({ type: 'lists', lists: readLists(), ...fresh === undefined ? {} : { fresh } })
+  const itemsParam = { type: 'array', description: 'Items to add. Each is a short name, or {text, note?} when one line of context helps (year, price, why).', items: { type: 'object', properties: { text: { type: 'string', required: true, description: 'Short name' }, note: { type: 'string', description: 'One line of context' } }, additionalProperties: false } }
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'list_create',
+    description: 'Create a new list for the user (recommendations, options, to-dos, things to buy). Fails if a list with that title exists; then use list_add. Returns the list as markdown.',
+    parameters: {
+      title: { type: 'string', required: true, description: 'Short title in the user\'s language, e.g. "日剧待看"' },
+      description: { type: 'string', description: 'One line on what the list is for' },
+      items: itemsParam,
+    },
+    output: { schema: { type: 'string' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }] },
+    execute: async (args: unknown) => {
+      const a = args as { title?: unknown; description?: unknown; items?: unknown }
+      const list = createList({ title: a.title, description: a.description, items: a.items })
+      listsChanged(list.id)
+      return renderList(list)
+    },
+  } as never)), 'dsh-gal.tool.list_create')
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'list_add',
+    description: 'Add items to an existing list (by title or id). Duplicates by name are skipped. Returns the list as markdown.',
+    parameters: {
+      list: { type: 'string', required: true, description: 'List title or id' },
+      items: { ...itemsParam, required: true },
+    },
+    output: { schema: { type: 'string' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }] },
+    execute: async (args: unknown) => {
+      const a = args as { list?: unknown; items?: unknown }
+      const { list, added } = addItems(String(a.list ?? ''), Array.isArray(a.items) ? a.items : [])
+      listsChanged()
+      return `${added.length} added.\n${renderList(list)}`
+    },
+  } as never)), 'dsh-gal.tool.list_add')
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'list_update',
+    description: 'Change one item on a list: mark it done or not done, rewrite its text or note, or remove it. The item may be named by id, exact text, or a unique fragment of its text.',
+    parameters: {
+      list: { type: 'string', required: true, description: 'List title or id' },
+      item: { type: 'string', required: true, description: 'Item id, exact text, or unique fragment' },
+      done: { type: 'boolean', description: 'true when finished / watched / bought; false to reopen' },
+      text: { type: 'string', description: 'New text' },
+      note: { type: 'string', description: 'New note (empty string clears it)' },
+      remove: { type: 'boolean', description: 'true to delete the item' },
+    },
+    output: { schema: { type: 'string' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }] },
+    execute: async (args: unknown) => {
+      const a = args as { list?: unknown; item?: unknown; done?: unknown; text?: unknown; note?: unknown; remove?: unknown }
+      const { list, item } = updateItem(String(a.list ?? ''), String(a.item ?? ''), { text: a.text, note: a.note, done: a.done, remove: a.remove })
+      listsChanged()
+      return item === undefined ? `Removed.\n${renderList(list)}` : `${item.done ? 'Done' : 'Updated'}: ${item.text}\n${renderList(list)}`
+    },
+  } as never)), 'dsh-gal.tool.list_update')
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'list_get',
+    description: 'Read one list in full (by title or id), or all list titles when no list is given. Also used to rename or delete a list.',
+    parameters: {
+      list: { type: 'string', description: 'List title or id' },
+      rename: { type: 'string', description: 'New title for the list' },
+      delete: { type: 'boolean', description: 'true to delete the whole list (only when the user asks)' },
+    },
+    output: { schema: { type: 'string' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }] },
+    execute: async (args: unknown) => {
+      const a = args as { list?: unknown; rename?: unknown; delete?: unknown }
+      const ref = String(a.list ?? '').trim()
+      if (ref === '') return readLists().map(list => `- ${list.title} (id ${list.id}; ${list.items.filter(item => !item.done).length} open of ${list.items.length})`).join('\n') || 'No lists yet.'
+      if (a.delete === true) { const gone = deleteList(ref); listsChanged(); return `Deleted "${gone.title}".` }
+      if (typeof a.rename === 'string' && a.rename.trim() !== '') { const list = updateList(ref, { title: a.rename }); listsChanged(); return renderList(list) }
+      const list = findList(ref)
+      if (list === undefined) throw new Error(`no list matches "${ref}"`)
+      return renderList(list)
+    },
+  } as never)), 'dsh-gal.tool.list_get')
 
   // ---- voice ----
   const voiceClips = new Map<string, Buffer>()
@@ -627,16 +725,44 @@ export function apply(ctx: Context, config: Config): void {
       server.broadcast({ type: 'delta', text })
     })
 
+  // ---- files she writes ----
+  // A write is caught at the tool boundary: the call names the path, the
+  // result says whether it worked. `present` (dsh's own deliverable tool)
+  // lands as a session event of its own. Either way the file is indexed and
+  // the page tells the UI, which turns the name in her line into a link.
+  const pendingWrites = new Map<string, string>()
+  const publishArtifact = (sessionId: string, path: string, source: 'written' | 'presented', description?: string): void => {
+    const absolute = isAbsolute(path) ? path : resolvePath(process.cwd(), path)
+    const { artifact, fresh } = recordArtifact({ path: absolute, sessionId, source, ...description === undefined ? {} : { description } })
+    server.broadcast({ type: 'artifact', artifact, fresh, artifacts: artifactsWithStat() })
+  }
+
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     const header = session.header as { origin?: string }
     if (header.origin === 'subagent') return
+    // An approval is the turn paused on the user: she waits, visibly, until
+    // it is decided (in the dsh web UI) or the turn moves on.
+    if ((event.type as string) === 'approval/asked' || (event.type as string) === 'approval/decided') {
+      if (activeSessionId !== undefined && session.id !== activeSessionId) return
+      server.broadcast({ type: 'activity', activity: (event.type as string) === 'approval/asked' ? 'waiting' : 'reading' })
+      return
+    }
+    if ((event.type as string) === 'deliverables/presented') {
+      if (activeSessionId !== undefined && session.id !== activeSessionId) return
+      const data = event.data as unknown as { files?: { path?: unknown; description?: unknown }[] }
+      for (const file of data.files ?? []) {
+        if (typeof file.path !== 'string' || file.path.trim() === '') continue
+        publishArtifact(session.id, file.path, 'presented', typeof file.description === 'string' && file.description.trim() !== '' ? file.description.trim() : undefined)
+      }
+      return
+    }
     switch (event.type) {
       case 'user/message': {
         const message = event.data
         if (message.source.kind !== 'user') return
         const text = textOf(message.content)
         if (text.trim() === '') return
-        activeSessionId = session.id
+        rememberActive(session.id)
         server.broadcast({ type: 'user', text })
         break
       }
@@ -644,29 +770,30 @@ export function apply(ctx: Context, config: Config): void {
         const text = textOf(event.data.message.content)
         if (text.trim() === '') return
         if (activeSessionId !== undefined && session.id !== activeSessionId) return
-        const agent = ctx.agents.get(SessionId(session.id))
-        // Show the reply at once with a keyword-picked expression; the LLM
-        // judge refines it a moment later without delaying the text.
-        const provisional = heuristicEmotion(text)
         const messageId = `m${++voiceSeq}`
-        server.broadcast({ type: 'assistant', id: messageId, text, emotion: provisional, judge: 'pending' })
         // Speech is requested by the frontend with its selected provider.
-        // Avoid a second, unsolicited VOICEVOX synthesis / translation.
-        void judgeEmotion(text, agent).then(({ emotion, judge, judgeError }) => {
-          if (emotion !== provisional || judge === 'llm') server.broadcast({ type: 'emotion', emotion, judge, ...judgeError === undefined ? {} : { judgeError } })
-        })
+        server.broadcast({ type: 'assistant', id: messageId, text })
         break
       }
       case 'tool/call': {
         if (activeSessionId !== undefined && session.id !== activeSessionId) return
-        server.broadcast({ type: 'status', text: `${event.data.name}…` })
+        const target = writtenPath(event.data.name, event.data.arguments)
+        if (target !== undefined) pendingWrites.set(String(event.data.callId), target)
+        let command: string | undefined
+        try { command = String((JSON.parse(event.data.arguments) as { command?: unknown }).command ?? '') || undefined } catch { /* not an object */ }
+        server.broadcast({ type: 'status', text: `${event.data.name}…`, tool: event.data.name, activity: activityForTool(event.data.name, command), ...command === undefined ? {} : { command } })
         break
       }
       case 'tool/result': {
         if (activeSessionId !== undefined && session.id !== activeSessionId) return
-        // Something went wrong out of sight — she should register it, rather
-        // than the face only ever reacting to the words she ends up saying.
-        if (event.data.error !== undefined) server.broadcast({ type: 'emotion', emotion: 'surprised', judge: 'heuristic', transient: true })
+        const block = event.data.message.content[0]
+        const written = pendingWrites.get(String(block.toolCallId))
+        pendingWrites.delete(String(block.toolCallId))
+        if (written !== undefined && block.isError !== true && event.data.error === undefined) publishArtifact(session.id, written, 'written')
+        // A failed tool is a beat she visibly registers; a finished one hands
+        // the stage back to "reading" until the next call or the reply.
+        if (event.data.error !== undefined || block.isError === true) server.broadcast({ type: 'activity', activity: 'failed', beat: true })
+        else server.broadcast({ type: 'activity', activity: 'reading' })
         break
       }
       case 'turn/start': {
@@ -678,6 +805,7 @@ export function apply(ctx: Context, config: Config): void {
       case 'turn/end': {
         if (activeSessionId === undefined || session.id === activeSessionId) {
           server.broadcast({ type: 'busy', value: false })
+          server.broadcast({ type: 'activity', activity: 'done' })
         }
         break
       }
@@ -693,7 +821,13 @@ export function apply(ctx: Context, config: Config): void {
   // Memory belongs to the user, so it is registered independently of the pack
   // and read at every assembly — `gal_remember` takes effect on the next turn.
   ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.memory', order: 9510, text: () => memorySection() }), 'dsh-gal.memory')
+  // How a file reaches the user is the UI's job; the prompt only has to make
+  // her name it, and hand it over with `present` when the tool is there.
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.artifacts', order: 9520, text: () => artifactSection() }), 'dsh-gal.artifacts')
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.lists', order: 9515, text: () => listsSection() }), 'dsh-gal.lists')
 
+  ctx.effect(() => sources.on(id => server.broadcast({ type: 'sources', id })), 'dsh-gal.sources.events')
+  if (activeSessionId !== undefined) server.seedBacklog(transcript(activeSessionId).read().map(entry => entry.event as never))
   ctx.effect(() => {
     server.start().then(
       () => ctx.logger.info(`dsh-gal: visual novel at ${server.url} (character: ${pack.id})`),

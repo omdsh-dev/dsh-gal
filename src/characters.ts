@@ -1,6 +1,6 @@
 /**
- * Character packs: a directory holding `character.json` plus the expression
- * assets it names. Packs are discovered from the plugin's own `characters/`
+ * Character packs: a directory holding `character.json` plus the stage
+ * assets it names, one per activity she can be shown in. Packs are discovered from the plugin's own `characters/`
  * directory and from the user directory (`~/.dsh/gal/characters` by default),
  * so a private pack never has to live inside the public repository.
  */
@@ -8,7 +8,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
-import { EMOTIONS, type Emotion } from './emotion.js'
+import { ACTIVITIES, ASSET_FALLBACKS, ASSET_NAMES, type Activity } from './activity.js'
 
 /** `character.json` as written by a pack author. */
 export interface CharacterManifestFile {
@@ -32,14 +32,19 @@ export interface CharacterManifestFile {
   /** Voice settings: VOICEVOX style id. */
   voice?: { speaker?: number }
   /** Image-generation guidance for packs distributed without art. */
-  art?: { base?: string; expressions?: Partial<Record<Emotion, string>>; motion?: string }
+  art?: { base?: string; expressions?: Record<string, string>; motion?: string }
   /**
-   * Expression → asset file names relative to the pack directory. When absent,
-   * `<emotion>.mp4` / `<emotion>.webm` and `<emotion>.png` / `.webp` are
-   * discovered by convention.
+   * Asset name → file names relative to the pack directory. When absent,
+   * `<name>.mp4` / `<name>.webm` and `<name>.png` / `.webp` are discovered
+   * by convention. Names are activities (`idle`, `writing`, …) or the older
+   * expression names (`neutral`, `thinking`, …); see `ASSET_FALLBACKS`.
    */
-  emotions?: Partial<Record<Emotion, { video?: string; image?: string }>>
+  states?: Record<string, { video?: string; image?: string }>
+  /** Older spelling of `states`. */
+  emotions?: Record<string, { video?: string; image?: string }>
 }
+
+export interface StateAsset { video?: string; image?: string }
 
 /** A resolved pack: manifest + directory + the assets that actually exist. */
 export interface CharacterPack {
@@ -51,10 +56,23 @@ export interface CharacterPack {
   theme: { accent?: string; frame?: string; box?: string }
   playbackRate: number
   voice: { speaker?: number }
-  art?: { base?: string; expressions?: Partial<Record<Emotion, string>>; motion?: string }
-  /** True when the pack ships no expression assets (prompt-only pack). */
+  art?: { base?: string; expressions?: Record<string, string>; motion?: string }
+  /** True when the pack ships no stage assets (prompt-only pack). */
   promptOnly: boolean
-  emotions: Partial<Record<Emotion, { video?: string; image?: string }>>
+  /** Assets that exist, by base name. Use `resolveStateAsset` to pick one for an activity. */
+  assets: Record<string, StateAsset>
+}
+
+/**
+ * The asset a pack shows for an activity, and which name it came from — the
+ * activity's own file when the pack has one, else the first fallback it has.
+ */
+export function resolveStateAsset(pack: Pick<CharacterPack, 'assets'>, activity: Activity): { asset: StateAsset; from: string } | undefined {
+  for (const name of ASSET_FALLBACKS[activity]) {
+    const asset = pack.assets[name]
+    if (asset !== undefined) return { asset, from: name }
+  }
+  return undefined
 }
 
 const VIDEO_EXTS = ['.mp4', '.webm']
@@ -85,19 +103,20 @@ export function loadCharacterPack(dir: string, id = basename(dir)): CharacterPac
   } else if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     return undefined
   }
-  const emotions: CharacterPack['emotions'] = {}
-  for (const emotion of EMOTIONS) {
-    const declared = file.emotions?.[emotion] ?? {}
+  const declaredStates = { ...file.emotions ?? {}, ...file.states ?? {} }
+  const assets: CharacterPack['assets'] = {}
+  for (const name of new Set([...ASSET_NAMES, ...Object.keys(declaredStates)])) {
+    const declared = declaredStates[name] ?? {}
     const video = declared.video !== undefined && existsSync(join(dir, declared.video))
       ? declared.video
-      : firstExisting(dir, emotion, VIDEO_EXTS)
+      : firstExisting(dir, name, VIDEO_EXTS)
     const image = declared.image !== undefined && existsSync(join(dir, declared.image))
       ? declared.image
-      : firstExisting(dir, emotion, IMAGE_EXTS)
-    if (video !== undefined || image !== undefined) emotions[emotion] = { ...video === undefined ? {} : { video }, ...image === undefined ? {} : { image } }
+      : firstExisting(dir, name, IMAGE_EXTS)
+    if (video !== undefined || image !== undefined) assets[name] = { ...video === undefined ? {} : { video }, ...image === undefined ? {} : { image } }
   }
   // A pack with no assets is still a pack when it declares itself (character.json).
-  if (Object.keys(emotions).length === 0 && !existsSync(manifestPath)) return undefined
+  if (Object.keys(assets).length === 0 && !existsSync(manifestPath)) return undefined
   return {
     id,
     dir,
@@ -108,8 +127,8 @@ export function loadCharacterPack(dir: string, id = basename(dir)): CharacterPac
     playbackRate: typeof file.playbackRate === 'number' && file.playbackRate > 0 ? file.playbackRate : 1,
     voice: typeof file.voice === 'object' && file.voice !== null ? file.voice : {},
     ...file.art === undefined ? {} : { art: file.art },
-    promptOnly: Object.keys(emotions).length === 0,
-    emotions,
+    promptOnly: !ACTIVITIES.some(activity => resolveStateAsset({ assets }, activity) !== undefined),
+    assets,
   }
 }
 
@@ -156,14 +175,14 @@ export function materializePack(pack: CharacterPack, bundledDir: string, prompts
 }
 
 /** Write one uploaded asset into the pack (copying it to the user dir first) and reload. */
-export function storePackAsset(pack: CharacterPack, emotion: Emotion, kind: 'image' | 'video', ext: string, data: Buffer, bundledDir: string, promptsDir?: string): CharacterPack {
+export function storePackAsset(pack: CharacterPack, state: Activity, kind: 'image' | 'video', ext: string, data: Buffer, bundledDir: string, promptsDir?: string): CharacterPack {
   const live = materializePack(pack, bundledDir, promptsDir)
-  // one file per emotion+kind: drop other extensions so discovery is unambiguous
+  // one file per state+kind: drop other extensions so discovery is unambiguous
   for (const old of kind === 'image' ? IMAGE_EXTS : VIDEO_EXTS) {
-    const stale = join(live.dir, `${emotion}${old}`)
+    const stale = join(live.dir, `${state}${old}`)
     if (old !== ext && existsSync(stale)) unlinkSync(stale)
   }
-  writeFileSync(join(live.dir, `${emotion}${ext}`), data)
+  writeFileSync(join(live.dir, `${state}${ext}`), data)
   const reloaded = loadCharacterPack(live.dir, live.id)
   if (reloaded === undefined) throw new Error('pack unreadable after upload')
   return reloaded
@@ -224,8 +243,10 @@ export function personaSection(pack: CharacterPack): string {
     '- Markdown is available for code and tables when the content genuinely needs it. Prose does not.',
     // Written as a floor, not a ceiling: as a bare permission ("you may…, only
     // when…") the model almost never took it, and she read as a voice from
-    // nowhere.
-    `- More often than not, open with a short action or mood in parentheses, the way a novel does: （放下手里的托盘）、（顿了顿）、（把袖口挽好）、（从屏幕前抬起头）、（笑了一下）. It is what puts her in the room — what her hands are doing, where she is looking, the beat before she answers.`,
-    '- One per reply, at the start unless a beat mid-line lands better. Never two, never a stage direction for the obvious （回答问题）, and never the same one twice in a row. Parentheses are shown but not read aloud, so nothing load-bearing goes inside them.',
+    // nowhere. And the direction itself has to be written like roleplay prose,
+    // not a bare verb: a first draft that only allowed （抬头看了一眼） left her
+    // stiff, so the rule asks for mood, face and body together.
+    `- Open nearly every reply with a stage direction in parentheses, written the way character roleplay does it: not a bare verb but a small scene — her mood, her face, what her body is doing, where her eyes go, the beat before she speaks. （耳朵先动了一下，随即抬眼，眉梢挑起一点点，嘴角有笑意压着没放出来）、（把抹布搭回肩上，靠在灶台边，双臂环抱，看了你一会儿才开口）、（指尖在桌沿轻轻敲了两下，视线从屏幕挪到你脸上，语气放软）、（愣了半秒，尾巴不自觉地摆了一下，耳根有点热）. Let the direction carry the feeling the words don't say: whether she is pleased, worried, teasing, tired, caught off guard.`,
+    '- Usually one, 15–40 characters, at the start. A second short one is welcome mid-reply or at the end when her mood turns or she does something — （笑了）、（把单子推过去）— but never stack them, never narrate the obvious （回答问题）, and never reuse one. Each should come from the moment: what she just heard, what she is holding, what the news is. In Chinese write them like a novel, in English like a screenplay, and keep them in the user\'s language. Parentheses are shown but not read aloud, so nothing load-bearing goes inside them.',
   ].join('\n')
 }

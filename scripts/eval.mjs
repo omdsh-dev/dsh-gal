@@ -4,8 +4,8 @@
  *
  * Runs the same small tasks under two plugin configurations and compares
  * wall time and token usage:
- *   baseline — personaEnabled: false, judgeEnabled: false (plugin only mirrors)
- *   gal      — persona + memory sections on, emotion judge on
+ *   baseline — personaEnabled: false (plugin only mirrors)
+ *   gal      — persona + memory sections on
  *
  * Usage: node scripts/eval.mjs [--dsh <path-to-dsh-bin>] [--character haibara]
  *        [--reps 2] [--cwd /tmp/gal-eval] [--out eval-results.json]
@@ -35,8 +35,8 @@ const TASKS = [
 ]
 
 const CONFIGS = {
-  baseline: { port: PORT, character: CHARACTER, personaEnabled: false, judgeEnabled: false },
-  gal: { port: PORT, character: CHARACTER, personaEnabled: true, judgeEnabled: true },
+  baseline: { port: PORT, character: CHARACTER, personaEnabled: false },
+  gal: { port: PORT, character: CHARACTER, personaEnabled: true },
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -158,30 +158,17 @@ async function runConfig(configName) {
         const created = await fetch(`${BASE}/session/new`, { method: 'POST' })
         if (!created.ok) throw new Error(await created.text())
         const { id: sessionId } = await sessionEv
-        const judgeBefore = await (await fetch(`${BASE}/debug/usage`)).json()
         const t0 = Date.now()
         const reply = events.next((e) => e.type === 'assistant', 240_000)
         const sent = await fetch(`${BASE}/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: task.prompt }) })
         if (!sent.ok) throw new Error(await sent.text())
         const assistant = await reply
         const wallMs = Date.now() - t0
-        // time until the LLM judge refined the expression (0 when the judge is off)
-        const emotionLagMs = assistant.judge === 'pending'
-          ? await events.next((e) => e.type === 'emotion', 30_000).then(() => Date.now() - t0 - wallMs).catch(() => -1)
-          : 0
         await sleep(1500) // let the session log flush
-        const judgeAfter = await (await fetch(`${BASE}/debug/usage`)).json()
         const stats = readSessionStats(sessionId)
-        const judge = {
-          calls: judgeAfter.calls - judgeBefore.calls,
-          ms: judgeAfter.totalMs - judgeBefore.totalMs,
-          inputTokens: judgeAfter.inputTokens - judgeBefore.inputTokens,
-          outputTokens: judgeAfter.outputTokens - judgeBefore.outputTokens,
-          reasoningTokens: judgeAfter.reasoningTokens - judgeBefore.reasoningTokens,
-        }
-        const run = { config: configName, task: task.id, rep, sessionId, wallMs, emotionLagMs, ...stats, judge, emotion: assistant.emotion, judgeKind: assistant.judge }
+        const run = { config: configName, task: task.id, rep, sessionId, wallMs, ...stats, replyId: assistant.id }
         runs.push(run)
-        console.log(`${task.id}#${rep}: wall ${(wallMs / 1000).toFixed(1)}s (turn ${(stats.turnMs / 1000).toFixed(1)}s) · steps ${stats.steps} · tools ${stats.toolCalls} · in ${stats.inputTokens} (cache ${stats.cacheReadTokens}) · out ${stats.outputTokens} · reasoning ${stats.reasoningTokens} · emotion lag ${emotionLagMs}ms · judge ${judge.calls} call ${judge.ms}ms ${judge.inputTokens}+${judge.outputTokens}+${judge.reasoningTokens}tok`)
+        console.log(`${task.id}#${rep}: wall ${(wallMs / 1000).toFixed(1)}s (turn ${(stats.turnMs / 1000).toFixed(1)}s) · steps ${stats.steps} · tools ${stats.toolCalls} · in ${stats.inputTokens} (cache ${stats.cacheReadTokens}) · out ${stats.outputTokens} · reasoning ${stats.reasoningTokens}`)
         console.log(`   ↳ ${stats.reply.replace(/\s+/g, ' ').slice(0, 140)}`)
       }
     }
@@ -197,18 +184,16 @@ function summarize(runs) {
   const by = {}
   for (const r of runs) {
     const key = `${r.config}/${r.task}`
-    const acc = (by[key] ??= { n: 0, wallMs: 0, turnMs: 0, steps: 0, toolCalls: 0, inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, reasoningTokens: 0, judgeMs: 0, judgeTokens: 0 })
+    const acc = (by[key] ??= { n: 0, wallMs: 0, turnMs: 0, steps: 0, toolCalls: 0, inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, reasoningTokens: 0 })
     acc.n += 1
-    acc.wallMs += r.wallMs; acc.emotionLagMs = (acc.emotionLagMs ?? 0) + Math.max(0, r.emotionLagMs ?? 0); acc.turnMs += r.turnMs; acc.steps += r.steps; acc.toolCalls += r.toolCalls
+    acc.wallMs += r.wallMs; acc.turnMs += r.turnMs; acc.steps += r.steps; acc.toolCalls += r.toolCalls
     acc.inputTokens += r.inputTokens; acc.cacheReadTokens += r.cacheReadTokens; acc.outputTokens += r.outputTokens; acc.reasoningTokens += r.reasoningTokens
-    acc.judgeMs += r.judge.ms; acc.judgeTokens += r.judge.inputTokens + r.judge.outputTokens + r.judge.reasoningTokens
   }
   const rows = Object.entries(by).map(([key, a]) => ({
     key, n: a.n,
-    wallS: (a.wallMs / a.n / 1000).toFixed(1), emoLagS: ((a.emotionLagMs ?? 0) / a.n / 1000).toFixed(1), turnS: (a.turnMs / a.n / 1000).toFixed(1),
+    wallS: (a.wallMs / a.n / 1000).toFixed(1), turnS: (a.turnMs / a.n / 1000).toFixed(1),
     steps: (a.steps / a.n).toFixed(1), tools: (a.toolCalls / a.n).toFixed(1),
     inTok: Math.round(a.inputTokens / a.n), cacheTok: Math.round(a.cacheReadTokens / a.n), outTok: Math.round(a.outputTokens / a.n), reasonTok: Math.round(a.reasoningTokens / a.n),
-    judgeS: (a.judgeMs / a.n / 1000).toFixed(1), judgeTok: Math.round(a.judgeTokens / a.n),
   }))
   return rows
 }

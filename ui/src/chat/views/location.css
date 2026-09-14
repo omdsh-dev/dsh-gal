@@ -1,0 +1,44 @@
+/* Location view: a radar hero, chips of recent places, and the pin-a-place row. */
+.loc-hero { display: flex; align-items: center; gap: 20px; padding: 18px 20px 18px 16px; border: 1px solid var(--border); border-radius: 20px; background: linear-gradient(135deg, color-mix(in oklab, var(--brand) 9%, var(--card)), var(--card) 70%); }
+.loc-radar { width: 124px; height: 124px; flex: none; }
+.loc-ring { fill: none; stroke: color-mix(in oklab, var(--ink) 14%, transparent); stroke-width: 1; }
+.loc-sweep { fill: none; stroke: color-mix(in oklab, var(--brand) 45%, transparent); stroke-width: 1.5; stroke-dasharray: 40 300; stroke-linecap: round; transform-origin: 60px 60px; animation: loc-sweep 4s linear infinite; }
+.loc-acc { fill: color-mix(in oklab, var(--brand) 16%, transparent); stroke: color-mix(in oklab, var(--brand) 55%, transparent); stroke-width: 1; }
+.loc-pulse { fill: color-mix(in oklab, var(--brand) 35%, transparent); transform-origin: 60px 60px; animation: loc-pulse 2.4s ease-out infinite; }
+.loc-dot { fill: var(--brand); stroke: var(--card); stroke-width: 2; }
+.loc-dot.pinned { fill: var(--ink); }
+.loc-scale { font-size: 9px; fill: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.loc-radar.idle .loc-ring { stroke: color-mix(in oklab, var(--ink) 9%, transparent); }
+.loc-radar.idle .loc-dot { fill: var(--muted-fg); }
+@keyframes loc-sweep { to { transform: rotate(360deg); } }
+@keyframes loc-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .loc-sweep, .loc-pulse { animation: none; } .loc-sweep { display: none; } }
+
+.loc-where { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.loc-name { font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; }
+.loc-line { font-size: 14px; color: var(--muted-fg); }
+.loc-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted-fg); }
+.loc-meta span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.loc-meta span.on { color: var(--ok, var(--brand)); }
+.loc-meta svg { width: 13px; height: 13px; }
+
+.loc-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.loc-actions .text-button { height: 30px; }
+
+.loc .section { margin: 20px 0 10px; }
+.loc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.loc-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); font-size: 13px; font-weight: 500; white-space: nowrap; max-width: 100%; }
+.loc-chip small { font-weight: 400; color: var(--muted-fg); }
+.loc-chip svg { width: 13px; height: 13px; color: var(--muted-fg); flex: none; }
+.loc-chip.current { border-color: color-mix(in oklab, var(--brand) 50%, var(--border)); background: color-mix(in oklab, var(--brand) 10%, var(--card)); }
+.loc-chip.current svg { color: var(--brand); }
+.loc-chip.home svg { color: var(--ink); }
+.loc-chip.ghost { width: 96px; background: var(--muted); border-color: transparent; }
+.loc-chip.ghost:nth-child(2) { width: 132px; } .loc-chip.ghost:nth-child(3) { width: 80px; }
+
+.loc-pin { display: flex; gap: 8px; }
+.loc-pin .input { flex: 1; border-radius: 999px; padding-left: 16px; }
+.loc-pin .button { border-radius: 999px; }
+.loc .field-hint { margin-top: 8px; }
+
+.loc.placeholder .loc-hero, .loc.placeholder .loc-chips { opacity: .6; }

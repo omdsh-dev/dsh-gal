@@ -1,0 +1,38 @@
+/* Notes view: search, folder chips, note cards. Colours mixed from the panel's variables so light and dark both work. */
+.notes { display: flex; flex-direction: column; gap: 14px; }
+.notes.placeholder { opacity: .6; }
+
+.notes-search { position: relative; display: flex; align-items: center; }
+.notes-search > svg { position: absolute; left: 14px; width: 15px; height: 15px; color: var(--muted-fg); pointer-events: none; }
+.notes-search .input { padding-left: 38px; padding-right: 36px; border-radius: 999px; }
+.notes-clear { position: absolute; right: 6px; }
+
+.notes-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.notes-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; max-width: 220px; padding: 0 11px 0 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--ink); font-size: 12.5px; font-weight: 500; transition: background .15s, border-color .15s, box-shadow .15s; }
+.notes-chip:hover { background: var(--accent); }
+.notes-chip.active { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); color: var(--brand); }
+.notes-chip svg { width: 13px; height: 13px; flex: none; color: var(--muted-fg); }
+.notes-chip.active svg { color: var(--brand); }
+.notes-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-chip small { font-size: 11px; font-weight: 400; color: var(--muted-fg); }
+.notes-chip.skeleton { display: inline-block; background: var(--muted); border-color: transparent; }
+
+.notes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.notes-card { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); transition: border-color .15s, box-shadow .15s; }
+.notes-card:hover { border-color: color-mix(in oklab, var(--ink) 18%, var(--surface)); box-shadow: var(--shadow-card); }
+.notes-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.notes-title { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: 600; letter-spacing: -.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-lock { width: 12px; height: 12px; flex: none; color: var(--muted-fg); }
+.notes-time { flex: none; font-size: 11.5px; color: var(--muted-fg); }
+.notes-preview { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted-fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.notes-preview.muted { font-style: italic; opacity: .7; }
+.notes-folder { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 2px; padding: 1px 8px 1px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--muted); font-size: 10.5px; color: var(--muted-fg); }
+.notes-folder svg { width: 10px; height: 10px; }
+.notes-foot { margin: 0; text-align: center; }
+
+/* Placeholder: sample-shaped cards, no text. */
+.notes-card.skeleton { gap: 8px; }
+.notes-line { display: block; height: 10px; border-radius: 6px; background: var(--muted); }
+.notes-line.w60 { width: 60%; height: 12px; }
+.notes-line.w90 { width: 90%; }
+.notes-line.w40 { width: 40%; }

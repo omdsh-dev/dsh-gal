@@ -1,0 +1,40 @@
+/* contacts: search on top, birthdays strip when any are close, then an alphabetical list with initials avatars. */
+.contacts { display: flex; flex-direction: column; }
+.contacts.placeholder { opacity: .55; filter: saturate(.3); }
+
+.contacts-search { position: relative; display: flex; align-items: center; margin-bottom: 18px; }
+.contacts-search > svg { position: absolute; left: 14px; width: 15px; height: 15px; color: var(--muted-fg); pointer-events: none; }
+.contacts-search .input { padding-left: 38px; padding-right: 70px; border-radius: 999px; }
+.contacts-search .text-button { position: absolute; right: 8px; }
+
+.contacts-avatar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; color: oklch(42% .11 var(--h)); background: oklch(93% .045 var(--h)); }
+:root.dark .contacts-avatar, .dark .contacts-avatar { color: oklch(85% .09 var(--h)); background: oklch(34% .06 var(--h)); }
+.contacts-avatar.dim { background: var(--muted); }
+
+.contacts-bdays { margin-bottom: 18px; }
+.contacts-bdays .section { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+.contacts-bdays .section svg { width: 13px; height: 13px; }
+.contacts-bday-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin: 0 -2px; scrollbar-width: none; }
+.contacts-bday { display: flex; align-items: center; gap: 10px; flex: none; padding: 8px 14px 8px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
+.contacts-bday.today { border-color: color-mix(in oklab, var(--brand) 45%, var(--border)); background: color-mix(in oklab, var(--brand) 8%, var(--card)); }
+.contacts-bday-text { display: flex; flex-direction: column; line-height: 1.25; white-space: nowrap; }
+.contacts-bday-text b { font-size: 13px; font-weight: 500; }
+.contacts-bday-text small { font-size: 11.5px; color: var(--muted-fg); }
+.contacts-bday.today .contacts-bday-text small { color: var(--brand); font-weight: 500; }
+
+.contacts-group + .contacts-group { margin-top: 14px; }
+.contacts-letter { position: sticky; top: -18px; z-index: 1; margin: 0 0 6px; padding: 4px 0 4px 12px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--brand); background: var(--surface); }
+.contacts-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--card); }
+.contacts-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 10px; border-bottom: 1px solid var(--border); }
+.contacts-row:last-child { border-bottom: 0; }
+.contacts-text { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.3; }
+.contacts-text b { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contacts-text small { font-size: 12px; color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contacts-unnamed { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-fg); font-weight: 400; }
+.contacts-unnamed svg { width: 13px; height: 13px; }
+.contacts-meta { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11.5px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.contacts-meta svg { width: 12px; height: 12px; }
+.contacts-foot { margin: 12px 0 0; text-align: center; }
+
+.contacts-skeleton { display: block; height: 10px; margin: 3px 0; border-radius: 999px; background: var(--muted); }
+.contacts-skeleton.short { height: 8px; }

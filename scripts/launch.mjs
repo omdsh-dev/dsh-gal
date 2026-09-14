@@ -26,7 +26,7 @@ function start(file,argv,options={}){
  child.on('error',error=>{child.launchError=error;});return child;
 }
 async function json(endpoint){try{const response=await fetch(endpoint,{signal:AbortSignal.timeout(1500)});return response.ok?await response.json():null;}catch{return null;}}
-async function backendReady(){const manifest=await json('http://127.0.0.1:4877/manifest.json');return Boolean(manifest&&typeof manifest.characterName==='string'&&manifest.emotions);}
+async function backendReady(){const manifest=await json('http://127.0.0.1:4877/manifest.json');return Boolean(manifest&&typeof manifest.characterName==="string"&&manifest.states);}
 async function previewReady(){const result=await json('http://127.0.0.1:4878/_gal/health');return result?.app==='dsh-gal-preview'&&result.root===root;}
 async function waitReady(check,child,name){
  const until=Date.now()+90000;

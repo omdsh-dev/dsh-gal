@@ -39,7 +39,7 @@ export function speakableText(text: string, maxChars = 360): string {
 
 /** True when the text already reads as Japanese (kana present). */
 export function looksJapanese(text: string): boolean {
-  return /[぀-ヿ]/.test(text)
+  return detectLanguage(text) === 'ja'
 }
 
 export type SpokenLanguage = 'zh' | 'en' | 'ja'
@@ -47,14 +47,20 @@ export type SpokenLanguage = 'zh' | 'en' | 'ja'
 const LANGUAGE_NAMES: Record<SpokenLanguage, string> = { zh: 'Chinese', en: 'English', ja: 'Japanese' }
 
 /**
- * Which language a line reads as. Kana means Japanese; Han characters without
- * kana mean Chinese; anything else is treated as English. Latin technical terms
- * inside a CJK line do not change the verdict.
+ * Which language a line reads as. A Japanese sentence is mostly kana with some
+ * kanji; a Chinese sentence is Han characters throughout, and a Japanese title
+ * quoted inside it ("NHKオンデマンド") must not flip the verdict — that once
+ * sent a whole Chinese reply to the Japanese voice undubbed. So the call is by
+ * share: kana against all CJK characters. Anything without CJK is English.
  */
 export function detectLanguage(text: string): SpokenLanguage {
-  if (/[぀-ヿ]/.test(text)) return 'ja'
-  if (/[\u4e00-\u9fff]/.test(text)) return 'zh'
-  return 'en'
+  const kana = (text.match(/[぀-ヿ]/g) ?? []).length
+  const han = (text.match(/[\u4e00-\u9fff]/g) ?? []).length
+  if (kana + han === 0) return 'en'
+  if (kana === 0) return 'zh'
+  // Real Japanese prose runs well above 30% kana; a Chinese line with a quoted
+  // Japanese name stays far below it.
+  return kana / (kana + han) >= 0.3 ? 'ja' : 'zh'
 }
 
 /**

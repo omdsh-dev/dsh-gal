@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "check": "tsc -p tsconfig.json"
+    "check": "tsc -p tsconfig.json",
+    "build:chat": "vite build -c vite.chat.config.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.0",

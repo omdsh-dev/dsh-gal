@@ -28,13 +28,25 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
-    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
     "resources": {
       "../plugin/": "plugin/"
     },
     "macOS": {
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "infoPlist": {
+        "NSCalendarsFullAccessUsageDescription": "dsh-gal reads your calendar so your companion knows your day.",
+        "NSCalendarsUsageDescription": "dsh-gal reads your calendar so your companion knows your day.",
+        "NSRemindersFullAccessUsageDescription": "dsh-gal reads and adds reminders for you.",
+        "NSRemindersUsageDescription": "dsh-gal reads and adds reminders for you."
+      }
     }
   }
 }

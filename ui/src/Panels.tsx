@@ -20,12 +20,14 @@ export const CharacterHub=React.memo(function CharacterHub(){return (<>
 <span data-ui-text="state">{"表情预览"}</span>
 <NativeSelect id="character-state-preview" aria-label="state">
 <option value="auto">{"跟随对话"}</option>
-<option value="neutral">{"待机"}</option>
-<option value="thinking">{"思考"}</option>
-<option value="happy">{"开心"}</option>
-<option value="sad">{"悲伤"}</option>
-<option value="surprised">{"惊讶"}</option>
-<option value="excited">{"兴奋"}</option>
+<option value="idle">{"待机"}</option>
+<option value="reading">{"在看"}</option>
+<option value="writing">{"在写"}</option>
+<option value="searching">{"在查"}</option>
+<option value="running">{"在跑命令"}</option>
+<option value="waiting">{"等你"}</option>
+<option value="failed">{"出错了"}</option>
+<option value="done">{"完成"}</option>
 </NativeSelect>
 </Label>
 </div>
@@ -211,20 +213,57 @@ export const MemoryPanel=React.memo(function MemoryPanel(){return (<>
 </form>
 </div>
 </>);});
+export const ArtifactsPanel=React.memo(function ArtifactsPanel(){return (<>
+<div className="overlay-head">
+<span id="artifacts-title" data-ui-text="artifacts-title">{"手记"}</span>
+<Button type="button" className="overlay-close" data-close="artifacts-panel" hidden={true} variant="ghost" data-slot="button">{"关闭 / ESC"}</Button>
+</div>
+<div id="art-list-view" className="overlay-body">
+<p className="dim" data-ui-text="artifacts-hint">{""}</p>
+<div id="art-list">
+</div>
+<p id="art-empty" className="dim hidden" data-ui-text="artifacts-empty">{""}</p>
+</div>
+<div id="art-view" className="overlay-body hidden">
+<div className="art-view-head">
+<Button type="button" id="art-back" variant="ghost" data-slot="button" data-ui-text="artifacts-back">{""}</Button>
+<div className="art-view-title">
+<span id="art-view-name">
+</span>
+<span id="art-view-desc" className="dim">
+</span>
+<span id="art-view-path" className="dim">
+</span>
+</div>
+<div className="art-view-actions">
+<Button type="button" id="art-reveal" variant="ghost" data-slot="button" data-ui-text="artifacts-reveal">{""}</Button>
+<Button type="button" id="art-copy" variant="ghost" data-slot="button" data-ui-text="artifacts-copy">{""}</Button>
+<Button type="button" id="art-forget" variant="ghost" data-slot="button" data-ui-text="artifacts-forget">{""}</Button>
+</div>
+</div>
+<span id="art-status" className="dim" role="status" aria-live="polite">
+</span>
+<div id="art-body">
+</div>
+</div>
+</>);});
 export const HelpPanel=React.memo(function HelpPanel(){return (<>
 <div className="overlay-head">
 <span id="help-title">{"命令与快捷键"}</span>
 <Button type="button" className="overlay-close" data-close="help-panel" hidden={true} variant="ghost" data-slot="button">{"关闭 / ESC"}</Button>
 </div>
 <div className="overlay-body">
+<h3 className="help-section" data-ui-text="help-commands">{""}</h3>
 <div id="help-list">
 </div>
+<h3 className="help-section" data-ui-text="help-keys-title">{""}</h3>
 <div id="help-shortcuts">
 <div className="help-key"><KbdGroup><Kbd>{"Space"}</Kbd><Kbd>{"Enter"}</Kbd></KbdGroup><span data-ui-text="key-advance">{""}</span></div>
-<div className="help-key"><KbdGroup><Kbd>{"/"}</Kbd></KbdGroup><span data-ui-text="key-input">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"/"}</Kbd><Kbd>{"、"}</Kbd></KbdGroup><span data-ui-text="key-input">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"Esc"}</Kbd></KbdGroup><span data-ui-text="key-blur">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"L"}</Kbd></KbdGroup><span data-ui-text="key-log">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"M"}</Kbd></KbdGroup><span data-ui-text="key-memory">{""}</span></div>
+<div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"F"}</Kbd></KbdGroup><span data-ui-text="key-artifacts">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"C"}</Kbd></KbdGroup><span data-ui-text="key-char">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"G"}</Kbd></KbdGroup><span data-ui-text="key-gallery">{""}</span></div>
 <div className="help-key"><KbdGroup><Kbd>{"\u2325"}</Kbd><Kbd>{"E"}</Kbd></KbdGroup><span data-ui-text="key-edit">{""}</span></div>

@@ -43,5 +43,9 @@ if [ -z "$TSC" ]; then
 fi
 echo "=== Compiling src → lib ==="
 $TSC -p tsconfig.json
+for plugin in plugins/*/; do
+  echo "=== Compiling $plugin ==="
+  $TSC -p "$plugin/tsconfig.json"
+done
 echo "=== Build complete ==="
-ls lib/
+ls lib/ plugins/*/lib/

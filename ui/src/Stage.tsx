@@ -23,13 +23,14 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div id="vignette">
 </div>
 <header id="topbar">
-<div id="title">{"◇ "}{"DSH-GAL "}<span id="conn-dot" title="disconnected">
+<div id="title"><img id="logo" src="./assets/logo.png" alt="" width={22} height={22} />{"DSH-GAL "}<span id="conn-dot" title="disconnected">
 </span>
 </div>
 <div className="app-controls">
 <Button id="btn-help" type="button" data-ui-text="help" variant="ghost" data-slot="button">{"帮助"}</Button>
 <Button type="button" id="btn-char" title="Switch character (⌥C)" variant="ghost" data-slot="button">{"CHAR"}</Button>
 <Button type="button" id="btn-memory" title="What I remember about you (⌥M)" variant="ghost" data-slot="button">{"MEMORY"}</Button>
+<Button type="button" id="btn-artifacts" title="Files she wrote for you (⌥F)" variant="ghost" data-slot="button">{"FILES"}</Button>
 <Button type="button" id="btn-speech-settings" variant="ghost" data-slot="button">{"语音设置"}</Button>
 <Button type="button" id="btn-hide" title="Hide window (⌥H / right-click)" variant="ghost" data-slot="button">{"HIDE"}</Button>
 </div>
@@ -42,7 +43,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div id="msgbox">
 <div id="nameplate">
 <span id="char-name">{"小黑鱼"}</span>
-<span id="emotion-tag">
+<span id="activity-tag">
 </span>
 </div>
 <div id="text-window" tabIndex={0}>
@@ -54,6 +55,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <Button type="button" id="btn-replay" disabled={true} variant="ghost" data-slot="button">{"重读本段"}</Button>
 <Button type="button" id="btn-stop-voice" disabled={true} variant="ghost" data-slot="button">{"停止朗读"}</Button>
 <div id="voice-feedback" role="status" aria-live="polite">
+</div>
 </div>
 </div>
 <div id="box-bottom">
@@ -70,7 +72,6 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 </div>
 <span id="language-hint" className="sr-only">
 </span>
-</div>
 </div>
 <div id="last-user" className="hidden">
 <span className="you-label">{"You"}</span>

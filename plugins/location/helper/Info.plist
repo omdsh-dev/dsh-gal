@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>dev.dsh.location.lkit</string>
+  <key>CFBundleName</key><string>lkit</string>
+  <key>CFBundleExecutable</key><string>lkit</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSUIElement</key><true/>
+  <key>NSLocationUsageDescription</key><string>dsh-location reads where your Mac is so the assistant knows where you are.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>dsh-location reads where your Mac is so the assistant knows where you are.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>dsh-location reads where your Mac is so the assistant knows where you are.</string>
+</dict>
+</plist>

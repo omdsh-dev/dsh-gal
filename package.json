@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-gal",
   "version": "0.1.0",
-  "description": "Galgame / visual-novel UI for the DeepSeek Harness: a whale-girl companion with animated expressions who speaks the assistant's replies one scene at a time",
+  "description": "Galgame / visual-novel UI for the DeepSeek Harness: a whale-girl companion who is shown doing what the agent does and speaks its replies one scene at a time",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -11,13 +11,20 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./store": {
+      "types": "./lib/types/store.d.ts",
+      "default": "./lib/store.js"
+    }
   },
   "files": [
     "lib",
     "web",
     "assets/sprites",
-    "assets/motion"
+    "assets/motion",
+    "plugins/*/lib",
+    "plugins/*/helper",
+    "plugins/*/README.md"
   ],
   "license": "BSD-3-Clause",
   "engines": {
@@ -34,8 +41,9 @@
     "start": "node scripts/launch.mjs choose",
     "start:desktop": "node scripts/launch.mjs desktop",
     "start:web": "node scripts/launch.mjs web",
-    "build:ui": "npm --prefix ui run build",
-    "check:ui": "npm --prefix ui run check"
+    "build:ui": "npm --prefix ui run build && npm --prefix ui run build:chat",
+    "check:ui": "npm --prefix ui run check",
+    "build:plugins": "for p in plugins/*/; do (cd \"$p\" && ../../node_modules/.bin/tsc -p tsconfig.json || tsc -p tsconfig.json); done"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1",

@@ -14,3 +14,4 @@ app/src-tauri/target/
 app/src-tauri/gen/
 eval-results.json
 ui/node_modules/
+plugins/*/lib/

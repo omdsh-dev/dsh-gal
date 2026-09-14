@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>dev.dsh.photos.pkit</string>
+  <key>CFBundleName</key><string>pkit</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>dsh-photos reads your photo library so the assistant knows what you have been photographing.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key><string>dsh-photos only reads; nothing is added to your library.</string>
+</dict>
+</plist>

@@ -118,7 +118,7 @@ body.ui-hidden #dialogue, body.ui-hidden #topbar, body.ui-hidden #ticker {
   background: linear-gradient(90deg, var(--gold), transparent);
   opacity: 0.7;
 }
-#emotion-tag { font-size: 0.62rem; font-weight: 400; color: var(--accent); letter-spacing: 0.25em; text-transform: uppercase; }
+#activity-tag { font-size: 0.62rem; font-weight: 400; color: var(--accent); letter-spacing: 0.25em; text-transform: uppercase; }
 
 /* ---- text window ---- */
 #text-window {

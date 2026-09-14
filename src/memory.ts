@@ -3,54 +3,56 @@
  *
  * These notes are facts about the person on the other side of the screen —
  * their projects, their preferences, how they like to work. They belong to the
- * user, not to whichever character is currently on stage, so they live in one
- * file beside the character directory and survive switching packs.
+ * user, not to whichever character is currently on stage, so they live in the
+ * shared store (see store.ts) and survive switching packs.
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, renameSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { userCharactersDir } from './characters.js'
+import { migrateFile, openStore } from './store.js'
 
-/** `~/.dsh/gal/memory.md`, or `DSH_GAL_MEMORY` when set. */
+/** `~/.dsh/gal/memory.md`, the pre-store file (imported once, then renamed). */
 export function memoryPath(): string {
   return process.env['DSH_GAL_MEMORY'] ?? join(dirname(userCharactersDir()), 'memory.md')
 }
 
 /**
- * Memory used to be per-pack (`<pack>/memory.md`). Fold any of those into the
- * shared file the first time it is needed, oldest packs first, keeping each
- * line once; the pack copies are renamed aside so this happens exactly once.
+ * Memory used to be per-pack (`<pack>/memory.md`), then one shared file. Both
+ * are folded into the store the first time it is read, keeping each line once;
+ * the files are renamed aside so this happens exactly once.
  */
-function migrateFromPacks(target: string): void {
-  const root = userCharactersDir()
-  if (!existsSync(root)) return
+function importLegacy(): string[] {
   const lines: string[] = []
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const legacy = join(root, entry.name, 'memory.md')
-    if (!existsSync(legacy)) continue
-    for (const line of readFileSync(legacy, 'utf8').split('\n')) {
-      const kept = line.replace(/\s+$/, '')
-      if (kept !== '' && !lines.includes(kept)) lines.push(kept)
+  const take = (text: string): void => { for (const line of text.split('\n')) { const kept = line.replace(/\s+$/, ''); if (kept !== '' && !lines.includes(kept)) lines.push(kept) } }
+  const root = userCharactersDir()
+  if (existsSync(root)) {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const legacy = join(root, entry.name, 'memory.md')
+      if (existsSync(legacy)) { take(readFileSync(legacy, 'utf8')); renameSync(legacy, `${legacy}.migrated`) }
     }
-    renameSync(legacy, `${legacy}.migrated`)
   }
-  if (lines.length === 0) return
-  mkdirSync(dirname(target), { recursive: true })
-  writeFileSync(target, `${lines.join('\n')}\n`)
+  migrateFile(memoryPath(), take)
+  return lines
 }
 
+const memoryDoc = () => openStore().doc<{ text: string }>('memory', 'user')
+
 export function readMemory(): string {
-  const path = memoryPath()
-  if (!existsSync(path)) migrateFromPacks(path)
-  return existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const doc = memoryDoc()
+  const current = doc.get()
+  if (current !== undefined) return current.text
+  const lines = importLegacy()
+  const text = lines.length === 0 ? '' : `${lines.join('\n')}\n`
+  doc.set({ text })
+  return text
 }
 
 export function writeMemory(text: string): string {
-  const path = memoryPath()
-  mkdirSync(dirname(path), { recursive: true })
   const body = text.replace(/\s+$/, '')
-  writeFileSync(path, body === '' ? '' : `${body}\n`)
-  return body === '' ? '' : `${body}\n`
+  const stored = body === '' ? '' : `${body}\n`
+  memoryDoc().set({ text: stored })
+  return stored
 }
 
 /** Append one dated bullet; returns the whole memory. */

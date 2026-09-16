@@ -23,7 +23,9 @@
       "sad": "eyelids lowered and glossy, brows angled up in the middle, a small downward mouth, hands clutched low, cooler dimmer light",
       "excited": "a big open smile, sparkling eyes, both fists raised near her chest, leaning slightly forward, more rising bubbles",
       "running": "sleeves pushed up slightly, both hands typing on a small floating translucent holographic keyboard at waist height, a faint glowing blue holographic terminal panel with scrolling lines hovering in front of her, eyes lowered onto it, focused and slightly determined, mouth closed",
-      "waiting": "both hands clasped behind her back, leaning very slightly forward toward the viewer, head tilted a little, eyes on the viewer with a patient expectant look, brows gently raised, small closed-mouth smile, quietly waiting for an answer"
+      "waiting": "both hands clasped behind her back, leaning very slightly forward toward the viewer, head tilted a little, eyes on the viewer with a patient expectant look, brows gently raised, small closed-mouth smile, quietly waiting for an answer",
+      "speaking": "mid-sentence, talking to the viewer: mouth open in a natural speaking shape, eyes bright and engaged on the viewer, one hand raised to chest height palm up as if explaining a point, the other resting at her apron, a few small bubbles rising near her mouth",
+      "listening": "attentively listening: mouth closed in a soft neutral line, eyes wide and fixed on the viewer, head tilted a little and leaning slightly toward the viewer, one hand gently cupped beside her ear, the other resting in front of her apron"
     },
     "motion": "subtle idle loop: gentle breathing, natural blinks, hair and apron frills swaying in the water current, the orca tail drifting slowly, bubbles rising; camera locked off, pose unchanged, no zoom or pan"
   }

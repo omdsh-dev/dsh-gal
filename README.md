@@ -44,7 +44,7 @@ Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网
 
 ### She is shown doing what the agent is doing
 
-The stage follows the tool stream, not the text. Each tool call switches her to reading, writing, searching or running; a failed call is a brief beat; an approval waiting on you is `waiting`; a finished turn is `done`. The stage crossfades between the pack's loops, so a long turn is legible at a glance instead of a spinner.
+The stage follows the tool stream, not the text. Each tool call switches her to reading, writing, searching or running; a failed call is a brief beat; an approval waiting on you is `waiting`; a finished turn is `done`. While the reply streams she is writing, and the stage directions that open her lines (`（耳根微微发红）`) pick a mood — excited, sad, surprised — that holds while she speaks the line aloud; while you type, she listens. The stage crossfades between the pack's loops, so a long turn is legible at a glance instead of a spinner.
 
 | activity | when she shows it | stands in when missing |
 | --- | --- | --- |
@@ -88,7 +88,7 @@ The official set ships in this repository under `plugins/`; each is still a sepa
 | --- | --- |
 | [dsh-health](plugins/health) | Apple Health pushed from the phone (Health Auto Export or a Shortcut) or imported from `export.zip`. Weekly averages, a two-week chart, workouts, what stands out against a 28-day baseline |
 | [dsh-calendar](plugins/calendar) | Calendar and Reminders through EventKit, every synced account. Today, next, the week; overdue reminders; tools to add and complete them |
-| [dsh-weather](plugins/weather) | Open-Meteo, no key. Now, today, tomorrow, a 24-hour chart and the week; location guessed from the time zone |
+| [dsh-weather](plugins/weather) | Open-Meteo, no key. Now, today, tomorrow, a 24-hour chart and the week; location guessed from the time zone. Destinations with dates get a 16-day forecast that follows the trip |
 | [dsh-contacts](plugins/contacts) | The address book through the Contacts framework. Who a name is, birthdays coming up |
 | [dsh-notes](plugins/notes) | Apple Notes via Automation. Search and read; create and append when asked |
 | [dsh-photos](plugins/photos) | The Photos library (metadata only in the prompt). Photos per day, trip-like clusters, thumbnails a vision model can look at |
@@ -97,6 +97,10 @@ The official set ships in this repository under `plugins/`; each is still a sepa
 | [dsh-home](plugins/home) | The home, through Shortcuts or a Home Assistant token. Readings and one-tap actions |
 | [dsh-weread](plugins/weread) | 微信读书 shelf, progress and highlights, with the cookie of a logged-in session |
 | [dsh-douban](plugins/douban) | 豆瓣 想看/看过 for films, books and music, so she never recommends what you already watched |
+| [dsh-gmail](plugins/gmail) | Gmail over IMAP with an app password, read-only. Unread count, the week's inbox, six months of bookings and itineraries; search with Gmail's own syntax, read one mail as text |
+| [dsh-flights](plugins/flights) | Flight status from AeroDataBox (RapidAPI, free tier). Tracked by number and date: times, terminal, gate, delays, cancellations, fresh around departure |
+| [dsh-images](plugins/images) | Image search she can show in the room: Brave Search with a key, Wikimedia Commons without one. A picked image is downloaded and presented as a card, so it survives hotlink checks and reloads |
+| [dsh-images](plugins/images) | Image search she can show in the room: Brave Search with a key, Wikimedia Commons without one. A picked image is downloaded and presented as a card, so it survives hotlink checks and reloads |
 
 To write a source, inject `galSources` optionally and describe yourself declaratively; the panel never needs source-specific code:
 
@@ -271,6 +275,10 @@ npm --prefix ui run dev         # rebuild on change; refresh the page to see it
 ```
 
 Components, the controller adapter and validation notes: [ui/README.md](ui/README.md).
+
+## Community
+
+Discussed on [LINUX DO](https://linux.do) and [V2EX](https://www.v2ex.com). Questions, bug reports and character packs are welcome there or in the issues.
 
 ## License
 

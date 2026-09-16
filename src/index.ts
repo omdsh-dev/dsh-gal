@@ -14,8 +14,9 @@
  * @module dsh-gal
  */
 
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path'
+import { dirname, extname, isAbsolute, join, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -94,6 +95,7 @@ type Context = CordisContext & {
 export const name = 'dsh-gal'
 export const inject = {
   agents: { required: true },
+  attachments: { required: false },
   agentLoop: { required: true },
   sessions: { required: true },
   llm: { required: true },
@@ -357,6 +359,64 @@ export function apply(ctx: Context, config: Config): void {
   // Data sources are other plugins' business; they register here and the panel shows them.
   const sources = createSourceRegistry()
   ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galSources', sources), 'dsh-gal.sources')
+  /*
+   * Attachments the user pastes or drops. Images become image blocks (the
+   * model sees them when it can) and files become file blocks (the model gets
+   * name, size and a read-only path). Both go through dsh's attachment
+   * service, which validates and stores the bytes; without it, a file is
+   * saved next to the uploads and named in the text instead. A copy of every
+   * image is kept under the store's `uploads` blobs so the bubble can show it.
+   */
+  interface Upload { kind: 'image' | 'file'; name: string; mediaType: string; data: string }
+  interface AttachmentsLike {
+    admitPromptContent(parts: unknown[]): Promise<unknown[]>
+    admitEncodedFile(input: { data: string; name?: string }): Promise<{ attachmentId: string; name: string; bytes: number }>
+  }
+  /** Preview URL and label per attachment id, for the bubble the session event turns into. */
+  const previews = new Map<string, { kind: 'image' | 'file'; name: string; url?: string; bytes: number }>()
+  const keepUpload = (u: Upload, buf: Buffer): string => {
+    const dir = openStore().blobDir('uploads')
+    mkdirSync(dir, { recursive: true })
+    const ext = extname(u.name) || ({ 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif' } as Record<string, string>)[u.mediaType] || ''
+    const name = `${createHash('sha1').update(buf).digest('hex').slice(0, 16)}${ext}`
+    const path = join(dir, name)
+    if (!existsSync(path)) writeFileSync(path, buf)
+    return name
+  }
+  const admitUploads = async (text: string, uploads: Upload[]): Promise<unknown[]> => {
+    const store = ctx.get('attachments') as AttachmentsLike | undefined
+    const parts: unknown[] = []
+    const notes: string[] = []
+    for (const u of uploads) {
+      const buf = Buffer.from(u.data, 'base64')
+      if (buf.length === 0) continue
+      const saved = keepUpload(u, buf)
+      if (store === undefined) { notes.push(`[attached file: ${join(openStore().blobDir('uploads'), saved)}]`); continue }
+      if (u.kind === 'image') {
+        parts.push({ type: 'image', mediaType: u.mediaType, data: u.data, name: u.name })
+        continue
+      }
+      const ref = await store.admitEncodedFile({ data: u.data, name: u.name })
+      previews.set(ref.attachmentId, { kind: 'file', name: ref.name, bytes: ref.bytes })
+      parts.push({ type: 'file', attachment: ref })
+    }
+    const body = [text, ...notes].filter(Boolean).join('\n')
+    if (body !== '') parts.unshift({ type: 'text', text: body })
+    const admitted = store === undefined ? parts : await store.admitPromptContent(parts)
+    // Image blocks only get their ids at admission; pair them back with the saved previews in order.
+    let i = 0
+    for (const block of admitted as { type: string; attachment?: { attachmentId: string; bytes?: number; name?: string } }[]) {
+      if (block.type !== 'image' || block.attachment === undefined) continue
+      const u = uploads.filter(x => x.kind === 'image')[i++]
+      if (u === undefined) continue
+      previews.set(block.attachment.attachmentId, { kind: 'image', name: block.attachment.name ?? u.name, url: `/upload/${keepUpload(u, Buffer.from(u.data, 'base64'))}`, bytes: block.attachment.bytes ?? 0 })
+    }
+    return admitted
+  }
+  /** What the bubble shows for a user message's attachments. */
+  const attachmentsOf = (content: readonly { type: string; attachment?: { attachmentId: string; name?: string; bytes?: number } }[]) =>
+    content.filter(b => (b.type === 'image' || b.type === 'file') && b.attachment !== undefined).map(b => previews.get(b.attachment!.attachmentId) ?? { kind: b.type as 'image' | 'file', name: b.attachment!.name ?? (b.type === 'image' ? 'image' : 'file'), bytes: b.attachment!.bytes ?? 0 })
+
   const server = new GalServer({
     port,
     token: config.token ?? '',
@@ -453,6 +513,13 @@ export function apply(ctx: Context, config: Config): void {
       return true
     },
     forgetArtifact: (id) => { forgetArtifact(id); return artifactsWithStat() },
+    answerQuestion: (id, answers) => {
+      const pending = pendingQuestions.get(id)
+      if (pending === undefined) return false
+      // Every question gets an answer row, even when the user skipped it, so ids stay aligned with what was asked.
+      pending.settle(pending.questions.map(q => answers.find(a => a.id === q.id) ?? { id: q.id, selected: [] }))
+      return true
+    },
     newSession: async () => {
       const agent = await openSession()
       pendingResume = undefined
@@ -461,7 +528,12 @@ export function apply(ctx: Context, config: Config): void {
       server.broadcast({ type: 'session', id: agent.id })
       ctx.logger.info(`dsh-gal: new session ${agent.id}`)
     },
-    onSend: async (text) => {
+    uploadFile: (name) => {
+      const dir = openStore().blobDir('uploads')
+      const path = join(dir, name)
+      return path.startsWith(dir + sep) && existsSync(path) ? path : undefined
+    },
+    onSend: async (text, attachments = []) => {
       let agent = resolveAgent()
       if (agent === undefined && pendingResume !== undefined) {
         const id = pendingResume
@@ -480,7 +552,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       rememberActive(agent.id)
       agent.followup(createUserMessage({
-        content: [{ type: 'text', text }],
+        content: await admitUploads(text, attachments) as never,
         source: { kind: 'user' },
       }))
     },
@@ -496,8 +568,53 @@ export function apply(ctx: Context, config: Config): void {
     if (selection === undefined) throw new Error('no default model configured')
     const presets = ctx.get('agentPresets') as AgentPresetsLike | undefined
     const presetId = presets === undefined ? undefined : (await presets.resolve(undefined)).id
-    return { agentOptions: { provider: selection.provider, model: selection.model }, presetId, ...presets === undefined ? {} : { setup: async (agentCtx: unknown) => { await presets.mount(agentCtx, presetId) } } }
+    return {
+      agentOptions: { provider: selection.provider, model: selection.model }, presetId,
+      ...presets === undefined ? {} : { setup: async (agentCtx: unknown) => { await presets.mount(agentCtx, presetId) } },
+    }
   }
+  /** Sessions opened by this room; only their questions are answered here. */
+  const roomSessions = new Set<string>()
+  // Her questions come to this room, not to the dsh web client. The web
+  // forwarder is a global listener that claims every request and waits for a
+  // browser that is never attached to these sessions, so this answerer is
+  // prepended and takes only the room's own agents; anything else passes on.
+  ctx.effect(() => (ctx as unknown as { on(event: string, listener: (request: QuestionRequest, next: () => Promise<QuestionAnswer>) => Promise<QuestionAnswer>, prepend: boolean): () => void }).on('user-questions/request', (request, next) => {
+    const id = request.agent?.id
+    if (id === undefined || !roomSessions.has(String(id))) return next()
+    return askInRoom(request)
+  }, true), 'dsh-gal.questions')
+
+  // ---- questions she asks the user (ask_user_question) ----
+  interface QuestionItem { id: string; question: string; detail?: string; header?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean }
+  interface QuestionAnswerItem { id: string; selected: string[]; custom?: string }
+  interface QuestionRequest { questions: QuestionItem[]; agent?: { id: unknown }; signal?: AbortSignal }
+  interface QuestionAnswer { answers: QuestionAnswerItem[] }
+  const pendingQuestions = new Map<string, { questions: QuestionItem[]; settle: (answers: QuestionAnswerItem[] | undefined) => void }>()
+  const askInRoom = (request: QuestionRequest): Promise<QuestionAnswer> => new Promise<QuestionAnswer>((resolve, reject) => {
+    const id = crypto.randomUUID()
+    const questions = request.questions.map(q => ({ id: q.id, question: q.question, ...q.detail === undefined ? {} : { detail: q.detail }, ...q.header === undefined ? {} : { header: q.header }, ...q.options === undefined ? {} : { options: q.options.map(o => ({ label: o.label, ...o.description === undefined ? {} : { description: o.description } })) }, ...q.multiSelect === undefined ? {} : { multiSelect: q.multiSelect } }))
+    const settle = (answers: QuestionAnswerItem[] | undefined): void => {
+      if (!pendingQuestions.delete(id)) return
+      request.signal?.removeEventListener('abort', onAbort)
+      if (answers === undefined) {
+        server.broadcast({ type: 'question', id, cancelled: true })
+        const error = new Error('ask_user_question was aborted before the user answered') as Error & { code: string }
+        error.name = 'UserQuestionError'; error.code = 'ASK_ABORTED'
+        reject(error)
+        return
+      }
+      server.broadcast({ type: 'question', id, answers })
+      server.broadcast({ type: 'activity', activity: 'reading' })
+      resolve({ answers })
+    }
+    const onAbort = (): void => settle(undefined)
+    if (request.signal?.aborted) { onAbort(); return }
+    request.signal?.addEventListener('abort', onAbort, { once: true })
+    pendingQuestions.set(id, { questions, settle })
+    server.broadcast({ type: 'question', id, questions })
+    server.broadcast({ type: 'activity', activity: 'waiting' })
+  })
   const openSession = async (): Promise<AgentLike> => {
     const { agentOptions, presetId, setup } = await sessionSetup()
     const handle = await ctx.agents.create({
@@ -506,12 +623,14 @@ export function apply(ctx: Context, config: Config): void {
       meta: { cwd: process.cwd(), ...presetId === undefined ? {} : { agentPreset: presetId } },
       ...setup === undefined ? {} : { setup },
     })
+    roomSessions.add(String(handle.agent.id))
     return handle.agent
   }
   /** Bring a persisted dsh session back to life so the room continues where it left off. */
   const resumeSession = async (id: string): Promise<AgentLike> => {
     const { agentOptions, setup } = await sessionSetup()
     const handle = await (ctx.agents as unknown as { resume(options: unknown): Promise<{ agent: AgentLike }> }).resume({ resumeSessionId: SessionId(id), agentOptions, ...setup === undefined ? {} : { setup } })
+    roomSessions.add(String(handle.agent.id))
     return handle.agent
   }
 
@@ -731,11 +850,18 @@ export function apply(ctx: Context, config: Config): void {
   // lands as a session event of its own. Either way the file is indexed and
   // the page tells the UI, which turns the name in her line into a link.
   const pendingWrites = new Map<string, string>()
-  const publishArtifact = (sessionId: string, path: string, source: 'written' | 'presented', description?: string): void => {
+  const publishArtifact = (sessionId: string, path: string, source: 'written' | 'presented', description?: string): { id: string; url: string } => {
     const absolute = isAbsolute(path) ? path : resolvePath(process.cwd(), path)
     const { artifact, fresh } = recordArtifact({ path: absolute, sessionId, source, ...description === undefined ? {} : { description } })
     server.broadcast({ type: 'artifact', artifact, fresh, artifacts: artifactsWithStat() })
+    return { id: artifact.id, url: `/artifact/${encodeURIComponent(artifact.id)}` }
   }
+  // Other plugins hand her a file to show (an image she found, a chart she
+  // drew): `galArtifacts.publish(path, description)` puts it in the room as a
+  // card and returns the URL the reply can embed.
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galArtifacts', {
+    publish: (path: string, description?: string) => publishArtifact(activeSessionId ?? 'dsh-gal', path, 'presented', description),
+  }), 'dsh-gal.artifacts.service')
 
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     const header = session.header as { origin?: string }
@@ -761,9 +887,10 @@ export function apply(ctx: Context, config: Config): void {
         const message = event.data
         if (message.source.kind !== 'user') return
         const text = textOf(message.content)
-        if (text.trim() === '') return
+        const attachments = attachmentsOf(message.content as never)
+        if (text.trim() === '' && attachments.length === 0) return
         rememberActive(session.id)
-        server.broadcast({ type: 'user', text })
+        server.broadcast({ type: 'user', text, ...attachments.length ? { attachments } : {} })
         break
       }
       case 'assistant/message': {

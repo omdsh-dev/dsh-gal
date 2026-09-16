@@ -14,7 +14,7 @@
  *   → idle.
  */
 
-export const ACTIVITIES = ['idle', 'reading', 'writing', 'searching', 'running', 'waiting', 'failed', 'done'] as const
+export const ACTIVITIES = ['idle', 'reading', 'writing', 'searching', 'running', 'waiting', 'failed', 'done', 'speaking', 'listening', 'sad', 'excited', 'surprised'] as const
 export type Activity = typeof ACTIVITIES[number]
 
 export function isActivity(value: unknown): value is Activity {
@@ -37,6 +37,13 @@ export const ASSET_FALLBACKS: Record<Activity, readonly string[]> = {
   waiting: ['waiting', 'idle', 'neutral'],
   failed: ['failed', 'surprised', 'sad', 'idle', 'neutral'],
   done: ['done', 'happy', 'excited', 'idle', 'neutral'],
+  // Moods the frontend picks itself: while her voice plays, while the user
+  // types, and from the stage direction that opens a reply.
+  speaking: ['speaking', 'done', 'happy', 'idle', 'neutral'],
+  listening: ['listening', 'waiting', 'idle', 'neutral'],
+  sad: ['sad', 'idle', 'neutral'],
+  excited: ['excited', 'happy', 'done', 'idle', 'neutral'],
+  surprised: ['surprised', 'failed', 'idle', 'neutral'],
 }
 
 /** Every asset base name a pack may ship, canonical first. */

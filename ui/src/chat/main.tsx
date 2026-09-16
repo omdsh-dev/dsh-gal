@@ -5,7 +5,7 @@
  */
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowUp, BookOpen, Brain, Check, ChevronDown, ChevronRight, Copy, FileText, Files, FolderOpen, Hourglass, Image as ImageIcon, ListChecks, PenLine, Plug, Search, Settings, Sparkles, Square, Terminal, TriangleAlert, Volume2, VolumeX } from 'lucide-react'
+import { ArrowUp, BookOpen, Brain, Check, CheckSquare, ChevronDown, Paperclip, ChevronRight, Copy, FileText, Files, FolderOpen, Hourglass, Image as ImageIcon, ListChecks, PenLine, Plug, Search, Settings, Sparkles, Square, Terminal, TriangleAlert, Volume2, VolumeX, X } from 'lucide-react'
 import { render as renderMarkdown } from '../markdown'
 import { CharacterPanel } from './CharacterPanel'
 import { MemoryPanel } from './MemoryPanel'
@@ -14,7 +14,7 @@ import { FilesPanel } from './FilesPanel'
 import { SettingsPanel, errorText } from './SettingsPanel'
 import { HelpPanel } from './HelpPanel'
 import { DataPanel } from './DataPanel'
-import { ACTIVITY_LABEL, browserLanguage, formatBytes, getJson, kindLabel, nextKey, postJson, withToken, type Artifact, type Item, type Lang, type List, type Manifest, type MemoryEntry, type Step } from './lib'
+import { ACTIVITY_LABEL, browserLanguage, formatBytes, getJson, kindLabel, nextKey, postJson, withToken, readDraftFiles, readDraftText, writeDraftFiles, writeDraftText, type Artifact, type Attachment, type Item, type Lang, type List, type Manifest, type MemoryEntry, type Question, type QuestionAnswer, type Step } from './lib'
 import './chat.css'
 
 const ACTIVITY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -129,6 +129,38 @@ function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => 
   return { speak, stop, status, speaking }
 }
 
+// ---- mood from stage directions ------------------------------------------
+//
+// Her replies open with a parenthesised stage direction ("（耳根微微发红）"),
+// sometimes a second one mid-reply. The stage reads them as they stream in
+// and picks a matching expression, so she reacts while she is still talking
+// instead of standing idle through the whole line. A direction often moves
+// ("愣了一下……眼角先弯起来"), so the cue that appears last in it wins; ties
+// go to the earlier row, so "笑出声" lands on excited before done sees "笑".
+const MOODS: [string, RegExp][] = [
+  ['excited', /耳根|脸红|红了|笑出声|眼睛(一)?亮|亮晶晶|兴奋|开心|雀跃|蹦|拍手|欢呼|哼歌|尾巴.{0,6}(甩|摇|晃|摆|勾|翘)|得意|blush|grin|excited|beam/i],
+  // Comforting gestures land here too: the downcast, cooler-lit row reads as
+  // sympathy when she is the one doing the consoling.
+  ['sad', /眼神软|心疼|叹(了口)?气|难过|低落|失落|委屈|眼眶|鼻子一酸|垂下|耷拉|落寞|黯|放(得更|得|)轻|轻声|挨着|陪你|拍了拍|揉了揉|摸摸|温柔|sigh|sad|tear|softly|gentl/i],
+  ['surprised', /愣住|愣了|一惊|瞪大|吓了一跳|惊讶|睁大|张大嘴|噎|surpris|startle|blink/i],
+  ['reading', /皱眉|板起脸|沉思|想了想|思索|歪头|眯起眼|认真|盯着|frown|ponder|think/i],
+  ['done', /满意|微笑|笑了笑|点头|轻笑|笑着|弯起|抿嘴笑|smile|nod|chuckle/i],
+]
+const DIRECTION = /[（(]([^（）()\n]{1,60})[）)]/g
+
+/** The mood of the last complete stage direction in `text`, if any is known. */
+function moodOf(text: string): string | null {
+  let mood: string | null = null
+  for (const m of text.matchAll(DIRECTION)) {
+    let best = -1
+    for (const [name, re] of MOODS) {
+      const at = m[1].search(re)
+      if (at > best) { best = at; mood = name }
+    }
+  }
+  return mood
+}
+
 // ---- app ----------------------------------------------------------------
 
 function App(): React.ReactElement {
@@ -137,6 +169,8 @@ function App(): React.ReactElement {
   const [busy, setBusy] = React.useState(false)
   const [activity, setActivity] = React.useState('idle')
   const [beat, setBeat] = React.useState<string | null>(null)
+  const [mood, setMood] = React.useState<string | null>(null)
+  const [typing, setTyping] = React.useState(false)
   const [preview, setPreview] = React.useState<string | null>(null)
   const [connected, setConnected] = React.useState(false)
   const [notice, setNotice] = React.useState('')
@@ -186,7 +220,8 @@ function App(): React.ReactElement {
     switch (ev.type) {
       case 'user':
         stopRef.current()
-        setItems(prev => [...closeSteps(prev), { kind: 'msg', key: nextKey(), role: 'user', text: String(ev.text ?? ''), at: Date.now() }])
+        setMood(null)
+        setItems(prev => [...closeSteps(prev), { kind: 'msg', key: nextKey(), role: 'user', text: String(ev.text ?? ''), at: Date.now(), ...Array.isArray(ev.attachments) ? { attachments: ev.attachments as Attachment[] } : {} }])
         setBusy(true)
         break
       case 'status': {
@@ -202,6 +237,7 @@ function App(): React.ReactElement {
           return [...base, { kind: 'steps', key: nextKey(), steps: [step], live: true }]
         })
         if (ev.activity) setActivity(String(ev.activity))
+        setMood(null)
         break
       }
       case 'activity':
@@ -223,13 +259,16 @@ function App(): React.ReactElement {
         }
         break
       case 'delta':
-        if (ev.reset) { setItems(prev => [...closeSteps(settleStreams(prev)), { kind: 'msg', key: nextKey(), role: 'assistant', text: '', streaming: true, at: Date.now() }]); break }
+        if (ev.reset) { setItems(prev => [...closeSteps(settleStreams(prev)), { kind: 'msg', key: nextKey(), role: 'assistant', text: '', streaming: true, at: Date.now() }]); setMood(null); setActivity('writing'); break }
         if (ev.done) break
         if (typeof ev.text === 'string') setItems(prev => {
           const index = lastStreaming(prev)
           if (index === -1) return [...closeSteps(prev), { kind: 'msg', key: nextKey(), role: 'assistant', text: ev.text, streaming: true, at: Date.now() }]
           const live = prev[index] as Extract<Item, { kind: 'msg' }>
-          return [...prev.slice(0, index), { ...live, text: live.text + ev.text }, ...prev.slice(index + 1)]
+          const text = live.text + ev.text
+          const next = moodOf(text)
+          if (next) setMood(next)
+          return [...prev.slice(0, index), { ...live, text }, ...prev.slice(index + 1)]
         })
         break
       case 'assistant': {
@@ -240,6 +279,8 @@ function App(): React.ReactElement {
           if (index === -1) return [...closeSteps(prev), done]
           return settleStreams([...prev.slice(0, index), done, ...prev.slice(index + 1)])
         })
+        const finalMood = moodOf(text)
+        if (finalMood) setMood(finalMood)
         lastLine.current = text
         speakRef.current(text)
         break
@@ -250,14 +291,14 @@ function App(): React.ReactElement {
         break
       case 'session':
         setItems([{ kind: 'notice', key: nextKey(), text: 'New session' }])
-        setBusy(false); setActivity('idle')
+        setBusy(false); setActivity('idle'); setMood(null)
         break
       case 'manifest':
         setManifest(ev.manifest)
         setPreview(null)
         break
       case 'snapshot': {
-        const entries = Array.isArray(ev.entries) ? ev.entries as { role: string; text: string; activity?: string; tool?: string; command?: string; failed?: boolean; list?: List }[] : []
+        const entries = Array.isArray(ev.entries) ? ev.entries as { role: string; text: string; activity?: string; tool?: string; command?: string; failed?: boolean; list?: List; id?: string; questions?: Question[]; answers?: QuestionAnswer[]; cancelled?: boolean; attachments?: Attachment[] }[] : []
         const restored: Item[] = []
         for (const entry of entries) {
           if (entry.role === 'status') {
@@ -267,8 +308,10 @@ function App(): React.ReactElement {
             else restored.push({ kind: 'steps', key: nextKey(), steps: [step], live: false })
           } else if (entry.role === 'list' && entry.list) {
             restored.push({ kind: 'list', key: nextKey(), list: entry.list })
+          } else if (entry.role === 'question' && Array.isArray(entry.questions)) {
+            restored.push({ kind: 'question', key: nextKey(), id: String(entry.id ?? ''), questions: entry.questions, ...Array.isArray(entry.answers) ? { answers: entry.answers } : {}, ...entry.cancelled ? { cancelled: true } : {} })
           } else if (entry.role === 'user' || entry.role === 'assistant') {
-            restored.push({ kind: 'msg', key: nextKey(), role: entry.role, text: entry.text, at: 0 })
+            restored.push({ kind: 'msg', key: nextKey(), role: entry.role, text: entry.text, at: 0, ...Array.isArray(entry.attachments) ? { attachments: entry.attachments } : {} })
           }
         }
         if (restored.length > 0) { setItems(restored); const last = restored[restored.length - 1]; if (last.kind === 'msg' && last.role === 'assistant') lastLine.current = last.text }
@@ -285,6 +328,15 @@ function App(): React.ReactElement {
       case 'sources':
         setSourcesVersion(v => v + 1)
         break
+      case 'question': {
+        const id = String(ev.id ?? '')
+        if (Array.isArray(ev.questions)) {
+          setItems(prev => [...closeSteps(settleStreams(prev)), { kind: 'question', key: nextKey(), id, questions: ev.questions as Question[] }])
+        } else {
+          setItems(prev => prev.map(item => item.kind === 'question' && item.id === id ? { ...item, ...Array.isArray(ev.answers) ? { answers: ev.answers as QuestionAnswer[] } : {}, ...ev.cancelled === true ? { cancelled: true } : {} } : item))
+        }
+        break
+      }
       case 'notice':
         if (typeof ev.text === 'string') setItems(prev => [...prev, { kind: 'notice', key: nextKey(), text: ev.text }])
         break
@@ -343,9 +395,10 @@ function App(): React.ReactElement {
     }
   }, [newSession, notify, openPanel, voiceOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const send = React.useCallback(async (text: string) => {
-    if (text.startsWith('/')) { await runCommand(text); return }
-    const res = await fetch(withToken('/send'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) })
+  const send = React.useCallback(async (text: string, attachments: Pending[] = []) => {
+    if (text.startsWith('/') && attachments.length === 0) { await runCommand(text); return }
+    const encoded = await Promise.all(attachments.map(async a => ({ kind: a.kind, name: a.file.name || (a.kind === 'image' ? 'pasted.png' : 'file'), mediaType: a.file.type || 'application/octet-stream', data: await toBase64(a.file) })))
+    const res = await fetch(withToken('/send'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, attachments: encoded }) })
     if (!res.ok) throw new Error(await res.text())
   }, [runCommand])
 
@@ -370,7 +423,17 @@ function App(): React.ReactElement {
     return () => window.removeEventListener('keydown', onKey)
   }, [openPanel, panel, replay, voiceOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = preview ?? beat ?? (busy ? activity : activity === 'done' ? 'done' : activity === 'waiting' ? 'waiting' : 'idle')
+  // The mood outlives the turn while her voice is still reading the line, then fades.
+  const voiceLive = voice.speaking || voice.status === 'Preparing voice…'
+  React.useEffect(() => {
+    if (busy || voiceLive || mood === null) return
+    const t = window.setTimeout(() => setMood(null), 6000)
+    return () => window.clearTimeout(t)
+  }, [busy, voiceLive, mood])
+  const shown = preview ?? beat ?? (
+    busy ? (activity === 'waiting' ? 'waiting' : mood ?? activity)
+      : voice.speaking ? (mood ?? 'speaking')
+        : mood ?? (activity === 'done' ? 'done' : activity === 'waiting' ? 'waiting' : typing ? 'listening' : 'idle'))
   const name = manifest?.characterName ?? '…'
   const closePanel = (open: boolean): void => { if (!open) setPanel(null) }
 
@@ -382,7 +445,7 @@ function App(): React.ReactElement {
             <Avatar manifest={manifest} />
             <div className="who-text">
               <span className="who-name">{name}</span>
-              <span className={`who-state${busy || voice.speaking ? ' busy' : ''}${connected ? '' : ' off'}`}><i className="dot" />{!connected ? 'Disconnected' : voice.speaking && !busy ? 'Speaking' : (ACTIVITY_LABEL[shown] ?? shown)}</span>
+              <span className={`who-state${busy || voice.speaking ? ' busy' : ''}${connected ? '' : ' off'}`}><i className="dot" />{!connected ? 'Disconnected' : busy ? (ACTIVITY_LABEL[activity] ?? activity) : voice.speaking ? 'Speaking' : (ACTIVITY_LABEL[shown] ?? shown)}</span>
             </div>
           </button>
           <div className="header-actions">
@@ -395,7 +458,7 @@ function App(): React.ReactElement {
           </div>
         </header>
         <MessageList items={items} lists={lists} name={name} busy={busy} onReplay={text => voice.speak(text)} onOpenFile={id => openPanel('files', { file: id })} onOpenList={id => { setListId(id); openPanel('lists') }} />
-        <Composer ref={composerRef} onSend={send} busy={busy} name={name} notice={notice} voiceStatus={voice.speaking ? '' : voice.status} speaking={voice.speaking} onStopVoice={voice.stop} />
+        <Composer ref={composerRef} onSend={send} busy={busy} name={name} notice={notice} voiceStatus={voice.speaking ? '' : voice.status} speaking={voice.speaking} onStopVoice={voice.stop} onTyping={setTyping} />
       </section>
       <Stage manifest={manifest} activity={shown} name={name} />
 
@@ -458,10 +521,11 @@ function MessageList({ items, lists, name, busy, onReplay, onOpenFile, onOpenLis
       <div className="messages-inner">
         {items.map(item => {
           switch (item.kind) {
-            case 'msg': return item.role === 'user' ? <UserBubble key={item.key} text={item.text} /> : <AssistantTurn key={item.key} name={name} text={item.text} streaming={item.streaming === true} onReplay={onReplay} />
+            case 'msg': return item.role === 'user' ? <UserBubble key={item.key} text={item.text} attachments={item.attachments} /> : <AssistantTurn key={item.key} name={name} text={item.text} streaming={item.streaming === true} onReplay={onReplay} />
             case 'steps': return <StepsGroup key={item.key} steps={item.steps} live={item.live} />
             case 'artifact': return <ArtifactRow key={item.key} artifact={item.artifact} onOpen={() => onOpenFile(item.artifact.id)} />
             case 'list': return <ListRow key={item.key} list={lists.find(list => list.id === item.list.id) ?? item.list} onOpen={() => onOpenList(item.list.id)} />
+            case 'question': return <QuestionCard key={item.key} item={item} name={name} />
             case 'notice': return <div key={item.key} className="notice">{item.text}</div>
           }
         })}
@@ -473,8 +537,16 @@ function MessageList({ items, lists, name, busy, onReplay, onOpenFile, onOpenLis
   )
 }
 
-function UserBubble({ text }: { text: string }): React.ReactElement {
-  return <div className="turn user"><div className="bubble">{text}</div></div>
+function UserBubble({ text, attachments }: { text: string; attachments?: Attachment[] }): React.ReactElement {
+  const images = (attachments ?? []).filter(a => a.kind === 'image' && a.url)
+  const files = (attachments ?? []).filter(a => !(a.kind === 'image' && a.url))
+  return (
+    <div className="turn user">
+      {images.length > 0 && <div className={`bubble-images n${Math.min(images.length, 3)}`}>{images.map((a, i) => <a key={i} href={withToken(a.url!)} target="_blank" rel="noreferrer"><img src={withToken(a.url!)} alt={a.name} loading="lazy" /></a>)}</div>}
+      {files.length > 0 && <div className="bubble-files">{files.map((a, i) => <span key={i} className="bubble-file"><Paperclip /><b>{a.name}</b>{a.bytes > 0 && <small>{formatBytes(a.bytes)}</small>}</span>)}</div>}
+      {text !== '' && <div className="bubble">{text}</div>}
+    </div>
+  )
 }
 
 function AssistantTurn({ name, text, streaming, onReplay }: { name: string; text: string; streaming: boolean; onReplay: (text: string) => void }): React.ReactElement {
@@ -532,6 +604,79 @@ function describe(step: Step | undefined): string {
   return tool ? `${verb} · ${tool}` : verb
 }
 
+/**
+ * A question she asked with `ask_user_question`, answered in place: options as
+ * chips (one or many), an "Other" line, then Reply. A single question with a
+ * single choice and no typed text is answered by the click itself. Once
+ * settled the card stays as a record of what was chosen.
+ */
+function QuestionCard({ item, name }: { item: Extract<Item, { kind: 'question' }>; name: string }): React.ReactElement {
+  const [picked, setPicked] = React.useState<Record<string, string[]>>({})
+  const [custom, setCustom] = React.useState<Record<string, string>>({})
+  const [sending, setSending] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const settled = item.answers !== undefined || item.cancelled === true
+  const answered = (q: Question): string[] => { const a = item.answers?.find(x => x.id === q.id); return a ? [...a.selected, ...a.custom ? [a.custom] : []] : [] }
+  const complete = item.questions.every(q => (picked[q.id]?.length ?? 0) > 0 || (custom[q.id]?.trim() ?? '') !== '')
+  const submit = async (answers: QuestionAnswer[]): Promise<void> => {
+    setSending(true); setError('')
+    try { await postJson('/question', { id: item.id, answers }) } catch (e) { setError((e as Error).message) } finally { setSending(false) }
+  }
+  const collect = (): QuestionAnswer[] => item.questions.map(q => {
+    const text = custom[q.id]?.trim() ?? ''
+    const selected = picked[q.id] ?? []
+    // A typed answer replaces the choice on a single-select question and supplements it on a multi-select one.
+    return { id: q.id, selected: text !== '' && q.multiSelect !== true ? [] : selected, ...text !== '' ? { custom: text } : {} }
+  })
+  const choose = (q: Question, label: string): void => {
+    if (settled || sending) return
+    if (q.multiSelect) { setPicked(prev => { const cur = prev[q.id] ?? []; return { ...prev, [q.id]: cur.includes(label) ? cur.filter(l => l !== label) : [...cur, label] } }); return }
+    setPicked(prev => ({ ...prev, [q.id]: [label] }))
+    if (item.questions.length === 1 && (custom[q.id]?.trim() ?? '') === '') void submit([{ id: q.id, selected: [label] }])
+  }
+  return (
+    <div className="turn assistant">
+      <span className="turn-label">{name}</span>
+      <div className={`question${settled ? ' settled' : ''}${item.cancelled ? ' cancelled' : ''}`}>
+        {item.questions.map(q => {
+          const chosen = settled ? answered(q) : (picked[q.id] ?? [])
+          return (
+            <section key={q.id} className="question-item">
+              {q.header && <span className="question-header">{q.header}</span>}
+              <p className="question-text">{q.question}</p>
+              {q.detail && <pre className="question-detail">{q.detail}</pre>}
+              {(q.options ?? []).length > 0 && (
+                <div className="question-options" role={q.multiSelect ? 'group' : 'radiogroup'}>
+                  {(q.options ?? []).map(o => {
+                    const on = chosen.includes(o.label)
+                    if (settled && !on) return null
+                    return (
+                      <button key={o.label} type="button" className={`question-option${on ? ' on' : ''}`} role={q.multiSelect ? 'checkbox' : 'radio'} aria-checked={on} disabled={settled || sending} onClick={() => choose(q, o.label)} title={o.description}>
+                        <span className="question-check">{q.multiSelect ? <CheckSquare /> : <Check />}</span>
+                        <span className="question-option-text"><b>{o.label}</b>{o.description && <small>{o.description}</small>}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {settled
+                ? (answered(q).length === 0 ? <span className="question-skipped">{item.cancelled ? 'No longer waiting' : 'Skipped'}</span> : answered(q).some(a => !(q.options ?? []).some(o => o.label === a)) && <p className="question-custom-answer">{answered(q).filter(a => !(q.options ?? []).some(o => o.label === a)).join(' · ')}</p>)
+                : <input className="input question-custom" placeholder={(q.options ?? []).length ? 'Other…' : 'Type your answer'} value={custom[q.id] ?? ''} disabled={sending} onChange={e => setCustom(prev => ({ ...prev, [q.id]: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter' && complete && !sending) { e.preventDefault(); void submit(collect()) } }} />}
+            </section>
+          )
+        })}
+        {!settled && (
+          <div className="question-actions">
+            {error && <span className="question-error">{error}</span>}
+            <button type="button" className="button ghost" disabled={sending} onClick={() => { void submit(item.questions.map(q => ({ id: q.id, selected: [] }))) }}>Skip</button>
+            <button type="button" className="button primary" disabled={!complete || sending} onClick={() => { void submit(collect()) }}>{sending ? 'Sending…' : 'Reply'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ListRow({ list, onOpen }: { list: List; onOpen: () => void }): React.ReactElement {
   const open = list.items.filter(item => !item.done).length
   return (
@@ -567,33 +712,108 @@ function ArtifactRow({ artifact, onOpen }: { artifact: Artifact; onOpen: () => v
 
 // ---- composer -----------------------------------------------------------
 
-const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string) => Promise<void>; busy: boolean; name: string; notice: string; voiceStatus: string; speaking: boolean; onStopVoice: () => void }>(
-  function Composer({ onSend, busy, name, notice, voiceStatus, speaking, onStopVoice }, forwarded): React.ReactElement {
-    const [text, setText] = React.useState('')
+/** A file waiting in the composer: pasted, dropped or picked. Images get a local preview. */
+type Pending = { id: string; kind: 'image' | 'file'; file: File; preview?: string }
+const MAX_ATTACHMENTS = 8
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024
+const MAX_FILE_BYTES = 32 * 1024 * 1024
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''))
+    reader.onerror = () => reject(reader.error ?? new Error('could not read the file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, attachments?: Pending[]) => Promise<void>; busy: boolean; name: string; notice: string; voiceStatus: string; speaking: boolean; onStopVoice: () => void; onTyping: (active: boolean) => void }>(
+  function Composer({ onSend, busy, name, notice, voiceStatus, speaking, onStopVoice, onTyping }, forwarded): React.ReactElement {
+    const [text, setText] = React.useState(readDraftText)
+    const [focused, setFocused] = React.useState(false)
+    // She listens while a draft is being written: the box has focus and words in it.
+    React.useEffect(() => { onTyping(focused && text.trim() !== '') }, [focused, text, onTyping])
     const [error, setError] = React.useState('')
+    const [pending, setPending] = React.useState<Pending[]>([])
+    const [dragging, setDragging] = React.useState(false)
+    const restored = React.useRef(false)
     const ref = React.useRef<HTMLTextAreaElement>(null)
+    const fileRef = React.useRef<HTMLInputElement>(null)
     React.useImperativeHandle(forwarded, () => ref.current as HTMLTextAreaElement)
     React.useEffect(() => { const el = ref.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 240)}px` }, [text])
+    // The draft outlives a reload: text in localStorage, files in IndexedDB. Nothing is written until the stored files have been read back, so a reload cannot wipe them.
+    React.useEffect(() => { writeDraftText(text) }, [text])
+    React.useEffect(() => {
+      let alive = true
+      void readDraftFiles().then(rows => {
+        if (!alive) return
+        const files = rows.map(r => { const file = new File([r.blob], r.name, { type: r.type }); return { id: r.id, kind: r.kind, file, ...r.kind === 'image' ? { preview: URL.createObjectURL(file) } : {} } as Pending })
+        if (files.length) setPending(prev => [...files, ...prev].slice(0, MAX_ATTACHMENTS))
+        restored.current = true
+      })
+      return () => { alive = false }
+    }, [])
+    React.useEffect(() => { if (restored.current) void writeDraftFiles(pending.map(p => ({ id: p.id, kind: p.kind, name: p.file.name, type: p.file.type, blob: p.file }))) }, [pending])
+    const addFiles = (files: Iterable<File>): void => {
+      const next: Pending[] = []
+      let problem = ''
+      for (const file of files) {
+        const kind: Pending['kind'] = /^image\/(png|jpeg|webp|gif)$/.test(file.type) ? 'image' : 'file'
+        if (file.size === 0) continue
+        if (kind === 'image' && file.size > MAX_IMAGE_BYTES) { problem = `${file.name || 'image'} is over ${Math.round(MAX_IMAGE_BYTES / 1048576)} MB`; continue }
+        if (kind === 'file' && file.size > MAX_FILE_BYTES) { problem = `${file.name} is over ${Math.round(MAX_FILE_BYTES / 1048576)} MB`; continue }
+        next.push({ id: nextKey(), kind, file, ...kind === 'image' ? { preview: URL.createObjectURL(file) } : {} })
+      }
+      setPending(prev => {
+        const merged = [...prev, ...next]
+        if (merged.length > MAX_ATTACHMENTS) problem = `At most ${MAX_ATTACHMENTS} attachments per message`
+        return merged.slice(0, MAX_ATTACHMENTS)
+      })
+      if (problem) setError(problem)
+      ref.current?.focus()
+    }
+    const removePending = (id: string): void => setPending(prev => prev.filter(p => p.id !== id))
+    const onPaste = (e: React.ClipboardEvent): void => {
+      const files = [...e.clipboardData.items].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter((f): f is File => f !== null)
+      if (files.length === 0) return
+      // A screenshot on the clipboard also carries a text form in some apps; the file wins.
+      e.preventDefault()
+      addFiles(files)
+    }
+    const onDrop = (e: React.DragEvent): void => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files) }
     const submit = async (): Promise<void> => {
       const value = text.trim()
-      if (value === '') return
-      setText(''); setError('')
-      try { await onSend(value) } catch (err) { setText(value); setError(err instanceof Error ? err.message : String(err)) }
+      const files = pending
+      if (value === '' && files.length === 0) return
+      setText(''); setPending([]); setError('')
+      try { await onSend(value, files); for (const p of files) if (p.preview) URL.revokeObjectURL(p.preview) } catch (err) { setText(value); setPending(files); setError(err instanceof Error ? err.message : String(err)) }
       ref.current?.focus()
     }
     // Transient text floats above the pill so the layout never shifts. Errors clear on the next keystroke.
     const chip = error ? { kind: 'error', text: error } : notice ? { kind: 'notice', text: notice } : voiceStatus ? { kind: 'voice', text: voiceStatus } : null
     return (
-      <div className="composer-dock">
-        <div className={`composer${busy ? ' busy' : ''}`}>
+      <div className="composer-dock" onDragOver={e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true) } }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+        <div className={`composer${busy ? ' busy' : ''}${dragging ? ' dragging' : ''}`}>
+          {pending.length > 0 && (
+            <div className="composer-attachments">
+              {pending.map(p => (
+                <div key={p.id} className={`composer-attachment ${p.kind}`} title={p.file.name}>
+                  {p.preview ? <img src={p.preview} alt="" /> : <span className="composer-attachment-file"><Paperclip /><b>{p.file.name}</b><small>{formatBytes(p.file.size)}</small></span>}
+                  <button type="button" className="composer-attachment-x" aria-label="Remove" onClick={() => removePending(p.id)}><X /></button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="composer-pill">
-            <textarea ref={ref} value={text} rows={1} placeholder={`Message ${name}`} spellCheck={false} onChange={e => { setText(e.target.value); if (error) setError('') }}
+            <input ref={fileRef} type="file" multiple hidden onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = '' }} />
+            <button type="button" className="send quiet attach" onClick={() => fileRef.current?.click()} title="Attach a file (or paste / drop one)" aria-label="Attach a file"><Paperclip /></button>
+            <textarea ref={ref} value={text} rows={1} placeholder={dragging ? 'Drop to attach' : `Message ${name}`} spellCheck={false} onChange={e => { setText(e.target.value); if (error) setError('') }}
+              onPaste={onPaste} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit() }
                 if (e.key === 'Escape') ref.current?.blur()
               }} />
             {speaking && <button type="button" className="send quiet" onClick={onStopVoice} title="Stop speaking" aria-label="Stop speaking"><Square /></button>}
-            <button type="button" className="send" onClick={() => { void submit() }} disabled={text.trim() === ''} title="Send (Enter)" aria-label="Send"><ArrowUp /></button>
+            <button type="button" className="send" onClick={() => { void submit() }} disabled={text.trim() === '' && pending.length === 0} title="Send (Enter)" aria-label="Send"><ArrowUp /></button>
           </div>
           {chip && <div className={`composer-chip ${chip.kind}`} role="status">{chip.text}</div>}
         </div>

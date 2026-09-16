@@ -1,0 +1,42 @@
+/* Flights view: one boarding-card per tracked flight. */
+.fl { display: flex; flex-direction: column; gap: 12px; }
+.fl-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 40px 20px; text-align: center; color: var(--muted-fg); }
+.fl-empty svg { width: 28px; height: 28px; margin-bottom: 6px; opacity: .6; }
+.fl-empty b { color: var(--ink); font-size: 14px; }
+.fl-empty small { font-size: 12.5px; max-width: 320px; }
+
+.fl-card { border: 1px solid var(--border); border-radius: 18px; background: var(--card); padding: 14px 16px 12px; }
+.fl-card.warn { border-color: color-mix(in oklab, #f5a524 45%, var(--border)); }
+.fl-card.bad { border-color: color-mix(in oklab, #ef4444 50%, var(--border)); }
+.fl-card.done { opacity: .72; }
+.fl-card header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.fl-card header b { font-size: 16px; letter-spacing: .02em; }
+.fl-airline { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-date { font-size: 12.5px; color: var(--muted-fg); white-space: nowrap; }
+.fl-x { align-self: center; width: 24px; height: 24px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-fg); display: grid; place-items: center; cursor: pointer; }
+.fl-x:hover { background: var(--muted); color: var(--ink); }
+.fl-x svg { width: 13px; height: 13px; }
+
+.fl-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.fl-leg { display: grid; grid-template-columns: 16px 1fr; grid-template-rows: auto auto auto auto; column-gap: 8px; align-items: baseline; }
+.fl-leg > svg { width: 14px; height: 14px; color: var(--muted-fg); grid-row: 1; align-self: center; }
+.fl-leg.arr { text-align: right; grid-template-columns: 1fr 16px; }
+.fl-leg.arr > svg { grid-column: 2; }
+.fl-leg.arr > div { grid-column: 1; }
+.fl-code { font-size: 22px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
+.fl-time { font-size: 15px; font-variant-numeric: tabular-nums; }
+.fl-time s { color: var(--muted-fg); margin-right: 4px; }
+.fl-city { font-size: 12.5px; color: var(--muted-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-meta { font-size: 12px; color: var(--muted-fg); }
+.fl-line { display: flex; align-items: center; gap: 6px; color: var(--muted-fg); }
+.fl-line i { display: block; width: 28px; height: 1px; background: color-mix(in oklab, var(--ink) 25%, transparent); }
+.fl-line svg { width: 16px; height: 16px; }
+
+.fl-card footer { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.fl-status { font-size: 13px; font-weight: 500; }
+.fl-status.ok { color: var(--ok, #22c55e); }
+.fl-status.warn { color: #f5a524; }
+.fl-status.bad { color: #ef4444; }
+.fl-status.done, .fl-status.flat { color: var(--muted-fg); }
+.fl-err { color: #ef4444; font-size: 12px; }
+.fl-at { margin-left: auto; font-size: 12px; color: var(--muted-fg); white-space: nowrap; }

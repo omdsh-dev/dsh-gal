@@ -1,6 +1,6 @@
 # Character packs
 
-A pack is a directory with a `character.json` and one asset per activity she can be shown in (`idle`, `reading`, `writing`, `searching`, `running`, `waiting`, `failed`, `done`); missing ones borrow a stand-in, see [CHARACTER-STATES.md](../CHARACTER-STATES.md):
+A pack is a directory with a `character.json` and one asset per activity she can be shown in (`idle`, `reading`, `writing`, `searching`, `running`, `waiting`, `failed`, `done`, plus the optional moods `speaking`, `listening`, `sad`, `excited`, `surprised`); missing ones borrow a stand-in, see [CHARACTER-STATES.md](../CHARACTER-STATES.md):
 
 ```
 characters/<id>/

@@ -9,7 +9,7 @@
  * "step" is. The service is `ctx.galSources`.
  */
 
-export type SourceCategory = 'health' | 'calendar' | 'tasks' | 'mail' | 'notes' | 'finance' | 'location' | 'media' | 'other'
+export type SourceCategory = 'health' | 'calendar' | 'tasks' | 'mail' | 'notes' | 'finance' | 'location' | 'travel' | 'media' | 'other'
 
 /** One tile of a number with an optional comparison. */
 export interface SourceStat { label: string; value: string; delta?: string; tone?: 'up' | 'down' | 'flat' }

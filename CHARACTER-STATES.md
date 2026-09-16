@@ -3,6 +3,7 @@
 `web/character-state.js` owns the character's semantic state, separately from how it is drawn. The state is **what she is doing**, taken from harness signals only. Nothing reads her lines; there is no side model call.
 
 - **Activity**: `idle`, `reading`, `writing`, `searching`, `running`, `waiting`, `failed`, `done`.
+- **Mood** (chat layout only, decided in the page): `speaking` while her voice plays, `listening` while a draft is being typed, and `sad` / `excited` / `surprised` / `reading` / `done` read from the parenthesised stage directions in her reply as they stream in (`MOODS` in `ui/src/chat/main.tsx`). A mood holds through streaming and voice playback, is dropped by the next tool call or user message, and fades a few seconds after the turn ends. Streaming text itself shows `writing`.
 - **Speech**: tracked beside the activity (`speaking`), shown on the nameplate when she is otherwise idle.
 - **Inputs**: `gal-activity` (steady: the running tool's activity, `waiting` on an approval, `reading` when a tool finishes, `done` when the turn ends), `gal-beat` (a moment: `failed`), `gal-busy`, `gal-speaking`, `gal-preview`, `gal-character-changed`.
 - **Output**: the `gal-character-state` event. Consumers that initialize late can read `window.galCharacter.state`.
@@ -21,7 +22,7 @@ How a tool maps to an activity is decided once, server-side (`activityForTool`),
 
 ## Assets
 
-Each activity resolves to a file through a fallback chain (`ASSET_FALLBACKS` in `src/activity.ts`): the activity's own file when the pack has one, else the first stand-in it has. The names from the expression era are stand-ins, so an older pack of six covers every activity: `thinking` stands in for reading/writing/searching/running, `surprised` for failed, `happy` for done, `neutral` for idle. The manifest the page receives is already resolved, and the gallery shows a borrowed tile dimmed with `← <from>`.
+Each activity resolves to a file through a fallback chain (`ASSET_FALLBACKS` in `src/activity.ts`): the activity's own file when the pack has one, else the first stand-in it has. The names from the expression era are stand-ins, so an older pack of six covers every activity: `thinking` stands in for reading/writing/searching/running, `surprised` for failed, `happy` for done, `neutral` for idle; `done` stands in for speaking, `waiting` for listening, `failed` for surprised. The manifest the page receives is already resolved, and the gallery shows a borrowed tile dimmed with `← <from>`.
 
 The renderer is one crossfading pair of `<video>` layers plus a still-image fallback. Loops are authored so their last frame leads back into their first (see `scripts/animate.sh`), so `<video loop>` does not pop once per cycle. `playbackRate` in `character.json` scales loop playback.
 

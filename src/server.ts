@@ -15,9 +15,12 @@ import { pipeline } from 'node:stream/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 
 export interface GalEvent {
-  type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'activity' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice' | 'artifact' | 'sources' | 'lists' | 'settings' | 'notice'
+  type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'activity' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice' | 'artifact' | 'sources' | 'lists' | 'settings' | 'notice' | 'question'
   [key: string]: unknown
 }
+
+/** One attachment sent with a message: images go to the model as images, anything else as a file it can read. */
+export interface Upload { kind: 'image' | 'file'; name: string; mediaType: string; data: string }
 
 export interface GalServerOptions {
   port: number
@@ -59,6 +62,8 @@ export interface GalServerOptions {
   forgetArtifact: (id: string) => unknown[]
   /** Open a fresh session and make it the mirrored one. */
   newSession: () => Promise<void>
+  /** The user answered (or skipped) a question she asked with `ask_user_question`; false when it is no longer pending. */
+  answerQuestion: (id: string, answers: { id: string; selected: string[]; custom?: string }[]) => boolean
   /** Rewrite a dialogue line into the selected voice's language before synthesis. */
   spokenLine?: (text: string, language: 'zh' | 'en' | 'ja') => Promise<string>
   /** WAV bytes of a synthesized line, if still cached. */
@@ -73,7 +78,9 @@ export interface GalServerOptions {
   importPack: (zip: Buffer, idHint: string) => string
   /** Zip the active pack; returns the archive path. */
   exportPack: () => string
-  onSend: (text: string) => Promise<void>
+  onSend: (text: string, attachments?: Upload[]) => Promise<void>
+  /** A pasted or dropped image shown in the user's bubble; served under /upload/<name>. */
+  uploadFile: (name: string) => string | undefined
   /** Data sources other plugins registered (see sources.ts). */
   sources: GalSources
   log: (message: string) => void
@@ -106,8 +113,13 @@ export class GalServer {
   broadcast(event: GalEvent): void {
     // Messages and tool steps are kept so a reloaded page can rebuild the
     // conversation, including the folded "Worked through N steps" groups.
-    const kept = event.type === 'user' || event.type === 'assistant' || event.type === 'status' || (event.type === 'lists' && typeof event['fresh'] === 'string')
+    const kept = event.type === 'user' || event.type === 'assistant' || event.type === 'status' || (event.type === 'lists' && typeof event['fresh'] === 'string') || (event.type === 'question' && Array.isArray(event['questions']))
     if (kept) { this.backlog.push(event); this.options.onBacklog?.(event) }
+    else if (event.type === 'question') {
+      // An answer (or a cancellation) settles the question already in the backlog, so a reload shows it decided.
+      const asked = this.backlog.find(e => e.type === 'question' && e['id'] === event['id'])
+      if (asked !== undefined) { if (event['answers'] !== undefined) asked['answers'] = event['answers']; if (event['cancelled'] === true) asked['cancelled'] = true; this.options.onBacklog?.(event) }
+    }
     else if (event.type === 'activity' && event['activity'] === 'failed' && event['beat'] === true) {
       const last = this.backlog[this.backlog.length - 1]
       if (last?.type === 'status') { last['failed'] = true; this.options.onBacklog?.({ type: 'activity', activity: 'failed', beat: true }) }
@@ -126,6 +138,13 @@ export class GalServer {
     this.backlog.length = 0
     for (const event of events) {
       if (event.type === 'activity') { const last = this.backlog[this.backlog.length - 1]; if (last?.type === 'status') last['failed'] = true; continue }
+      if (event.type === 'question' && !Array.isArray(event['questions'])) {
+        const asked = this.backlog.find(e => e.type === 'question' && e['id'] === event['id'])
+        if (asked !== undefined) { if (event['answers'] !== undefined) asked['answers'] = event['answers']; if (event['cancelled'] === true) asked['cancelled'] = true }
+        continue
+      }
+      // A question still open when the process died cannot be answered any more.
+      if (event.type === 'question') { this.backlog.push({ ...event, ...event['answers'] === undefined ? { cancelled: true } : {} }); continue }
       this.backlog.push(event)
     }
   }
@@ -182,6 +201,22 @@ export class GalServer {
       return
     }
     if (url.pathname === '/send' && req.method === 'POST') { await this.handleSend(req, res); return }
+    if (url.pathname.startsWith('/upload/') && req.method === 'GET') {
+      const file = this.options.uploadFile(decodeURIComponent(url.pathname.slice('/upload/'.length)))
+      if (file === undefined) { res.writeHead(404); res.end(); return }
+      if (!existsSync(file) || !statSync(file).isFile()) { res.writeHead(404); res.end(); return }
+      res.writeHead(200, { 'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream', 'content-length': statSync(file).size, 'cache-control': 'private, max-age=31536000, immutable' })
+      createReadStream(file).pipe(res)
+      return
+    }
+    if (url.pathname === '/question' && req.method === 'POST') {
+      const body = await this.readJson(req)
+      const id = typeof body['id'] === 'string' ? body['id'] : ''
+      const answers = Array.isArray(body['answers']) ? (body['answers'] as unknown[]).filter((a): a is { id: string; selected: string[]; custom?: string } => typeof a === 'object' && a !== null && typeof (a as { id?: unknown }).id === 'string').map(a => ({ id: a.id, selected: Array.isArray(a.selected) ? a.selected.map(String) : [], ...typeof a.custom === 'string' && a.custom.trim() !== '' ? { custom: a.custom.trim() } : {} })) : []
+      if (id === '' || !this.options.answerQuestion(id, answers)) { res.writeHead(409, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'that question is no longer waiting' })); return }
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"ok":true}')
+      return
+    }
     if (url.pathname === '/character' && req.method === 'POST') { await this.handleSwitch(req, res); return }
     if (url.pathname === '/memory' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -479,7 +514,9 @@ export class GalServer {
       ? { role: 'status', text: String(event['text'] ?? ''), activity: event['activity'], tool: event['tool'], command: event['command'], failed: event['failed'] === true }
       : event.type === 'lists'
         ? { role: 'list', text: '', list: (event['lists'] as { id: string }[]).find(list => list.id === event['fresh']) }
-        : { role: event.type, text: String(event['text'] ?? '') })
+        : event.type === 'question'
+          ? { role: 'question', text: '', id: event['id'], questions: event['questions'], answers: event['answers'], cancelled: event['cancelled'] === true }
+          : { role: event.type, text: String(event['text'] ?? ''), ...Array.isArray(event['attachments']) ? { attachments: event['attachments'] } : {} })
     res.write(`data: ${JSON.stringify({ type: 'snapshot', entries, artifacts: this.options.artifacts() })}\n\n`)
     this.clients.add(res)
     const keepalive = setInterval(() => res.write(': ping\n\n'), 25_000)
@@ -531,24 +568,32 @@ export class GalServer {
     await new Promise<void>((resolve, reject) => {
       req.on('data', (chunk: Buffer) => {
         size += chunk.length
-        if (size > 256 * 1024) { reject(new Error('body too large')); req.destroy(); return }
+        if (size > 64 * 1024 * 1024) { reject(new Error('body too large')); req.destroy(); return }
         chunks.push(chunk)
       })
       req.on('end', resolve)
       req.on('error', reject)
     })
     let text = ''
+    let attachments: Upload[] = []
     try {
-      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { text?: unknown }
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { text?: unknown; attachments?: unknown }
       if (typeof body.text === 'string') text = body.text.trim()
+      if (Array.isArray(body.attachments)) attachments = (body.attachments as unknown[]).flatMap(a => {
+        const u = a as Partial<Upload>
+        if (typeof u.data !== 'string' || u.data === '' || typeof u.name !== 'string') return []
+        const mediaType = typeof u.mediaType === 'string' ? u.mediaType : 'application/octet-stream'
+        const kind: Upload['kind'] = u.kind === 'image' && /^image\//.test(mediaType) ? 'image' : 'file'
+        return [{ kind, name: u.name.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120) || 'file', mediaType, data: u.data }]
+      }).slice(0, 8)
     } catch { /* fall through to the empty-text rejection */ }
-    if (text === '') {
+    if (text === '' && attachments.length === 0) {
       res.writeHead(400, { 'content-type': 'text/plain' })
       res.end('text required')
       return
     }
     try {
-      await this.options.onSend(text)
+      await this.options.onSend(text, attachments)
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end('{"ok":true}')
     } catch (error) {

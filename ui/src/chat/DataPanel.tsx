@@ -1,7 +1,7 @@
 /* Connectors: what she can see about your day. A fixed-size dialog, sources down the left, one source's own view on the right. */
 import * as React from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Copy, Film, HeartPulse, House, Image as ImageIcon, ListChecks, MapPin, MessageCircle, Moon, Plug, RefreshCw, StickyNote, Sun, Upload, Users, X } from 'lucide-react'
+import { BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Copy, Film, HeartPulse, House, Image as ImageIcon, ListChecks, Mail, MapPin, MessageCircle, Moon, Plane, Plug, RefreshCw, StickyNote, Sun, Upload, Users, X } from 'lucide-react'
 import { getJson, withToken } from './lib'
 import { ContactsView, type ContactsData } from './views/contacts'
 import { NotesView, type NotesData } from './views/notes'
@@ -11,6 +11,7 @@ import { LocationView, type LocationData } from './views/location'
 import { HomeView, type HomeData } from './views/home'
 import { WereadView } from './views/weread'
 import { DoubanView } from './views/douban'
+import { FlightsView, type FlightsData } from './views/flights'
 
 export type SourceView = {
   status: 'connected' | 'empty' | 'error'
@@ -27,11 +28,11 @@ export type SourceView = {
 export type Source = { id: string; label: string; category: string; view: SourceView }
 type Act = (action: string, body?: { json?: unknown; file?: File }) => Promise<boolean>
 
-const CATEGORY_LABEL: Record<string, string> = { health: 'Health', calendar: 'Calendar', tasks: 'Tasks', mail: 'Mail', notes: 'Notes', finance: 'Finance', location: 'Location', media: 'Media', other: 'Other' }
-const CATEGORY_ICON: Record<string, React.ComponentType> = { health: HeartPulse, calendar: CalendarDays, tasks: ListChecks, location: MapPin, notes: StickyNote, mail: MessageCircle, media: Film }
-const SOURCE_ICON: Record<string, React.ComponentType> = { weather: CloudSun, contacts: Users, photos: ImageIcon, home: House, weread: BookOpen }
+const CATEGORY_LABEL: Record<string, string> = { health: 'Health', calendar: 'Calendar', tasks: 'Tasks', mail: 'Mail', notes: 'Notes', finance: 'Finance', location: 'Location', travel: 'Travel', media: 'Media', other: 'Other' }
+const CATEGORY_ICON: Record<string, React.ComponentType> = { health: HeartPulse, calendar: CalendarDays, tasks: ListChecks, location: MapPin, notes: StickyNote, mail: Mail, travel: Plane, media: Film }
+const SOURCE_ICON: Record<string, React.ComponentType> = { weather: CloudSun, contacts: Users, photos: ImageIcon, home: House, weread: BookOpen, gmail: Mail, flights: Plane, images: ImageIcon }
 /** Actions a bespoke view renders itself, so the generic action row must not repeat them. */
-const VIEW_OWNED: Record<string, string[]> = { reminders: ['add'], location: ['setHome', 'location'], home: ['run'], weread: ['sync', 'cookie', 'fetch', 'disconnect'], photos: ['thumb'] }
+const VIEW_OWNED: Record<string, string[]> = { reminders: ['add'], location: ['setHome', 'location'], home: ['run'], weread: ['sync', 'cookie', 'fetch', 'disconnect'], photos: ['thumb'], weather: ['untrip'], flights: ['untrack'] }
 
 export function DataPanel({ open, onOpenChange, version, notify }: { open: boolean; onOpenChange: (open: boolean) => void; version: number; notify: (text: string) => void }): React.ReactElement {
   const [sources, setSources] = React.useState<Source[] | null>(null)
@@ -116,7 +117,8 @@ function SourceMain({ source, busy, act }: { source: Source; busy: string; act: 
   const rest = (v.actions ?? []).filter(a => a.kind !== 'toggle' && a.id !== 'refresh' && !owned.includes(a.id))
   const body = source.id === 'calendar' ? <CalendarView data={v.data as CalendarData | undefined} placeholder={v.status !== 'connected'} />
     : source.id === 'reminders' ? <RemindersView data={v.data as RemindersData | undefined} busy={busy} act={act} placeholder={v.status !== 'connected'} />
-    : source.id === 'weather' ? <WeatherView data={v.data as WeatherData | undefined} placeholder={v.status !== 'connected'} />
+    : source.id === 'weather' ? <WeatherView data={v.data as WeatherData | undefined} placeholder={v.status !== 'connected'} act={act} />
+    : source.id === 'flights' ? <FlightsView data={v.data as FlightsData | undefined} busy={busy} act={act} placeholder={v.status !== 'connected'} />
     : source.id === 'contacts' ? <ContactsView data={v.data as ContactsData | undefined} placeholder={v.status !== 'connected'} busy={busy} act={act} />
     : source.id === 'notes' ? <NotesView data={v.data as NotesData | undefined} placeholder={v.status !== 'connected'} busy={busy} act={act} />
     : source.id === 'photos' ? <PhotosView data={v.data as PhotosData | undefined} placeholder={v.status !== 'connected'} busy={busy} act={act} />
@@ -394,13 +396,14 @@ type WeatherData = {
   current: { time: string; temp: number; feels: number; code: number; text: string; humidity: number; wind: number; isDay: boolean }
   hourly: { time: string; temp: number; rain: number; code: number }[]
   daily: { day: string; label: string; code: number; text: string; max: number; min: number; rain: number; sunrise: string; sunset: string; uv: number }[]
+  trips?: { id: string; name: string; country: string; from?: string; to?: string; label: string; inDays?: number; note: string; current?: { temp: number; code: number; text: string; isDay: boolean }; days: { day: string; label: string; code: number; text: string; max: number; min: number; rain: number; uv: number }[] }[]
 }
 function WeatherIcon({ code, night }: { code: number; night?: boolean }): React.ReactElement {
   const Icon = code === 0 || code === 1 ? (night ? Moon : Sun) : code === 2 ? CloudSun : code === 3 ? Cloud : code <= 48 ? CloudFog : code <= 57 ? CloudDrizzle : code <= 67 || (code >= 80 && code <= 82) ? CloudRain : code <= 77 || code === 85 || code === 86 ? CloudSnow : code >= 95 ? CloudLightning : Cloud
   return <Icon />
 }
 
-function WeatherView({ data, placeholder }: { data?: WeatherData; placeholder: boolean }): React.ReactElement {
+function WeatherView({ data, placeholder, act }: { data?: WeatherData; placeholder: boolean; act: Act }): React.ReactElement {
   if (!data) return <div className="wx placeholder"><div className="wx-hero"><div className="wx-icon"><Cloud /></div><div className="wx-temp">—</div><div className="wx-desc"><b>{placeholder ? 'Waiting for the forecast' : ''}</b></div></div></div>
   const r = (n: number): string => String(Math.round(n))
   const weekMin = Math.min(...data.daily.map(d => d.min)), weekMax = Math.max(...data.daily.map(d => d.max))
@@ -439,6 +442,36 @@ function WeatherView({ data, placeholder }: { data?: WeatherData; placeholder: b
           </li>
         ))}
       </ul>
+      {(data.trips ?? []).map(t => {
+        const lo = Math.min(...t.days.map(d => d.min), weekMin), hi = Math.max(...t.days.map(d => d.max), weekMax), span = Math.max(1, hi - lo)
+        return (
+          <section key={t.id} className="wx-trip">
+            <header>
+              <Plane />
+              <div>
+                <b>{t.name}, {t.country}</b>
+                <small>{t.label || 'Watching'}{t.inDays !== undefined && t.inDays > 0 ? ` · in ${t.inDays} day${t.inDays === 1 ? '' : 's'}` : t.inDays !== undefined && t.inDays <= 0 && t.to ? ' · now' : ''}{t.current ? ` · now ${r(t.current.temp)}${data.units.deg} ${t.current.text}` : ''}</small>
+              </div>
+              <button type="button" className="wx-trip-x" title="Stop following" onClick={() => { void act('untrip', { json: { value: t.id } }) }}><X /></button>
+            </header>
+            {t.days.length
+              ? <ul className="wx-days">
+                {t.days.map(d => (
+                  <li key={d.day}>
+                    <span className="wx-day">{d.label}</span>
+                    <span className="wx-day-icon"><WeatherIcon code={d.code} /></span>
+                    <span className="wx-day-text">{d.text}</span>
+                    <span className={`wx-rain${d.rain >= 30 ? ' on' : ''}`}>{d.rain >= 20 ? `${d.rain}%` : ''}</span>
+                    <span className="wx-lo">{r(d.min)}°</span>
+                    <span className="wx-range"><i style={{ left: `${(d.min - lo) / span * 100}%`, width: `${Math.max(6, (d.max - d.min) / span * 100)}%` }} /></span>
+                    <span className="wx-hi">{r(d.max)}°</span>
+                  </li>
+                ))}
+              </ul>
+              : <p className="wx-trip-note">{t.note || 'No forecast yet'}</p>}
+          </section>
+        )
+      })}
     </div>
   )
 }

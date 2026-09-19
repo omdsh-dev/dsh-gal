@@ -83,6 +83,7 @@ export function SettingsPanel({ open, onOpenChange, theme, setTheme, voiceOn, se
                       </div>
                     </div>
                   </div>
+                  {open && <ComputerUseSettings />}
                   <div className="settings-group">
                     <h3 className="section">Session</h3>
                     <div className="settings-rows">
@@ -113,6 +114,59 @@ export function SettingsPanel({ open, onOpenChange, theme, setTheme, voiceOn, se
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+type ComputerUseView = { status: string; summary: string; shared: boolean; stats?: { label: string; value: string }[]; actions?: { id: string; kind: string; value?: boolean }[] }
+
+/**
+ * The Computer Use switch. The plugin (plugins/computer-use) registers itself
+ * as a connector, so this reads and writes the same source the Data panel
+ * shows; when it is not mounted the group says so instead of offering a switch.
+ */
+function ComputerUseSettings(): React.ReactElement {
+  const [view, setView] = React.useState<ComputerUseView | null | undefined>(undefined)
+  const [busy, setBusy] = React.useState('')
+  const [status, setStatus] = React.useState('')
+  const load = React.useCallback(() => {
+    getJson<{ sources: { id: string; view: ComputerUseView }[] }>('/sources')
+      .then(data => setView(data.sources.find(s => s.id === 'computer-use')?.view ?? null))
+      .catch(() => setView(null))
+  }, [])
+  React.useEffect(() => { load() }, [load])
+  const act = async (action: string, value?: boolean): Promise<void> => {
+    setBusy(action); setStatus('')
+    try {
+      const res = await postJson<{ message?: string }>(`/sources/computer-use/${action}`, value === undefined ? {} : { value })
+      if (res.message) setStatus(res.message)
+      load()
+    } catch (err) { setStatus((err as Error).message) }
+    finally { setBusy('') }
+  }
+  const stat = (label: string): string => view?.stats?.find(s => s.label === label)?.value ?? '—'
+  const screenshots = view?.actions?.find(a => a.id === 'screenshots')?.value ?? true
+  return (
+    <div className="settings-group">
+      <h3 className="section">Computer Use</h3>
+      <div className="settings-rows">
+        {view === undefined ? <p className="empty">Loading…</p>
+          : view === null ? <p className="empty">Not available: the Computer Use plugin is not mounted in this dsh.</p>
+          : (
+            <>
+              <label className="setting"><span><b>Let her use your apps</b><small>{view.summary}</small></span><input type="checkbox" className="switch" checked={view.shared} disabled={busy !== ''} onChange={e => { void act('enabled', e.target.checked) }} /></label>
+              <label className="setting"><span><b>Attach screenshots</b><small>Off sends only the accessibility tree of the window.</small></span><input type="checkbox" className="switch" checked={screenshots} disabled={busy !== '' || !view.shared} onChange={e => { void act('screenshots', e.target.checked) }} /></label>
+              <div className="setting"><span><b>Permissions</b><small>Accessibility: {stat('Accessibility')} · Screen Recording: {stat('Screen Recording')}. Granted to the app dsh-gal was launched from.</small></span>
+                <span className="control">
+                  <button type="button" className="button" disabled={busy !== ''} onClick={() => { void act('request') }}>Request</button>
+                  <button type="button" className="button" disabled={busy !== ''} onClick={() => { void act('refresh') }}>Check</button>
+                </span>
+              </div>
+              <div className="setting"><span><b>Approvals</b><small>She asks before the first action in each app. Apps allowed without asking: {stat('Always allowed')}; manage them under Connectors › Computer Use.</small></span></div>
+              {status && <p className="empty">{status}</p>}
+            </>
+          )}
+      </div>
+    </div>
   )
 }
 

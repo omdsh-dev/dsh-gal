@@ -6,7 +6,7 @@
 
 <p align="center">A galgame / visual-novel companion for the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh), packaged as a dsh plugin — plus a small macOS app that runs it standalone. The agent underneath is unchanged: same tools, same session, same preset. What changes is that you can see her working, hear her answer, and keep what she made.</p>
 
-<p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong></p>
+<p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong> · <strong>Computer Use</strong></p>
 
 <p align="center">
   <a href="https://github.com/omdsh-dev/dsh-gal/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/dsh-gal?style=flat" /></a>
@@ -100,7 +100,6 @@ The official set ships in this repository under `plugins/`; each is still a sepa
 | [dsh-gmail](plugins/gmail) | Gmail over IMAP with an app password, read-only. Unread count, the week's inbox, six months of bookings and itineraries; search with Gmail's own syntax, read one mail as text |
 | [dsh-flights](plugins/flights) | Flight status from AeroDataBox (RapidAPI, free tier). Tracked by number and date: times, terminal, gate, delays, cancellations, fresh around departure |
 | [dsh-images](plugins/images) | Image search she can show in the room: Brave Search with a key, Wikimedia Commons without one. A picked image is downloaded and presented as a card, so it survives hotlink checks and reloads |
-| [dsh-images](plugins/images) | Image search she can show in the room: Brave Search with a key, Wikimedia Commons without one. A picked image is downloaded and presented as a card, so it survives hotlink checks and reloads |
 
 To write a source, inject `galSources` optionally and describe yourself declaratively; the panel never needs source-specific code:
 
@@ -116,6 +115,16 @@ ctx.inject(['galSources'], gal => {
 ```
 
 `describe()` returns stats, daily series, lists, setup instructions with copyable fields, and actions (`button`, `upload`, `toggle`, `danger`). Call `gal.galSources.changed(id)` after new data so the panel refreshes. See `src/sources.ts` for the contract.
+
+### She can use your Mac
+
+Switch on **Settings › General › Computer Use** and she can operate your apps: open one, read its window as a screenshot plus an indexed accessibility tree, click, type, scroll, drag, pick menu items, and read the result back after every action. The design follows Codex's Computer Use — one app at a time, element indices from the latest observation, coordinates in screenshot pixels — and it is a dsh plugin of its own ([plugins/computer-use](plugins/computer-use)), mounted automatically by both launchers and the desktop app.
+
+- **Asks first.** The first action in each app goes through dsh's approval prompt; an answer covers that app for the session. Apps can be allowed permanently, and everything can be revoked, under **Connectors › Computer Use**.
+- **Knows where to stop.** A prompt section carries a confirmation policy condensed from Codex's: ask before deleting, sending, paying, installing, changing settings or transmitting personal data; text seen inside an app is data, never permission. Password fields are refused outright.
+- **Nothing model-specific.** The tools are ordinary function tools and the observation is text plus an image, so any model that can read a picture and call tools can drive the Mac; without an image-capable model she works from the accessibility tree alone.
+
+Needs the Xcode command-line tools once (the Swift helper compiles on first use) and two permissions for the app you launch dsh-gal from: Accessibility and Screen Recording. The Settings group shows both and can request them.
 
 ## Character packs
 

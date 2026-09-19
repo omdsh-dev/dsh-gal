@@ -49,7 +49,11 @@ try{
  if(!await backendReady()){
   temporary=await mkdtemp(join(tmpdir(),'dsh-gal-launch-'));
   const patch=join(temporary,'gal.patch.yml');
-  await writeFile(patch,`- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.DSH_GAL_CHARACTER||'xiaoheiyu')}\n`,{mode:0o600});
+  // Computer Use ships with dsh-gal (plugins/computer-use) and is mounted next to
+  // it so the character can operate apps; the switch in Settings turns it off.
+  const computerUse=join(root,'plugins/computer-use/lib/index.js');
+  const computerUseRow=existsSync(computerUse)?`    - id: dsh-computer-use\n      name: ${JSON.stringify(computerUse)}\n`:'';
+  await writeFile(patch,`- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.DSH_GAL_CHARACTER||'xiaoheiyu')}\n${computerUseRow}`,{mode:0o600});
   const privateDsh=join(homedir(),'Library/Application Support/dsh-gal/runtime/node_modules/.bin/dsh');
   console.log('正在启动对话服务…');
   const child=existsSync(privateDsh)?start(process.execPath,[privateDsh,'--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()}):start('dsh',['--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()});

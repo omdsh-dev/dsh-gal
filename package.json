@@ -56,6 +56,7 @@
     "schemastery": "^3.18.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "typescript": "^5.9.0"
   }
 }

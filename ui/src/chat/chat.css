@@ -79,7 +79,14 @@ code, kbd, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
    layers (z 4) but above the conversation, so empty top space moves the
    window and double-click zooms it. The header shifts right of the lights. */
 .titlebar { position: fixed; top: 0; left: 0; right: 0; height: 38px; z-index: 3; }
-.shell .chat-header { padding-left: 58px; }
+/* Give the window controls a strip of their own and start everything below it,
+   rather than indenting the header past them: the character pill keeps its
+   left edge on the message column, which is what makes the corner read as
+   deliberate instead of crowded. The blur bands grow to match. */
+.shell .chat-header { padding-top: 44px; }
+.shell .messages { padding-top: 106px; }
+.shell .chat::before { height: 142px; }
+.shell .chat::after { height: 102px; }
 
 /* ---- header: floating pills, no bar ---- */
 .chat { position: relative; }

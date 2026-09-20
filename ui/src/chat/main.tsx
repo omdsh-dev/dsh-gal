@@ -438,7 +438,8 @@ function App(): React.ReactElement {
   const closePanel = (open: boolean): void => { if (!open) setPanel(null) }
 
   return (
-    <div className="app">
+    <div className={`app${DESKTOP_SHELL ? ' shell' : ''}`}>
+      {DESKTOP_SHELL && <TitlebarStrip />}
       <section className="chat">
         <header className="chat-header">
           <button type="button" className="who" title="Character (⌥C)" onClick={() => openPanel('character')}>
@@ -487,6 +488,19 @@ function settleStreams(items: Item[]): Item[] {
 function lastStreaming(items: Item[]): number {
   for (let i = items.length - 1; i >= 0; i--) { const item = items[i]; if (item.kind === 'msg' && item.streaming) return i }
   return -1
+}
+
+/* The desktop shell hides the title bar and floats the traffic lights over the
+ * page (`?shell=desktop`), so the UI owes macOS two things a real title bar
+ * gives for free: room for the lights, and a strip to drag and double-click.
+ * The strip sits under the header pills, which keep their own pointer events. */
+const DESKTOP_SHELL = new URLSearchParams(location.search).get('shell') === 'desktop'
+
+/* Tauri's own drag-region script handles both gestures on this element: a
+ * single press drags the window, a double press zooms it. Adding a second
+ * double-click handler here would toggle twice and look like nothing happened. */
+function TitlebarStrip(): React.ReactElement {
+  return <div className="titlebar" data-tauri-drag-region />
 }
 
 // ---- header pieces ------------------------------------------------------

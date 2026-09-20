@@ -26,6 +26,9 @@ const DSH_VERSION: &str = "0.1.5-rc.1";
 /// Port the bundled plugin listens on (matches the plugin's default).
 const AIBO_PORT: u16 = 4877;
 const AIBO_URL: &str = "http://127.0.0.1:4877/";
+/// The UI is the same page in a browser and in this shell; the marker tells it
+/// to leave room for the traffic lights and to make the top strip draggable.
+const AIBO_SHELL_URL: &str = "http://127.0.0.1:4877/?shell=desktop";
 
 #[derive(Clone, Serialize)]
 struct Status {
@@ -262,7 +265,7 @@ fn boot(app: AppHandle) {
     // Explicit launcher mode: attach to the same current UI as the browser.
     // The launcher owns its services, so closing this shell must not kill them.
     if std::env::var("AIBO_USE_PREVIEW").as_deref() == Ok("1") {
-        let url = "http://127.0.0.1:4878/";
+        let url = "http://127.0.0.1:4878/?shell=desktop";
         let ready = ureq::get("http://127.0.0.1:4878/_aibo/health")
             .config().timeout_global(Some(Duration::from_secs(3))).build().call()
             .map(|response| response.status() == 200).unwrap_or(false);
@@ -318,7 +321,7 @@ fn boot(app: AppHandle) {
         Ok(()) => {
             emit(&app, "ready", AIBO_URL);
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.navigate(AIBO_URL.parse().unwrap());
+                let _ = window.navigate(AIBO_SHELL_URL.parse().unwrap());
             }
         }
         Err(message) => emit(&app, "error", message),

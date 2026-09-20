@@ -1,7 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Loading page listens for supervisor status events",
-  "windows": ["main"],
-  "permissions": ["core:default", "core:event:default", "core:window:default"]
+  "description": "Loading page listens for supervisor status events; the UI drags and zooms the window from its top strip",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:4877/*",
+      "http://127.0.0.1:4878/*"
+    ]
+  }
 }

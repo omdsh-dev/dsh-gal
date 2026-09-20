@@ -74,6 +74,13 @@ code, kbd, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .app { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100dvh; }
 .chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
+/* ---- desktop shell: the window's own title bar is hidden ---- */
+/* A drag strip across the top, below the header pills (z 5) and the blur
+   layers (z 4) but above the conversation, so empty top space moves the
+   window and double-click zooms it. The header shifts right of the lights. */
+.titlebar { position: fixed; top: 0; left: 0; right: 0; height: 38px; z-index: 3; }
+.shell .chat-header { padding-left: 58px; }
+
 /* ---- header: floating pills, no bar ---- */
 .chat { position: relative; }
 .chat-header { position: absolute; top: 0; left: 24px; right: 24px; max-width: 760px; margin: 0 auto; z-index: 5; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 0 0; pointer-events: none; }

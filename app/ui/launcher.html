@@ -6,14 +6,15 @@
 <style>
   /*
    * The quick-message bar: one line to her from anywhere, summoned by the
-   * global shortcut. Same tokens as the chat UI (ui/src/chat/chat.css), so it
-   * reads as the same app shrunk to a single row.
+   * global shortcut. The window is transparent and frosted by an AppKit
+   * NSVisualEffectView (see lib.rs), so the page paints only a translucent
+   * wash on top of that glass and fills the window edge to edge — any margin
+   * here would show as a black rectangle around the bar.
    */
   :root {
-    --surface: #131111; --ink: #ece9e6; --brand: #827be6;
-    --muted-fg: color-mix(in oklab, var(--ink) 56%, var(--surface));
-    --border: color-mix(in oklab, var(--ink) 16%, var(--surface));
-    --sea: #151a2e;
+    --surface: #131111; --ink: #ece9e6;
+    --muted-fg: color-mix(in oklab, var(--ink) 52%, transparent);
+    --sea: #16233d;
     color-scheme: dark;
   }
   @font-face {
@@ -23,38 +24,51 @@
   }
   html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
   body {
-    display: flex; align-items: center; justify-content: center; padding: 8px;
     font-family: 'Google Sans Flex', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans', sans-serif;
     color: var(--ink); user-select: none; -webkit-user-select: none;
+    /* Over frosted glass, unshadowed text smears into whatever is behind it. */
+    text-shadow: 0 1px 2px rgb(0 0 0 / .35);
   }
   .bar {
-    display: flex; align-items: center; gap: 12px;
-    width: 100%; height: 60px; padding: 0 10px 0 10px; box-sizing: border-box;
-    border: 1px solid var(--border); border-radius: 18px; corner-shape: superellipse(1.6);
-    /* Her sea, not a grey panel: the stage navy warmed toward the app surface. */
-    background: linear-gradient(180deg, color-mix(in oklab, var(--sea) 88%, var(--surface)), var(--surface));
-    box-shadow: 0 18px 48px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+    position: relative; display: flex; align-items: center; gap: 12px;
+    width: 100%; height: 100%; padding: 0 12px; box-sizing: border-box;
+    border-radius: 16px;   /* matches the vibrancy view's corner radius */
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08);
+    /* Her sea, thin enough that the blur behind still reads as glass. */
+    background: linear-gradient(180deg,
+      color-mix(in oklab, var(--sea) 58%, transparent),
+      color-mix(in oklab, var(--surface) 50%, transparent));
+    overflow: hidden;
   }
-  /* Her, watching the caret. stage-plugin.sh crops boot/avatar.jpg to her head. */
+  /* A soft glow off her side of the bar, the way the stage lights her. */
+  .bar::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120px 64px at 34px 50%, rgb(120 168 255 / .16), transparent 70%);
+  }
   .avatar {
-    width: 40px; height: 40px; flex: none; border-radius: 50%; corner-shape: round;
+    position: relative; width: 40px; height: 40px; flex: none; border-radius: 50%;
     object-fit: cover; object-position: center;
-    border: 1px solid color-mix(in oklab, var(--ink) 22%, transparent);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / .18), 0 2px 8px rgb(0 0 0 / .35);
     background: var(--sea);
   }
   input {
-    flex: 1; min-width: 0; height: 40px; border: 0; background: none; outline: none;
-    color: var(--ink); font: inherit; font-size: 15px; user-select: text; -webkit-user-select: text;
+    position: relative; flex: 1; min-width: 0; height: 100%;
+    border: 0; background: none; outline: none;
+    color: var(--ink); font: inherit; font-size: 15px; letter-spacing: .01em;
+    text-shadow: inherit; user-select: text; -webkit-user-select: text;
   }
   input::placeholder { color: var(--muted-fg); }
   .hint {
-    flex: none; padding: 3px 8px; border-radius: 999px; corner-shape: round;
-    background: color-mix(in oklab, var(--ink) 10%, transparent);
-    color: var(--muted-fg); font-size: 11.5px; letter-spacing: .02em;
-    transition: opacity .15s;
+    position: relative; flex: none; min-width: 26px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0 8px;
+    border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1);
+    background: rgb(255 255 255 / .07);
+    color: var(--muted-fg); font-size: 11.5px; line-height: 1;
+    transition: opacity .15s, color .15s;
   }
-  .bar.sending .hint { opacity: .5; }
-  .bar.sending input { opacity: .5; }
+  /* While the line is in flight the bar dims rather than swapping layout. */
+  .bar.sending input, .bar.sending .avatar, .bar.sending .hint { opacity: .55; }
+  .bar.failed .hint { color: #ffb4a8; }
 </style>
 </head>
 <body>
@@ -69,31 +83,32 @@
     const input = document.getElementById('text');
     const hint = document.getElementById('hint');
 
+    const reset = () => { hint.textContent = '⏎'; bar.classList.remove('sending', 'failed'); };
     const focusInput = () => { input.focus(); input.select(); };
     focusInput();
     // Re-focus every time the shortcut summons it: the window is reused, so
     // without this the caret stays wherever the last dismissal left it.
-    event.listen('aibo://launcher-open', () => { hint.textContent = '⏎'; bar.classList.remove('sending'); focusInput(); });
+    event.listen('aibo://launcher-open', () => { reset(); focusInput(); });
     window.addEventListener('focus', focusInput);
 
-    const dismiss = () => { input.value = ''; void core.invoke('hide_launcher'); };
+    const dismiss = () => { input.value = ''; reset(); void core.invoke('hide_launcher'); };
 
+    input.addEventListener('input', () => { if (bar.classList.contains('failed')) reset(); });
     input.addEventListener('keydown', async (e) => {
       if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
       if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
       e.preventDefault();
       const text = input.value.trim();
       if (text === '' || bar.classList.contains('sending')) return;
-      bar.classList.add('sending'); hint.textContent = 'Sending…';
+      bar.classList.add('sending'); bar.classList.remove('failed'); hint.textContent = 'Sending…';
       try {
         await core.invoke('send_message', { text });
         input.value = '';
+        reset();
       } catch {
+        bar.classList.remove('sending'); bar.classList.add('failed');
         hint.textContent = 'Could not reach her';
-        bar.classList.remove('sending');
-        return;
       }
-      bar.classList.remove('sending'); hint.textContent = '⏎';
     });
   </script>
 </body>

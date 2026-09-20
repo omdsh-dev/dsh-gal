@@ -9,6 +9,7 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -26,8 +27,8 @@
         "label": "launcher",
         "url": "launcher.html",
         "title": "Aibo",
-        "width": 560,
-        "height": 76,
+        "width": 620,
+        "height": 64,
         "resizable": false,
         "decorations": false,
         "transparent": true,

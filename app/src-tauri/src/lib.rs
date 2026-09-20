@@ -441,6 +441,19 @@ pub fn run() {
             register_launcher_shortcut(app.handle());
             // Clicking away from the launcher dismisses it, the way a panel should.
             if let Some(window) = app.get_webview_window("launcher") {
+                // Frost it. The page paints a translucent wash on top, so what
+                // shows through is the desktop blurred by AppKit rather than a
+                // CSS backdrop-filter, which in a webview can only blur itself.
+                #[cfg(target_os = "macos")]
+                {
+                    use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
+                    let _ = apply_vibrancy(
+                        &window,
+                        NSVisualEffectMaterial::HudWindow,
+                        Some(NSVisualEffectState::Active),
+                        Some(16.0),
+                    );
+                }
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {

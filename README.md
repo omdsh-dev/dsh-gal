@@ -4,7 +4,7 @@
 
 <p align="center"><strong>Give your agent a face, a voice, and a room of her own.</strong></p>
 
-<p align="center">A galgame / visual-novel companion for the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh), packaged as a dsh plugin — plus a small macOS app that runs it standalone. The agent underneath is unchanged: same tools, same session, same preset. What changes is that you can see her working, hear her answer, and keep what she made.</p>
+<p align="center"><strong>Aibo</strong> (相棒, <em>partner</em>) is a personal AI assistant that wears a galgame face. Underneath it is the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh) — same agent, same tools, same session, same preset. On top it gives that agent a character, so you can see her working, hear her answer, and keep what she made. It ships as a dsh plugin, plus a small macOS app that runs it standalone.</p>
 
 <p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong> · <strong>Computer Use</strong></p>
 
@@ -26,7 +26,15 @@ Two and a half minutes: she remembers a preference, checks the weekend weather, 
 
 ## What it is
 
-Your agent becomes a character. The conversation reads like an ordinary chat, but the right half of the window is a stage: while the turn runs she is *shown* reading, writing, searching or running a command — straight from the harness's own tool events, with no side model call and no guessing. Replies are spoken aloud. What she produces along the way — a list, a file — becomes an object you can open later instead of a message that scrolls away.
+Two things at once.
+
+**A personal assistant.** Not a coding agent pointed at a repository — an agent pointed at *you*. It remembers what you tell it about yourself, keeps the lists and files it makes for you, and reads from your own data: calendar and reminders, health, photos, messages, contacts, notes, mail, location, home, what you read and watch, the weather where you are and where you are going. Each of those is a separate dsh plugin that owns its sync and its prompt section, so the agent answers from your life rather than from a search box. It can also drive your Mac directly when you ask it to.
+
+**A galgame.** The assistant is not a text box with an avatar bolted on. It is a visual novel: a character on a stage, art and persona and voice shipped together as a swappable pack, reacting in real time to what the agent is doing. The genre is doing real work here — a visual novel is the one interface built entirely around *one character, present, responding to you*, which is exactly the shape of a personal assistant.
+
+**Built on dsh.** Aibo adds no agent of its own. dsh runs the loop, owns the tools and the session; Aibo is a plugin that mounts a UI, a store, and a persona layer next to it. Every data connector below is its own plugin and works in a dsh session with no Aibo in it, and a dsh session with Aibo loaded is still an ordinary dsh session.
+
+The conversation reads like an ordinary chat, but the right half of the window is a stage: while the turn runs she is *shown* reading, writing, searching or running a command — straight from the harness's own tool events, with no side model call and no guessing. Replies are spoken aloud. What she produces along the way — a list, a file — becomes an object you can open later instead of a message that scrolls away.
 
 Swap the character pack and the same agent shows up as someone else: art, persona and voice included. The pack's persona is registered as a voice-only system-prompt layer — it decides how replies sound, never what the agent does or which tools it runs.
 

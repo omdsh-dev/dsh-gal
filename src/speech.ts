@@ -111,9 +111,13 @@ export class SpeechService {
     let text = speakableText(body.text, 6000)
     if (!text) throw new Error('invalid_text')
     const state = await this.state(), language = body.language as Language
-    // A dub is an improvement, never a precondition: if it fails, she still speaks.
+    // Never silently send untranslated text to the selected language's voice.
     if (body.dub === true && this.dub !== undefined) {
-      try { text = speakableText(await this.dub(text, language as SpokenLanguage), 6000) || text } catch { /* keep the line as written */ }
+      try {
+        text = speakableText(await this.dub(text, language as SpokenLanguage), 6000)
+        if (!text) throw new Error('empty translation')
+      } catch { signal.throwIfAborted(); throw new Error('translation_error') }
+      signal.throwIfAborted()
     }
     const p = this.profile(language, body.profile ?? state.profiles[language])
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(60000)])
@@ -199,7 +203,7 @@ export class SpeechService {
     } catch (error) {
       if (controller.signal.aborted) return true
       const message = error instanceof Error ? error.message : ''
-      const code = /^(invalid_settings|invalid_key|voice_required|invalid_text|key_required|auth_error|quota_error|network_error|invalid_audio|local_unavailable|config_error|provider_error:[\w]+)$/.test(message) ? message : error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'speech_error'
+      const code = /^(translation_error|invalid_settings|invalid_key|voice_required|invalid_text|key_required|auth_error|quota_error|network_error|invalid_audio|local_unavailable|config_error|provider_error:[\w]+)$/.test(message) ? message : error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'speech_error'
       res.writeHead(400,{'content-type':'application/json'});res.end(JSON.stringify({error:code}))
     }
     return true

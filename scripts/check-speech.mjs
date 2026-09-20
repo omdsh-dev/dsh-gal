@@ -39,6 +39,22 @@ try{
     if(provider.id==='elevenlabs'){assert.equal(body.language_code,'zh');assert.equal(call.options.headers['xi-api-key'],'test-secret');}
     if(provider.id.startsWith('minimax')){assert.equal(body.language_boost,'Chinese');assert.ok(call.url.includes(provider.id==='minimax-cn'?'api.minimaxi.com':'api.minimax.io'));}
   }
+  // A failed/empty dub must never reach TTS as the original-language line.
+  for (const dub of [async () => { throw new Error('empty translation') }, async () => '']) {
+    service.dub = dub;
+    const before = calls.length;
+    await assert.rejects(service.synthesize({language:'zh',text:'Hello',dub:true},signal),/translation_error/);
+    assert.equal(calls.length,before);
+  }
+  service.dub = async () => '你好';
+  await service.synthesize({language:'zh',text:'Hello',dub:true},signal);
+  assert.equal(JSON.parse(calls.at(-1).options.body).text,'你好');
+  const cancelledDub = new AbortController();
+  service.dub = async () => { cancelledDub.abort(); return '你好' };
+  const beforeCancelledDub = calls.length;
+  await assert.rejects(service.synthesize({language:'zh',text:'Hello',dub:true},cancelledDub.signal),{name:'AbortError'});
+  assert.equal(calls.length,beforeCancelledDub);
+  service.dub = undefined;
   assert.equal((await stat(join(dir,'speech.json'))).mode&0o777,0o600);
   config=await new SpeechService(join(dir,'speech.json'),mock).publicConfig();assert.equal(config.profiles.zh.provider,'minimax');assert.equal(config.profiles.en.provider,'local');
 
@@ -60,9 +76,10 @@ try{
 
   // Real local synthesis across the three supported languages, plus interruption.
   for(const [language,text] of [['zh','你好'],['en','Hello'],['ja','こんにちは']]){
-    const audio=await service.synthesize({language,text,profile:{provider:'local',model:'system',voice:config.catalog[0].voices[language]}},signal);
+    const audio=await service.synthesize({language,text,profile:{provider:'local',model:'system',voice:(await service.voices('local',language,signal))[0].id}},signal);
     assert.equal(audio.data.subarray(0,4).toString(),'RIFF');
   }
+  await service.save({language:'en',profile:{provider:'local',model:'system',voice:(await service.voices('local','en',signal))[0].id}});
   const cancel=new AbortController();const localPending=service.synthesize({language:'en',text:'This is an interruption test. '.repeat(150)},cancel.signal);setTimeout(()=>cancel.abort(),15);await assert.rejects(localPending,{name:'AbortError'});
   server=createServer(async(req,res)=>{if(!await service.handle(req,res)){res.writeHead(404);res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}`;
   assert.equal((await fetch(base+'/voice/config',{headers:{origin:'https://example.com'}})).status,403);

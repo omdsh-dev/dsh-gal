@@ -1,8 +1,12 @@
 # Voice providers
 
-Open **语音设置 / Voice settings** in the dialogue toolbar. Chinese, English and Japanese each have an independent provider/model/voice profile. The speech language selector determines which profile dialogue playback uses; it does not translate dialogue.
+Open **语音设置 / Voice settings** in the dialogue toolbar. Chinese, English and Japanese each have an independent provider/model/voice profile. The speech language selector determines which profile dialogue playback uses; chat playback rewrites replies into that language before synthesis. If rewriting fails or returns an empty line, playback shows an error and can be retried with Replay; it never silently reads the original in the wrong language.
 
 Default: free installed macOS system speech (Tingting / Samantha / Kyoko), with no cloud requests or API key. This is system TTS, not a newly installed neural model. Japanese can also use the free local VOICEVOX engine on 127.0.0.1:50021 with a speaker style ID.
+
+Desktop background playback: leave **Read replies aloud** enabled and turn off **Open Aibo** in the quick launcher to hear replies while staying in another app. The main WebView has `backgroundThrottling: "disabled"` so incoming replies and audio preparation keep running when its window is covered, hidden or minimized. Tauri's macOS support for this policy requires macOS 14 or newer. Aibo must remain running. Changes to this native window setting require rebuilding and restarting the desktop client; a page reload is not enough.
+
+Manual regression check (desktop, macOS 14+): after restarting, send from the quick launcher with **Open Aibo** off, without clicking in the main page first. Repeat with Aibo hidden or minimized for over five minutes. The reply should play without bringing Aibo forward; disabling **Read replies aloud** should still mute it. Check both a streaming MP3 provider and a local WAV voice, then bring Aibo forward and verify Stop and replay still work.
 
 Cloud providers:
 - ElevenLabs: Multilingual v2, Eleven v3, Flash v2.5; supply a voice ID and your API key. https://elevenlabs.io/docs/api-reference/text-to-speech/convert

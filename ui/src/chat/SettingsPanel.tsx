@@ -12,6 +12,7 @@ type Voice = { id: string; name: string; locale: string }
 type Tab = 'general' | 'voice' | 'help'
 
 const ERRORS: Record<string, string> = {
+  translation_error: 'Could not translate this reply for speech. Replay to retry.',
   key_required: 'Enter an API key first', voice_required: 'Enter a voice ID', auth_error: 'Invalid key or permission. Check account and region.',
   quota_error: 'Quota or rate limit reached', network_error: 'Cannot reach the provider or local engine', timeout: 'Speech request timed out',
   local_unavailable: 'Local system voice unavailable', invalid_text: 'No speakable text, or text too long', invalid_settings: 'Invalid voice settings',

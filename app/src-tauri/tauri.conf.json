@@ -19,7 +19,8 @@
         "minHeight": 500,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "backgroundColor": "#04101c"
+        "backgroundColor": "#04101c",
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {

@@ -118,7 +118,14 @@ function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => 
     const unlock = (): void => {
       if (pending.current) { const url = pending.current; pending.current = null; void playUrl(url, generation.current).catch(() => setStatus(errorText('speech_error'))); unlocked.current = true; return }
       if (unlocked.current) return
-      const el = getPlayer(); el.src = SILENT
+      const el = getPlayer()
+      // The player is shared with the reply that may be speaking right now, and
+      // pointing it at the silent clip would abort that reply and surface as a
+      // speech error — clicking the composer must not cut her off. Audio already
+      // coming out of it is proof enough that nothing needs unlocking.
+      if (!el.paused) { unlocked.current = true; return }
+      if (request.current !== null) return
+      el.src = SILENT
       void el.play().then(() => { unlocked.current = true }).catch(() => {})
     }
     window.addEventListener('pointerdown', unlock, true)

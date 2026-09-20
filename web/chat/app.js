@@ -19224,10 +19224,14 @@ ${B}`;
       }
       if (b.current) return;
       const D = E();
-      D.src = QT, D.play().then(() => {
+      if (!D.paused) {
+        b.current = !0;
+        return;
+      }
+      v.current === null && (D.src = QT, D.play().then(() => {
         b.current = !0;
       }).catch(() => {
-      });
+      }));
     };
     return window.addEventListener("pointerdown", B, !0), window.addEventListener("keydown", B, !0), () => {
       window.removeEventListener("pointerdown", B, !0), window.removeEventListener("keydown", B, !0);

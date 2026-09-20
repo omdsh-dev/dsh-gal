@@ -10,6 +10,7 @@ characters/*
 !characters/README.md
 app/node_modules/
 app/plugin/
+app/ui/boot/
 app/src-tauri/target/
 app/src-tauri/gen/
 eval-results.json

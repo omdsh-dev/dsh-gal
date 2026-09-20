@@ -4,47 +4,121 @@
 <meta charset="utf-8">
 <title>Aibo</title>
 <style>
+  /*
+   * The boot screen is the chat layout with nothing in it yet: the same two
+   * columns, the same six colors mixed from ink into surface, the stage already
+   * playing her idle loop on the right. Only the left half is waiting.
+   * Tokens are copied from ui/src/chat/chat.css — keep them in step.
+   */
+  :root {
+    --surface: #fcfcfd; --ink: #1b1b1b; --brand: #827be6;
+    --muted-fg: color-mix(in oklab, var(--ink) 52%, var(--surface));
+    --accent: color-mix(in oklab, var(--ink) 7%, var(--surface));
+    --border: color-mix(in oklab, var(--ink) 9%, var(--surface));
+    --sidebar: color-mix(in oklab, var(--ink) 2%, var(--surface));
+    --card: var(--surface);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #131111; --ink: #ece9e6;
+      --border: color-mix(in oklab, var(--ink) 13%, var(--surface));
+      --accent: color-mix(in oklab, var(--ink) 14%, var(--surface));
+      --sidebar: color-mix(in oklab, var(--ink) 4%, var(--surface));
+      --card: color-mix(in oklab, var(--ink) 7%, var(--surface));
+      color-scheme: dark;
+    }
+  }
+  @font-face {
+    font-family: 'Google Sans Flex';
+    src: url('boot/GoogleSansFlex.woff2') format('woff2');
+    font-weight: 300 800; font-style: normal; font-display: swap;
+  }
   html, body { height: 100%; margin: 0; }
   body {
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(120% 90% at 50% 20%, #0d3a5c 0%, #062036 55%, #04101c 100%);
-    color: #f2f8ff; font-family: "Hiragino Sans", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    font-family: 'Google Sans Flex', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans', sans-serif;
+    font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--surface);
     user-select: none; -webkit-user-select: none;
   }
-  #box { width: min(560px, 86vw); text-align: center; }
-  #title { font-size: 0.8rem; letter-spacing: 0.4em; color: rgba(157,184,204,0.8); margin-bottom: 28px; }
-  #diamond { font-size: 2rem; color: #8fd8ff; animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
-  #stage { margin-top: 18px; font-size: 1rem; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100dvh; }
+
+  /* ---- left: the waiting half ---- */
+  .chat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-width: 0; padding: 32px; }
+  .spinner { position: relative; width: 26px; height: 26px; }
+  .spinner i { position: absolute; left: 50%; top: 0; width: 2.5px; height: 7px; margin-left: -1.25px; border-radius: 2px; background: var(--muted-fg); transform-origin: 1.25px 13px; animation: petal 1s linear infinite; }
+  @keyframes petal { 0% { opacity: 1; } 100% { opacity: .12; } }
+  .spinner.stopped i { animation: none; opacity: .25; }
+  #stage-text { font-size: 13.5px; color: var(--muted-fg); text-align: center; }
   #detail {
-    margin-top: 10px; font-size: 0.8rem; color: #9db8cc; white-space: pre-wrap; text-align: left;
-    background: rgba(9,20,34,0.7); border: 1px solid rgba(168,214,255,0.22); border-radius: 3px;
-    padding: 12px 14px; max-height: 40vh; overflow: auto; display: none; user-select: text; -webkit-user-select: text;
+    display: none; max-width: 100%; max-height: 38vh; overflow: auto; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--card);
+    color: var(--muted-fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; text-align: left;
+    user-select: text; -webkit-user-select: text;
   }
   #detail.show { display: block; }
-  #actions { margin-top: 16px; display: none; gap: 10px; justify-content: center; }
+  #actions { display: none; gap: 8px; }
   #actions.show { display: flex; }
-  button {
-    background: rgba(9,20,34,0.8); color: #f2f8ff; border: 1px solid rgba(168,214,255,0.55);
-    padding: 8px 18px; font: inherit; font-size: 0.8rem; letter-spacing: 0.15em; cursor: pointer; border-radius: 2px;
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--ink);
+    font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background .15s, border-color .15s;
   }
-  button:hover { border-color: #8fd8ff; color: #8fd8ff; }
+  .button:hover { background: var(--accent); }
+  .button.primary { border-color: var(--brand); background: var(--brand); color: #fff; }
+
+  /* ---- right: the stage, already hers ---- */
+  .stage { position: relative; overflow: hidden; background: var(--sidebar); border-left: 1px solid var(--border); }
+  .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 45% top; }
+
+  /* Same breakpoint as the chat layout: below it the stage is dropped. */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .stage { display: none; }
+  }
 </style>
 </head>
 <body>
-  <div id="box">
-    <div id="title">AIBO</div>
-    <div id="diamond">◆</div>
-    <div id="stage">Starting…</div>
-    <div id="detail"></div>
-    <div id="actions">
-      <button id="retry">RETRY</button>
-      <button id="open-dir">OPEN LOGS</button>
+  <div class="app">
+    <div class="chat">
+      <div class="spinner" id="spinner"></div>
+      <div id="stage-text">Starting…</div>
+      <div id="detail"></div>
+      <div id="actions">
+        <button class="button primary" id="retry">Retry</button>
+        <button class="button" id="open-dir">Open logs</button>
+      </div>
+    </div>
+    <div class="stage">
+      <video id="idle" poster="boot/idle.jpg" autoplay muted loop playsinline></video>
     </div>
   </div>
   <script>
     const { event, core } = window.__TAURI__;
-    const stageEl = document.getElementById('stage');
+
+    /* WKWebView refuses to play a <video> whose source cannot answer Range
+     * requests, and the embedded asset protocol does not. Read the clip once and
+     * hand the element a blob URL, which can. If anything fails the poster stays
+     * up, so the stage is never blank. */
+    (async () => {
+      try {
+        const response = await fetch('boot/idle.mp4');
+        if (!response.ok) return;
+        const video = document.getElementById('idle');
+        video.src = URL.createObjectURL(await response.blob());
+        await video.play().catch(() => {});
+      } catch { /* poster only */ }
+    })();
+
+    const spinner = document.getElementById('spinner');
+    for (let i = 0; i < 12; i++) {
+      const bar = document.createElement('i');
+      bar.style.transform = `rotate(${i * 30}deg)`;
+      bar.style.animationDelay = `${-(11 - i) / 12}s`;
+      spinner.append(bar);
+    }
+    const stageEl = document.getElementById('stage-text');
     const detailEl = document.getElementById('detail');
     const actions = document.getElementById('actions');
     const labels = {
@@ -52,9 +126,9 @@
       install: 'Installing the DeepSeek Harness runtime (first launch only)…',
       stage: 'Preparing the visual-novel plugin…',
       spawn: 'Starting dsh web…',
-      attach: 'Attaching to the running aibo server…',
+      attach: 'Attaching to the running Aibo server…',
       ready: 'Ready — opening…',
-      error: 'Could not start aibo',
+      error: 'Could not start Aibo',
     };
     event.listen('aibo://status', ({ payload }) => {
       stageEl.textContent = labels[payload.stage] || payload.stage;
@@ -62,11 +136,12 @@
       detailEl.textContent = payload.detail;
       detailEl.classList.toggle('show', isError || payload.stage === 'install');
       actions.classList.toggle('show', isError);
-      document.getElementById('diamond').style.animationPlayState = isError ? 'paused' : 'running';
+      spinner.classList.toggle('stopped', isError);
     });
     document.getElementById('retry').addEventListener('click', () => {
       actions.classList.remove('show');
       detailEl.classList.remove('show');
+      spinner.classList.remove('stopped');
       stageEl.textContent = 'Retrying…';
       core.invoke('retry');
     });

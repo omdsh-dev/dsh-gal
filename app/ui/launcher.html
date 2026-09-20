@@ -12,7 +12,7 @@
    * here would show as a black rectangle around the bar.
    */
   :root {
-    --surface: #131111; --ink: #ece9e6;
+    --surface: #131111; --ink: #ece9e6; --brand: #827be6;
     --muted-fg: color-mix(in oklab, var(--ink) 52%, transparent);
     --sea: #16233d;
     color-scheme: dark;
@@ -58,32 +58,105 @@
     text-shadow: inherit; user-select: text; -webkit-user-select: text;
   }
   input::placeholder { color: var(--muted-fg); }
-  .hint {
-    position: relative; flex: none; min-width: 26px; height: 22px;
-    display: inline-flex; align-items: center; justify-content: center; padding: 0 8px;
-    border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1);
+  /* What used to be a keycap pill. A line this short needs no legend for the
+     Return key; it needs the same round send button the composer has. */
+  .send {
+    position: relative; flex: none; display: grid; place-items: center;
+    width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
+    background: rgb(255 255 255 / .08); color: var(--muted-fg); cursor: default;
+    transition: background .15s, color .15s, opacity .15s, transform .1s;
+  }
+  .send svg { width: 15px; height: 15px; display: block; }
+  /* Lit only once there is something to send. */
+  .send.ready { background: var(--brand); color: #fff; cursor: pointer; }
+  .send.ready:hover { opacity: .88; }
+  .send.ready:active { transform: scale(.94); }
+  /* Sending, sent, or failed — a word beside the button, not inside it. */
+  .note {
+    position: relative; flex: none; color: var(--muted-fg);
+    font-size: 11.5px; line-height: 1; white-space: nowrap;
+    transition: color .15s;
+  }
+  .note:empty { display: none; }
+  .mode {
+    position: relative; flex: none; height: 22px;
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 9px;
+    border: 0; border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1);
     background: rgb(255 255 255 / .07);
-    color: var(--muted-fg); font-size: 11.5px; line-height: 1;
-    transition: opacity .15s, color .15s;
+    color: var(--muted-fg); font: inherit; font-size: 11.5px; line-height: 1;
+    text-shadow: inherit; cursor: pointer;
+    transition: opacity .15s, color .15s, background .15s;
+  }
+  .mode:hover { background: rgb(255 255 255 / .12); }
+  .mode .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: color-mix(in oklab, var(--ink) 34%, transparent);
+    transition: background .15s, box-shadow .15s;
+  }
+  /* Lit only in the mode that takes you somewhere. */
+  .mode[aria-pressed="true"] { color: var(--ink); }
+  .mode[aria-pressed="true"] .dot {
+    background: #7ea8ff; box-shadow: 0 0 6px rgb(126 168 255 / .8);
   }
   /* While the line is in flight the bar dims rather than swapping layout. */
-  .bar.sending input, .bar.sending .avatar, .bar.sending .hint { opacity: .55; }
-  .bar.failed .hint { color: #ffb4a8; }
+  .bar.sending input, .bar.sending .avatar, .bar.sending .send, .bar.sending .mode { opacity: .55; }
+  .bar.failed .note { color: #ffb4a8; }
+  /* The send is the only confirmation there is now — the main window is left
+     alone — so the bar says so for a beat before putting itself away. */
+  .bar.sent .note { color: #a8e6c0; }
 </style>
 </head>
 <body>
   <div class="bar" id="bar">
     <img class="avatar" id="avatar" src="boot/avatar.jpg" alt="">
     <input id="text" type="text" placeholder="Message 小黑鱼" autocomplete="off" spellcheck="false">
-    <span class="hint" id="hint">⏎</span>
+    <button class="mode" id="mode" type="button" aria-pressed="false"><span class="dot"></span><span id="mode-label">Background</span></button>
+    <span class="note" id="note"></span>
+    <button class="send" id="send" type="button" aria-label="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+    </button>
   </div>
   <script>
     const { core, event } = window.__TAURI__;
     const bar = document.getElementById('bar');
     const input = document.getElementById('text');
-    const hint = document.getElementById('hint');
+    const note = document.getElementById('note');
+    const sendButton = document.getElementById('send');
+    const mode = document.getElementById('mode');
+    const modeLabel = document.getElementById('mode-label');
 
-    const reset = () => { hint.textContent = '⏎'; bar.classList.remove('sending', 'failed'); };
+    /*
+     * Where a send leaves you. Off (the default) is what a quick launcher is
+     * for: the line goes, the bar goes, you stay in the app you were in. On
+     * brings the main window forward afterwards. The choice is this window's
+     * alone, so it lives in its own localStorage rather than in the plugin's
+     * settings — nothing about it concerns the agent or the other clients.
+     */
+    const OPEN_MAIN_KEY = 'aibo.launcher.openMain';
+    let openMain = localStorage.getItem(OPEN_MAIN_KEY) === '1';
+    const paintMode = () => {
+      mode.setAttribute('aria-pressed', String(openMain));
+      modeLabel.textContent = openMain ? 'Open Aibo' : 'Background';
+      mode.title = openMain
+        ? 'After sending, the Aibo window comes forward'
+        : 'After sending, you stay in the app you are in';
+    };
+    paintMode();
+    // mousedown, not click: the default would move focus out of the input and
+    // leave the caret nowhere after the toggle.
+    mode.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      openMain = !openMain;
+      localStorage.setItem(OPEN_MAIN_KEY, openMain ? '1' : '0');
+      paintMode();
+      focusInput();
+    });
+
+    const dismiss = () => { input.value = ''; reset(); void core.invoke('hide_launcher'); };
+    // The button is lit only when there is a line to send, which is also the
+    // only affordance left now that the keycap legend is gone.
+    const paintSend = () => { sendButton.classList.toggle('ready', input.value.trim() !== ''); };
+    const reset = () => { note.textContent = ''; bar.classList.remove('sending', 'failed', 'sent'); paintSend(); };
     const focusInput = () => { input.focus(); input.select(); };
     focusInput();
     // Re-focus every time the shortcut summons it: the window is reused, so
@@ -91,24 +164,34 @@
     event.listen('aibo://launcher-open', () => { reset(); focusInput(); });
     window.addEventListener('focus', focusInput);
 
-    const dismiss = () => { input.value = ''; reset(); void core.invoke('hide_launcher'); };
+    const send = async () => {
+      const text = input.value.trim();
+      if (text === '' || bar.classList.contains('sending')) return;
+      bar.classList.add('sending'); bar.classList.remove('failed'); note.textContent = 'Sending…';
+      try {
+        await core.invoke('send_message', { text, openMain });
+        input.value = ''; paintSend();
+        // In Open mode the window arriving is confirmation enough, so the bar
+        // just gets out of the way. In Background mode this beat is the only
+        // confirmation there is, then focus goes back to where it came from.
+        if (openMain) { dismiss(); return; }
+        bar.classList.remove('sending'); bar.classList.add('sent');
+        note.textContent = 'Sent';
+        setTimeout(dismiss, 600);
+      } catch {
+        bar.classList.remove('sending'); bar.classList.add('failed');
+        note.textContent = 'Could not reach her';
+      }
+    };
 
-    input.addEventListener('input', () => { if (bar.classList.contains('failed')) reset(); });
-    input.addEventListener('keydown', async (e) => {
+    input.addEventListener('input', () => { if (bar.classList.contains('failed')) reset(); else paintSend(); });
+    // mousedown, like the mode toggle: a click would take the caret with it.
+    sendButton.addEventListener('mousedown', (e) => { e.preventDefault(); focusInput(); void send(); });
+    input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
       if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
       e.preventDefault();
-      const text = input.value.trim();
-      if (text === '' || bar.classList.contains('sending')) return;
-      bar.classList.add('sending'); bar.classList.remove('failed'); hint.textContent = 'Sending…';
-      try {
-        await core.invoke('send_message', { text });
-        input.value = '';
-        reset();
-      } catch {
-        bar.classList.remove('sending'); bar.classList.add('failed');
-        hint.textContent = 'Could not reach her';
-      }
+      void send();
     });
   </script>
 </body>

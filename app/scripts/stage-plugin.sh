@@ -30,12 +30,19 @@ else
   echo "stage-plugin: no idle loop in the staged pack; the boot screen will show a blank stage" >&2
 fi
 cp "$ROOT/web/fonts/GoogleSansFlex.woff2" "$BOOT/"
-# Computer Use: the compiled plugin plus the Swift helper source it builds on first use.
-if [ -f "$ROOT/plugins/computer-use/lib/index.js" ]; then
-  mkdir -p "$APP/plugin/plugins/computer-use"
-  cp -R "$ROOT/plugins/computer-use/lib" "$ROOT/plugins/computer-use/helper" "$ROOT/plugins/computer-use/README.md" "$APP/plugin/plugins/computer-use/"
-else
-  echo "stage-plugin: plugins/computer-use is not built; the app will ship without Computer Use" >&2
-fi
+# Every built plugin ships with the app: the connectors the Data panel lists, and
+# Computer Use. Each is the compiled lib plus, where it has one, the Swift helper
+# source it compiles on first use. The app mounts whatever it finds here.
+staged=0
+for dir in "$ROOT"/plugins/*/; do
+  name="$(basename "$dir")"
+  [ -f "$dir/lib/index.js" ] || { echo "stage-plugin: plugins/$name is not built; skipping" >&2; continue; }
+  mkdir -p "$APP/plugin/plugins/$name"
+  cp -R "$dir/lib" "$APP/plugin/plugins/$name/"
+  [ -d "$dir/helper" ] && cp -R "$dir/helper" "$APP/plugin/plugins/$name/"
+  [ -f "$dir/README.md" ] && cp "$dir/README.md" "$APP/plugin/plugins/$name/"
+  staged=$((staged + 1))
+done
+echo "stage-plugin: $staged plugin(s) bundled"
 echo "staged plugin → $APP/plugin"
 du -sh "$APP/plugin"

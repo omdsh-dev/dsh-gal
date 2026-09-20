@@ -1,10 +1,10 @@
 /*
  * The user's data, in one place.
  *
- * Everything dsh-gal and its bundled connectors keep for the user — settings,
+ * Everything Aibo and its bundled connectors keep for the user — settings,
  * memory, lists, what she wrote, what each connector has synced, the
  * transcript the room shows — goes through this store instead of a file per
- * feature. Today it is one SQLite file under `~/.dsh/gal/`; the interface is
+ * feature. Today it is one SQLite file under `~/.dsh/aibo/`; the interface is
  * kept small and sync-shaped (documents with an updated-at, append-only logs)
  * so a hosted backend can stand behind the same calls later.
  *
@@ -13,8 +13,8 @@
  * caches), and the theme (a per-screen choice kept in the browser).
  *
  * `openStore()` returns one instance per path per process, so the plugin and
- * every connector share a connection; dsh-gal also publishes it as the
- * `galStore` service for plugins that live outside this repository.
+ * every connector share a connection; Aibo also publishes it as the
+ * `aiboStore` service for plugins that live outside this repository.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
@@ -46,7 +46,7 @@ export interface LogHandle<T> {
 
 export type Listener = (change: { collection: string; id: string; kind: 'doc' | 'log' }) => void
 
-export interface GalStore {
+export interface AiboStore {
   /** Where the store lives; blobs go beside it. */
   readonly path: string
   doc<T>(collection: string, id: string): DocHandle<T>
@@ -62,15 +62,15 @@ export interface GalStore {
   transaction<T>(fn: () => T): T
 }
 
-/** `~/.dsh/gal/store.sqlite`, or `DSH_GAL_STORE` when set. */
+/** `~/.dsh/aibo/store.sqlite`, or `AIBO_STORE` when set. */
 export function storePath(): string {
-  return process.env['DSH_GAL_STORE'] ?? join(homedir(), '.dsh', 'gal', 'store.sqlite')
+  return process.env['AIBO_STORE'] ?? join(homedir(), '.dsh', 'aibo', 'store.sqlite')
 }
 
-const instances = new Map<string, GalStore>()
+const instances = new Map<string, AiboStore>()
 
 /** Open (or reuse) the store at `path`. */
-export function openStore(path: string = storePath()): GalStore {
+export function openStore(path: string = storePath()): AiboStore {
   const existing = instances.get(path)
   if (existing !== undefined) return existing
   const store = createStore(path)
@@ -78,7 +78,7 @@ export function openStore(path: string = storePath()): GalStore {
   return store
 }
 
-function createStore(path: string): GalStore {
+function createStore(path: string): AiboStore {
   mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
   db.exec(`
@@ -113,7 +113,7 @@ function createStore(path: string): GalStore {
     for (const key of [collection, '*']) for (const fn of listeners.get(key) ?? []) { try { fn(change) } catch { /* a listener must not break a write */ } }
   }
   let depth = 0
-  const store: GalStore = {
+  const store: AiboStore = {
     path,
     doc<T>(collection: string, id: string): DocHandle<T> {
       const get = (): T | undefined => {

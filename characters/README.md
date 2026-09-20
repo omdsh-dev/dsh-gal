@@ -26,11 +26,11 @@ characters/<id>/
 }
 ```
 
-`memory.md` (optional) holds what the character remembers about the user; the plugin appends to it through the `gal_remember` tool and the EDIT panel edits it directly.
+`memory.md` (optional) holds what the character remembers about the user; the plugin appends to it through the `aibo_remember` tool and the EDIT panel edits it directly.
 
 Only `name` is required; assets are discovered by convention (`<activity>.mp4|webm`, `<activity>.png|webp|jpg`; the older `neutral` / `thinking` / `happy` / `surprised` names still work) unless `states` names them explicitly. Videos are optional — a pack of PNGs works.
 
-Packs are looked up by id in `~/.dsh/gal/characters/<id>` first, then in this directory, so private packs (fan art of licensed characters, personal designs) live in your home directory and never need to enter a repository. The plugin config `character` accepts an id or a path to a pack directory; the UI's **CHAR** menu switches between every discovered pack at runtime.
+Packs are looked up by id in `~/.dsh/aibo/characters/<id>` first, then in this directory, so private packs (fan art of licensed characters, personal designs) live in your home directory and never need to enter a repository. The plugin config `character` accepts an id or a path to a pack directory; the UI's **CHAR** menu switches between every discovered pack at runtime.
 
 `playbackRate` speeds up the idle loops (image-to-video models tend to animate slowly). For smoother motion, interpolate the loops locally before shipping them:
 

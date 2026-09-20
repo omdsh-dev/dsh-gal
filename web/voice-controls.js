@@ -7,20 +7,20 @@
     en: { replay:'Replay line',stop:'Stop voice',voice:'Auto voice',mute:'Muted',skip:'Reveal',auto:'Auto',log:'History',memory:'Memory',artifacts:'Files',char:'Character',edit:'Settings',gallery:'Gallery',hide:'Hide',send:'Send',placeholder:'Say something… (/help)',system:'System language',followUI:'Follow interface',greeting:'Welcome back! I am listening — say something below.',language:'Interface',speechLanguage:'Speech',ready:'',empty:'No dialogue to read yet',unavailable:'No system voice for this language',error:'Could not play speech. Try again.',playing:'Speaking…',loading:'Preparing voice…',blocked:'Click Replay line to enable audio',hint:'Choose interface and speech independently; the line is rewritten into the speech language before it is read',blink:'Blink',wink:'Wink',talk:'Mouth demo',demo:'Auto demo',reset:'Stop demo',preview:'Xiaoheiyu'},
   };
   const browserLanguage=()=>{for(const tag of navigator.languages||[navigator.language]){const base=tag.toLowerCase().split(/[-_]/)[0];if(Object.hasOwn(strings,base))return base;}return 'en';};
-  let uiPreference=localStorage.getItem('gal-language')||'auto';if(uiPreference!=='auto'&&!Object.hasOwn(strings,uiPreference))uiPreference='auto';
-  let speechPreference=localStorage.getItem('gal-speech-language')||'auto';if(speechPreference!=='auto'&&!Object.hasOwn(strings,speechPreference))speechPreference='auto';
+  let uiPreference=localStorage.getItem('aibo-language')||'auto';if(uiPreference!=='auto'&&!Object.hasOwn(strings,uiPreference))uiPreference='auto';
+  let speechPreference=localStorage.getItem('aibo-speech-language')||'auto';if(speechPreference!=='auto'&&!Object.hasOwn(strings,speechPreference))speechPreference='auto';
   let lang=uiPreference==='auto'?browserLanguage():uiPreference;
   let speechLang=speechPreference==='auto'?lang:speechPreference;
-  let enabled=localStorage.getItem('gal-voice')!=='off';
+  let enabled=localStorage.getItem('aibo-voice')!=='off';
   let autoBlocked=false;
   let message={id:null,text:''}, generation=0, currentUtterance=null;
   const audio=new Audio(), clips=new Map();
   let audioObjectUrl=null,request=null;
-  const status=$('voice-feedback'), select=$('gal-language'),speechSelect=$('gal-speech-language');
+  const status=$('voice-feedback'), select=$('aibo-language'),speechSelect=$('aibo-speech-language');
   let statusKey='ready';
   const t=key=>strings[lang][key]??key;
   const notify=key=>{statusKey=key;status.textContent=t(key);};
-  function speaking(value){window.dispatchEvent(new CustomEvent('gal-speaking',{detail:{speaking:value}}));}
+  function speaking(value){window.dispatchEvent(new CustomEvent('aibo-speaking',{detail:{speaking:value}}));}
   function stop(){autoBlocked=true;generation++;request?.abort();request=null;audio.pause();if(audioObjectUrl){URL.revokeObjectURL(audioObjectUrl);audioObjectUrl=null;}window.speechSynthesis?.cancel();currentUtterance=null;speaking(false);notify('ready');$('btn-stop-voice').disabled=true;}
   function render(){
     document.documentElement.lang=lang==='zh'?'zh-CN':lang;
@@ -28,7 +28,7 @@
     $('btn-voice').textContent=t(enabled?'voice':'mute');$('btn-voice').classList.toggle('active',enabled);$('btn-voice').setAttribute('aria-pressed',String(enabled));
     $('input').placeholder=t('placeholder');$('language-label').textContent=t('language');select.value=uiPreference;select.title=t('hint');speechSelect.value=speechPreference;speechSelect.title=t('hint');$('speech-language-label').textContent=t('speechLanguage');status.textContent=t(statusKey);$('language-hint').textContent=t('hint');
     select.querySelector('[value=auto]').textContent=t('system');speechSelect.querySelector('[value=auto]').textContent=t('followUI');
-    window.dispatchEvent(new CustomEvent('gal-language',{detail:{language:lang}}));
+    window.dispatchEvent(new CustomEvent('aibo-language',{detail:{language:lang}}));
   }
   // mp3 through MediaSource: Chromium supports it, and where it is missing
   // (WebKit) the whole-response path below is used unchanged.
@@ -82,7 +82,7 @@
     notify('loading');$('btn-stop-voice').disabled=false;
     request=new AbortController();
     try{
-      const endpoint=window.galSpeechSettings?.api('/voice/read') || '/voice/read';
+      const endpoint=window.aiboSpeechSettings?.api('/voice/read') || '/voice/read';
       const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text,language:speechLang,dub:true,stream:streamable}),signal:request.signal});
       if(!response.ok){const body=await response.json().catch(()=>({error:'speech_error'}));throw new Error(body.error);}
       if(ticket!==generation)return;
@@ -101,21 +101,21 @@
       if(ticket!==generation)return;
       stop();
       if(error.name==='NotAllowedError')notify('blocked');
-      else {notify('error');status.textContent=window.galSpeechSettings?.errorText(error.message)||t('error');}
+      else {notify('error');status.textContent=window.aiboSpeechSettings?.errorText(error.message)||t('error');}
     }
   }
-  window.galVoice={
+  window.aiboVoice={
     greeting(value){if(value&&typeof value==='object')return value[lang]||value.en||Object.values(value)[0]||t('greeting');return value?value:t('greeting');},get enabled(){return enabled;},get language(){return lang;},get speechLanguage(){return speechLang;},t,
     stop,
-    toggle(){enabled=!enabled;localStorage.setItem('gal-voice',enabled?'on':'off');if(!enabled)stop();render();return enabled;},
-    setMessage(id,text){window.dispatchEvent(new Event('gal-dialogue-interrupt'));stop();message={id,text};$('btn-replay').disabled=!text.trim();autoBlocked=false;void speak(text,null);},
+    toggle(){enabled=!enabled;localStorage.setItem('aibo-voice',enabled?'on':'off');if(!enabled)stop();render();return enabled;},
+    setMessage(id,text){window.dispatchEvent(new Event('aibo-dialogue-interrupt'));stop();message={id,text};$('btn-replay').disabled=!text.trim();autoBlocked=false;void speak(text,null);},
     receive(){ /* Legacy pre-generated VOICEVOX clips must not override the selected provider. */ },
     replay(){return speak(message.text,message.id?clips.get(message.id):null,true);},
   };
-  $('btn-replay').onclick=()=>window.galVoice.replay();$('btn-stop-voice').onclick=stop;
+  $('btn-replay').onclick=()=>window.aiboVoice.replay();$('btn-stop-voice').onclick=stop;
   function resolvePreferences(){const next=uiPreference==='auto'?browserLanguage():uiPreference;const voice=speechPreference==='auto'?next:speechPreference;if(voice!==speechLang)stop();lang=next;speechLang=voice;render();}
-  select.onchange=()=>{uiPreference=select.value;localStorage.setItem('gal-language',uiPreference);resolvePreferences();};
-  speechSelect.onchange=()=>{speechPreference=speechSelect.value;localStorage.setItem('gal-speech-language',speechPreference);resolvePreferences();};
+  select.onchange=()=>{uiPreference=select.value;localStorage.setItem('aibo-language',uiPreference);resolvePreferences();};
+  speechSelect.onchange=()=>{speechPreference=speechSelect.value;localStorage.setItem('aibo-speech-language',speechPreference);resolvePreferences();};
   window.addEventListener('languagechange',resolvePreferences);
   window.addEventListener('pagehide',stop);render();
 })();

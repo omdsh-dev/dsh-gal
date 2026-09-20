@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stage the built dsh-gal plugin (lib/, web/, bundled characters/, manifests)
+# Stage the built Aibo plugin (lib/, web/, bundled characters/, manifests)
 # into app/plugin/ so Tauri bundles it under Contents/Resources/plugin.
 set -euo pipefail
 APP="$(cd "$(dirname "$0")/.." && pwd)"

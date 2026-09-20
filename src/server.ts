@@ -1,12 +1,12 @@
 /**
- * The dsh-gal HTTP server: serves the visual-novel frontend, streams
+ * The Aibo HTTP server: serves the visual-novel frontend, streams
  * conversation events over SSE, and accepts user input via POST /send.
- * Binds 127.0.0.1 only; optional shared-token auth (header x-gal-token,
+ * Binds 127.0.0.1 only; optional shared-token auth (header x-aibo-token,
  * ?token=). Static files come from the plugin's own web/ and assets/ dirs.
  */
 
 import { SpeechService } from './speech.js'
-import type { GalSources } from './sources.js'
+import type { AiboSources } from './sources.js'
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { createReadStream, createWriteStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os'
 import { pipeline } from 'node:stream/promises'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 
-export interface GalEvent {
+export interface AiboEvent {
   type: 'user' | 'assistant' | 'delta' | 'status' | 'busy' | 'activity' | 'snapshot' | 'manifest' | 'session' | 'memory' | 'voice' | 'artifact' | 'sources' | 'lists' | 'settings' | 'notice' | 'question'
   [key: string]: unknown
 }
@@ -22,7 +22,7 @@ export interface GalEvent {
 /** One attachment sent with a message: images go to the model as images, anything else as a file it can read. */
 export interface Upload { kind: 'image' | 'file'; name: string; mediaType: string; data: string }
 
-export interface GalServerOptions {
+export interface AiboServerOptions {
   port: number
   token: string
   webRoot: string
@@ -44,7 +44,7 @@ export interface GalServerOptions {
   /** Replace the remembered notes; returns the stored list. */
   saveMemory: (entries: { date: string; text: string }[]) => { date: string; text: string }[]
   /** Called with every event the backlog keeps, so the transcript outlives the process. */
-  onBacklog?: (event: GalEvent) => void
+  onBacklog?: (event: AiboEvent) => void
   /** UI preferences shared by every browser (read aloud, speech language). */
   prefs: () => unknown
   savePrefs: (patch: Record<string, unknown>) => unknown
@@ -82,7 +82,7 @@ export interface GalServerOptions {
   /** A pasted or dropped image shown in the user's bubble; served under /upload/<name>. */
   uploadFile: (name: string) => string | undefined
   /** Data sources other plugins registered (see sources.ts). */
-  sources: GalSources
+  sources: AiboSources
   log: (message: string) => void
 }
 
@@ -101,16 +101,16 @@ const MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',
 }
 
-export class GalServer {
+export class AiboServer {
   private readonly speech = new SpeechService()
   private readonly clients = new Set<ServerResponse>()
-  private readonly backlog: GalEvent[] = []
+  private readonly backlog: AiboEvent[] = []
   private server: Server | undefined
 
-  constructor(private readonly options: GalServerOptions) { this.speech.dub = options.spokenLine }
+  constructor(private readonly options: AiboServerOptions) { this.speech.dub = options.spokenLine }
 
   /** Push one event to every connected client and remember it for replays. */
-  broadcast(event: GalEvent): void {
+  broadcast(event: AiboEvent): void {
     // Messages and tool steps are kept so a reloaded page can rebuild the
     // conversation, including the folded "Worked through N steps" groups.
     const kept = event.type === 'user' || event.type === 'assistant' || event.type === 'status' || (event.type === 'lists' && typeof event['fresh'] === 'string') || (event.type === 'question' && Array.isArray(event['questions']))
@@ -134,7 +134,7 @@ export class GalServer {
   }
 
   /** Start from a stored transcript (after a restart), replaying failure marks onto their steps. */
-  seedBacklog(events: GalEvent[]): void {
+  seedBacklog(events: AiboEvent[]): void {
     this.backlog.length = 0
     for (const event of events) {
       if (event.type === 'activity') { const last = this.backlog[this.backlog.length - 1]; if (last?.type === 'status') last['failed'] = true; continue }
@@ -180,7 +180,7 @@ export class GalServer {
     const token = this.options.token
     if (token === '') return true
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-    const presented = req.headers['x-gal-token'] ?? url.searchParams.get('token') ?? ''
+    const presented = req.headers['x-aibo-token'] ?? url.searchParams.get('token') ?? ''
     return presented === token
   }
 
@@ -413,7 +413,7 @@ export class GalServer {
           input = { raw, ...contentType.includes('application/json') && raw.length > 0 ? { json: JSON.parse(raw.toString('utf8')) as unknown } : {} }
         } else {
           // Uploads (an export.zip can be hundreds of MB) stream to disk; the action gets a path.
-          tmp = mkdtempSync(join(tmpdir(), 'gal-upload-'))
+          tmp = mkdtempSync(join(tmpdir(), 'aibo-upload-'))
           const file = join(tmp, 'body')
           await pipeline(req, createWriteStream(file))
           input = { file }

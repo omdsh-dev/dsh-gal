@@ -6,7 +6,7 @@
  * CLGeocoder; the user can also pin a place by name (Open-Meteo geocoding)
  * and mark the current spot as home. The agent gets a one-line prompt section
  * (place, distance from home, time zone when it differs), `location_now` and
- * `location_history`. With dsh-gal loaded it shows up in the Data panel.
+ * `location_history`. With Aibo loaded it shows up in the Data panel.
  */
 import { execFile } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
@@ -17,12 +17,12 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -31,7 +31,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -75,7 +75,7 @@ interface Fixes {
 }
 type State = Settings & Fixes
 
-/** Only the compiled helper still lives here (`bin/`); the data is in dsh-gal's store. */
+/** Only the compiled helper still lives here (`bin/`); the data is in Aibo's store. */
 const dataDir = (): string => process.env['DSH_LOCATION_DIR'] ?? join(homedir(), '.dsh', 'location')
 const settingsDoc = () => openStore().doc<Settings>('location', 'settings')
 const stateDoc = () => openStore().doc<Fixes>('location', 'state')
@@ -305,9 +305,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-location.tool.history')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const setupFor = (denied: State['denied']): SourceView['setup'] => [{
       title: denied === 'services' ? 'Turn on Location Services' : 'Allow location access',
       steps: denied === 'services'
@@ -356,7 +356,7 @@ export function apply(ctx: Context, config: Config): void {
           { label: 'Accuracy', value: c.accuracy > 0 ? `±${Math.round(c.accuracy)} m` : 'by name', delta: c.place?.timeZone && c.place.timeZone !== systemTimeZone() ? c.place.timeZone : undefined },
         ],
         lists: state.history.length > 1 ? [{ title: 'Recent places', items: state.history.slice(0, 8).map(e => ({ primary: e.name, secondary: `${agoWords(minutesAgo(e.last))} · ${e.visits} visit${e.visits === 1 ? '' : 's'}` })) }] : [],
-        setup: state.denied ? setupFor(state.denied) : [{ title: 'Where this comes from', steps: ['CoreLocation on this Mac (Wi-Fi positioning), reverse-geocoded by Apple. Refreshed every few minutes; distinct places are kept in the dsh-gal store.'] }],
+        setup: state.denied ? setupFor(state.denied) : [{ title: 'Where this comes from', steps: ['CoreLocation on this Mac (Wi-Fi positioning), reverse-geocoded by Apple. Refreshed every few minutes; distinct places are kept in the Aibo store.'] }],
         actions,
       }
     }
@@ -383,7 +383,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'location', label: 'Location', category: 'location', describe, act })
       const notify = (): void => registry.changed('location')
       listeners.add(notify)

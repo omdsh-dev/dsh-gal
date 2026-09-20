@@ -16142,7 +16142,7 @@ const wE = z.memo(function() {
     /* @__PURE__ */ p.jsxs("header", { id: "topbar", children: [
       /* @__PURE__ */ p.jsxs("div", { id: "title", children: [
         /* @__PURE__ */ p.jsx("img", { id: "logo", src: "./assets/logo.png", alt: "", width: 22, height: 22 }),
-        "DSH-GAL ",
+        "AIBO ",
         /* @__PURE__ */ p.jsx("span", { id: "conn-dot", title: "disconnected" })
       ] }),
       /* @__PURE__ */ p.jsxs("div", { className: "app-controls", children: [
@@ -16357,7 +16357,7 @@ const UE = z.memo(function() {
         /* @__PURE__ */ p.jsxs("div", { className: "language-settings", children: [
           /* @__PURE__ */ p.jsxs(At, { className: "language-control", children: [
             /* @__PURE__ */ p.jsx("span", { id: "language-label", children: "界面语言" }),
-            /* @__PURE__ */ p.jsxs(Ml, { id: "gal-language", "aria-describedby": "language-hint", children: [
+            /* @__PURE__ */ p.jsxs(Ml, { id: "aibo-language", "aria-describedby": "language-hint", children: [
               /* @__PURE__ */ p.jsx("option", { value: "auto", children: "自动" }),
               /* @__PURE__ */ p.jsx("option", { value: "zh", children: "中文" }),
               /* @__PURE__ */ p.jsx("option", { value: "ja", children: "日本語" }),
@@ -16366,7 +16366,7 @@ const UE = z.memo(function() {
           ] }),
           /* @__PURE__ */ p.jsxs(At, { className: "language-control", children: [
             /* @__PURE__ */ p.jsx("span", { id: "speech-language-label", children: "语音语言" }),
-            /* @__PURE__ */ p.jsxs(Ml, { id: "gal-speech-language", "aria-describedby": "language-hint", children: [
+            /* @__PURE__ */ p.jsxs(Ml, { id: "aibo-speech-language", "aria-describedby": "language-hint", children: [
               /* @__PURE__ */ p.jsx("option", { value: "auto", children: "自动" }),
               /* @__PURE__ */ p.jsx("option", { value: "zh", children: "中文" }),
               /* @__PURE__ */ p.jsx("option", { value: "ja", children: "日本語" }),
@@ -18730,14 +18730,14 @@ function x_(u) {
   const r = Xe.parse(String(u ?? ""), { async: !1 });
   return ib.sanitize(r, { USE_PROFILES: { html: !0 } });
 }
-window.galMarkdown = { render: x_ };
+window.aiboMarkdown = { render: x_ };
 const Wd = { "character-hub": UE, "memory-panel": LE, "artifacts-panel": HE, "speech-panel": kE, "help-panel": BE, history: GE }, wr = document.createElement("div");
 wr.id = "panel-parking";
 wr.hidden = !0;
 document.body.append(wr);
 const pb = Object.fromEntries(Object.keys(Wd).map((u) => {
   const r = document.createElement("div");
-  return r.id = u, r.className = "gal-panel hidden", wr.append(r), [u, r];
+  return r.id = u, r.className = "aibo-panel hidden", wr.append(r), [u, r];
 }));
 let jd;
 const gb = {
@@ -18752,10 +18752,10 @@ const gb = {
     return u.type = "button", u.className = Wy({ variant: "ghost" }), u.dataset.slot = "button", u;
   },
   requestClose() {
-    window.dispatchEvent(new Event("gal-request-close"));
+    window.dispatchEvent(new Event("aibo-request-close"));
   }
 };
-window.galUi = gb;
+window.aiboUi = gb;
 function E_({ id: u }) {
   const r = z.useRef(null);
   return z.useLayoutEffect(() => {
@@ -18768,13 +18768,13 @@ function E_({ id: u }) {
 function T_() {
   const [u, r] = z.useState(null), [c, o] = z.useState("zh");
   jd = r, z.useEffect(() => {
-    const m = () => o(window.galVoice?.language || "zh");
-    return window.addEventListener("gal-language", m), () => window.removeEventListener("gal-language", m);
+    const m = () => o(window.aiboVoice?.language || "zh");
+    return window.addEventListener("aibo-language", m), () => window.removeEventListener("aibo-language", m);
   }, []);
   const f = { zh: ["角色", "记忆", "手记", "设置", "帮助与快捷键", "对话记录"], en: ["Character", "Memory", "Files", "Settings", "Help & shortcuts", "Conversation history"], ja: ["キャラクター", "記憶", "手記", "設定", "ヘルプとショートカット", "会話履歴"] }, d = u ? (f[c] || f.zh)[Object.keys(Wd).indexOf(u)] : "";
   return /* @__PURE__ */ p.jsx(NE, { open: !!u, onOpenChange: (m) => {
     m || gb.requestClose();
-  }, children: /* @__PURE__ */ p.jsxs(Iy, { className: "gal-dialog", closeLabel: c === "zh" ? "关闭" : c === "ja" ? "閉じる" : "Close", "aria-describedby": void 0, onOpenAutoFocus: (m) => m.preventDefault(), onCloseAutoFocus: (m) => m.preventDefault(), onEscapeKeyDown: (m) => {
+  }, children: /* @__PURE__ */ p.jsxs(Iy, { className: "aibo-dialog", closeLabel: c === "zh" ? "关闭" : c === "ja" ? "閉じる" : "Close", "aria-describedby": void 0, onOpenAutoFocus: (m) => m.preventDefault(), onCloseAutoFocus: (m) => m.preventDefault(), onEscapeKeyDown: (m) => {
     m.isComposing && m.preventDefault();
   }, children: [
     /* @__PURE__ */ p.jsx(Fy, { className: "sr-only", children: d }),

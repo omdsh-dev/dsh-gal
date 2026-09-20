@@ -10,7 +10,7 @@
   Object.assign(copy.zh,{localVoice:'角色 / 音色',refreshVoices:'刷新音色',voicesLoading:'正在读取本地音色…',voicesEmpty:'当前语言没有可用音色。请先在系统中安装声音。',voicesError:'无法读取音色列表。请确认本地语音服务已启动后重试。',voicesMissing:'已保存音色（当前不可用）'});
   Object.assign(copy.en,{localVoice:'Character / voice',refreshVoices:'Refresh voices',voicesLoading:'Loading local voices…',voicesEmpty:'No voices for this language. Install a system voice first.',voicesError:'Cannot load voices. Check the local speech service and retry.',voicesMissing:'Saved voice (unavailable)'});
   Object.assign(copy.ja,{localVoice:'キャラクター / 音声',refreshVoices:'音声を再読み込み',voicesLoading:'音声を読み込み中…',voicesEmpty:'この言語の音声がありません。システム音声を追加してください。',voicesError:'音声を取得できません。ローカル音声サービスを確認してください。',voicesMissing:'保存済み音声（利用不可）'});
-  const t = key => copy[window.galVoice?.language || 'zh'][key] || copy.en[key] || key;
+  const t = key => copy[window.aiboVoice?.language || 'zh'][key] || copy.en[key] || key;
   let config = null, language = 'zh', request = null, audio = null, objectUrl = null, sequence = 0, loadSequence = 0;
   const api = path => { const token = new URLSearchParams(location.search).get('token');return token ? `${path}${path.includes('?')?'&':'?'}token=${encodeURIComponent(token)}` : path; };
   const errorText = code => {const [name,detail] = String(code).split(':');return t(name in copy.en ? name : 'speech_error') + (detail ? ` (${detail})` : '');};
@@ -29,7 +29,7 @@
     const select=$('speech-local-voice'),saved=$('speech-voice').value;select.disabled=true;select.replaceChildren(new Option(t('voicesLoading'),''));
     try {
       const response=await fetch(api('/voice/voices?provider='+encodeURIComponent(provider)+'&language='+language),{signal:voicesRequest.signal});if(!response.ok)throw new Error('voicesError');const {voices}=await response.json();if(ticket!==voicesSequence)return;
-      select.replaceChildren(...voices.map(v=>{let locale=v.locale;try{locale=new Intl.DisplayNames([window.galVoice.language==='zh'?'zh-CN':window.galVoice.language],{type:'language'}).of(v.locale.replace('_','-'));}catch{}return new Option(provider==='local'?`${v.name.replace(/\s+\(.*\)$/,'')} · ${locale}`:v.name,v.id);}));
+      select.replaceChildren(...voices.map(v=>{let locale=v.locale;try{locale=new Intl.DisplayNames([window.aiboVoice.language==='zh'?'zh-CN':window.aiboVoice.language],{type:'language'}).of(v.locale.replace('_','-'));}catch{}return new Option(provider==='local'?`${v.name.replace(/\s+\(.*\)$/,'')} · ${locale}`:v.name,v.id);}));
       if(saved&&!voices.some(v=>v.id===saved)){const missing=new Option(`${saved} · ${t('voicesMissing')}`,saved);missing.disabled=true;select.prepend(missing);}
       if(saved)select.value=saved;else select.value=voices[0]?.id||'';
       $('speech-voice').value=select.value;voiceReady=voices.some(v=>v.id===select.value);select.disabled=!voices.length;voicesStatus=voices.length?'':'voicesEmpty';
@@ -70,7 +70,7 @@
   async function load() {
     const ticket=++loadSequence;
     $('speech-form').hidden=true;report('loading');
-    try {const response=await fetch(api('/voice/config'));if(!response.ok)throw new Error('config_error');const result=await response.json();if(ticket!==loadSequence)return;config=result;$('speech-edit-language').value=window.galVoice.speechLanguage;renderLanguage();$('speech-form').hidden=false;}
+    try {const response=await fetch(api('/voice/config'));if(!response.ok)throw new Error('config_error');const result=await response.json();if(ticket!==loadSequence)return;config=result;$('speech-edit-language').value=window.aiboVoice.speechLanguage;renderLanguage();$('speech-form').hidden=false;}
     catch(error){if(ticket===loadSequence)$('speech-status').textContent=errorText(error.message);}
   }
   $('speech-local-voice').onchange=()=>{stop();$('speech-voice').value=$('speech-local-voice').value;voiceReady=!!$('speech-local-voice').value;voicesStatus='';voiceActions();voiceLabel();};
@@ -80,13 +80,13 @@
   $('speech-model').onchange=stop;$('speech-voice').oninput=stop;$('speech-key').oninput=stop;
   $('speech-clear-key').onchange=()=>{stop();if($('speech-clear-key').checked)$('speech-key').value='';};
   $('speech-form').onsubmit=async event=>{
-    event.preventDefault();if(!voiceReady)return;stop();window.galVoice.stop();const ticket=sequence;report('saving');$('speech-save').disabled=true;
+    event.preventDefault();if(!voiceReady)return;stop();window.aiboVoice.stop();const ticket=sequence;report('saving');$('speech-save').disabled=true;
     try {const response=await fetch(api('/voice/config'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload())});const result=await response.json();if(!response.ok)throw new Error(result.error);if(ticket!==sequence)return;config=result;renderLanguage();report('saved');}
     catch(error){if(ticket===sequence)$('speech-status').textContent=errorText(error.message);}
     finally{voiceActions();}
   };
   $('speech-test').onclick=async()=>{
-    if(!voiceReady)return;stop();window.galVoice.stop();const ticket=sequence;const body=payload();
+    if(!voiceReady)return;stop();window.aiboVoice.stop();const ticket=sequence;const body=payload();
     if(body.clearKey&&!body.apiKey&&selected().key){$('speech-status').textContent=errorText('key_required');return;}
     body.text={zh:'你好，我是小黑鱼。今天想和我聊些什么呢？',en:'Hello, I am here. What would you like to talk about today?',ja:'こんにちは。今日はどんなお話をしましょうか。'}[language];
     request=new AbortController();report('loading');$('speech-stop').disabled=false;
@@ -94,9 +94,9 @@
     catch(error){if(ticket!==sequence)return;stop();$('speech-status').textContent=errorText(error.message);}
   };
   $('speech-stop').onclick=()=>{stop();$('speech-status').textContent='';};
-  window.addEventListener('gal-overlay-closed',()=>{loadSequence++;voicesSequence++;voicesRequest?.abort();stop();$('speech-key').value='';});
-  window.addEventListener('gal-dialogue-interrupt',()=>{stop();$('speech-status').textContent='';});
+  window.addEventListener('aibo-overlay-closed',()=>{loadSequence++;voicesSequence++;voicesRequest?.abort();stop();$('speech-key').value='';});
+  window.addEventListener('aibo-dialogue-interrupt',()=>{stop();$('speech-status').textContent='';});
   window.addEventListener('pagehide',stop);
-  window.addEventListener('gal-language',translate);
-  window.galSpeechSettings={load,errorText,api};translate();
+  window.addEventListener('aibo-language',translate);
+  window.aiboSpeechSettings={load,errorText,api};translate();
 })();

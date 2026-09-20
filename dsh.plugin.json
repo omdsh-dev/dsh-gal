@@ -1,5 +1,5 @@
 {
-  "id": "dsh-gal",
+  "id": "aibo",
   "version": "0.1.0",
   "main": "./lib/index.js",
   "description": "Galgame / visual-novel UI: a whale-girl companion who is shown doing what the agent does and speaks its replies one scene at a time, with a click-to-open backlog",

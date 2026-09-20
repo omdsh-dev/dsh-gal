@@ -1,7 +1,7 @@
 /**
  * Character packs: a directory holding `character.json` plus the stage
  * assets it names, one per activity she can be shown in. Packs are discovered from the plugin's own `characters/`
- * directory and from the user directory (`~/.dsh/gal/characters` by default),
+ * directory and from the user directory (`~/.dsh/aibo/characters` by default),
  * so a private pack never has to live inside the public repository.
  */
 
@@ -80,7 +80,7 @@ const IMAGE_EXTS = ['.png', '.webp', '.jpg']
 
 /** Default location for user-owned packs. */
 export function userCharactersDir(): string {
-  return process.env['DSH_GAL_CHARACTERS'] ?? join(process.env['DSH_HOME'] ?? join(homedir(), '.dsh'), 'gal', 'characters')
+  return process.env['AIBO_CHARACTERS'] ?? join(process.env['DSH_HOME'] ?? join(homedir(), '.dsh'), 'aibo', 'characters')
 }
 
 function firstExisting(dir: string, base: string, exts: readonly string[]): string | undefined {

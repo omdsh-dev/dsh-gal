@@ -3,10 +3,10 @@
  *
  * dsh is plugins all the way down, so a data source (Apple Health, a
  * calendar, mail) is its own plugin: it owns the sync, the storage, the tool
- * and the prompt section, and works in any dsh session. When dsh-gal is also
+ * and the prompt section, and works in any dsh session. When Aibo is also
  * loaded it registers itself here, and the Data panel shows it — from a
  * declarative view the source describes, so the UI never needs to know what a
- * "step" is. The service is `ctx.galSources`.
+ * "step" is. The service is `ctx.aiboSources`.
  */
 
 export type SourceCategory = 'health' | 'calendar' | 'tasks' | 'mail' | 'notes' | 'finance' | 'location' | 'travel' | 'media' | 'other'
@@ -48,7 +48,7 @@ export interface SourceActionInput {
   query: URLSearchParams
 }
 
-export interface GalSource {
+export interface AiboSource {
   id: string
   label: string
   category: SourceCategory
@@ -58,19 +58,19 @@ export interface GalSource {
   act?(action: string, input: SourceActionInput): Promise<unknown> | unknown
 }
 
-export interface GalSources {
+export interface AiboSources {
   /** Register a source; returns the disposer. Re-registering an id replaces it. */
-  register(source: GalSource): () => void
-  list(): GalSource[]
-  get(id: string): GalSource | undefined
+  register(source: AiboSource): () => void
+  list(): AiboSource[]
+  get(id: string): AiboSource | undefined
   /** Tell the UI a source has new data. */
   changed(id: string): void
   /** Subscribe to registration and data changes. */
   on(listener: (id: string) => void): () => void
 }
 
-export function createSourceRegistry(): GalSources {
-  const sources = new Map<string, GalSource>()
+export function createSourceRegistry(): AiboSources {
+  const sources = new Map<string, AiboSource>()
   const listeners = new Set<(id: string) => void>()
   const emit = (id: string): void => { for (const listener of listeners) listener(id) }
   return {

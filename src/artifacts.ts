@@ -5,7 +5,7 @@
  * be opened from where it was mentioned. Every file the agent writes or
  * explicitly presents during a session is indexed here — the file itself stays
  * where the agent put it (the session's working directory); only the pointer
- * is kept, in `~/.dsh/gal/artifacts.json`, so the list survives a restart and
+ * is kept, in `~/.dsh/aibo/artifacts.json`, so the list survives a restart and
  * a change of character.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -34,9 +34,9 @@ export interface Artifact {
 
 const LIMIT = 200
 
-/** `~/.dsh/gal/artifacts.json`, or `DSH_GAL_ARTIFACTS` when set. */
+/** `~/.dsh/aibo/artifacts.json`, or `AIBO_ARTIFACTS` when set. */
 export function artifactsPath(): string {
-  return process.env['DSH_GAL_ARTIFACTS'] ?? join(dirname(userCharactersDir()), 'artifacts.json')
+  return process.env['AIBO_ARTIFACTS'] ?? join(dirname(userCharactersDir()), 'artifacts.json')
 }
 
 const TEXT_EXT = new Set(['.txt', '.json', '.yaml', '.yml', '.csv', '.tsv', '.toml', '.ini', '.log', '.ts', '.tsx', '.js', '.mjs', '.cjs', '.jsx', '.py', '.rb', '.go', '.rs', '.sh', '.zsh', '.html', '.css', '.xml', '.sql', '.env', '.cfg', '.conf'])

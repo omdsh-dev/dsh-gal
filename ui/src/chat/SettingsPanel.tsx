@@ -155,7 +155,7 @@ function ComputerUseSettings(): React.ReactElement {
             <>
               <label className="setting"><span><b>Let her use your apps</b><small>{view.summary}</small></span><input type="checkbox" className="switch" checked={view.shared} disabled={busy !== ''} onChange={e => { void act('enabled', e.target.checked) }} /></label>
               <label className="setting"><span><b>Attach screenshots</b><small>Off sends only the accessibility tree of the window.</small></span><input type="checkbox" className="switch" checked={screenshots} disabled={busy !== '' || !view.shared} onChange={e => { void act('screenshots', e.target.checked) }} /></label>
-              <div className="setting"><span><b>Permissions</b><small>Accessibility: {stat('Accessibility')} · Screen Recording: {stat('Screen Recording')}. Granted to the app dsh-gal was launched from.</small></span>
+              <div className="setting"><span><b>Permissions</b><small>Accessibility: {stat('Accessibility')} · Screen Recording: {stat('Screen Recording')}. Granted to the app Aibo was launched from.</small></span>
                 <span className="control">
                   <button type="button" className="button" disabled={busy !== ''} onClick={() => { void act('request') }}>Request</button>
                   <button type="button" className="button" disabled={busy !== ''} onClick={() => { void act('refresh') }}>Check</button>

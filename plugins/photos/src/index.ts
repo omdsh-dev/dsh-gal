@@ -6,7 +6,7 @@
  * permission prompt. The agent gets a short, metadata-only prompt section
  * (counts per day, trip-like clusters by rounded location — never pixels),
  * tools to list recent assets and per-day counts, and `photos_thumbnail`,
- * which writes a JPEG a vision-capable model can then look at. With dsh-gal
+ * which writes a JPEG a vision-capable model can then look at. With Aibo
  * loaded, an activity strip, thumbnails and albums show up in its Data panel.
  */
 import { execFile } from 'node:child_process'
@@ -18,12 +18,12 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -33,7 +33,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -261,9 +261,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-photos.tool.thumbnail')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const permission: SourceView['setup'] = [{
       title: 'Allow access to Photos',
       steps: [
@@ -311,7 +311,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'photos', label: 'Photos', category: 'media', describe: view, act })
       const notify = (id: string): void => registry.changed(id)
       listeners.add(notify)

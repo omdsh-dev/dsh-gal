@@ -11,7 +11,7 @@
  *   model ──tool call──▶ this plugin ──JSON line──▶ helper ──AX/CGEvent──▶ the app
  *                          │  per-app approval (dsh's approval service)
  *                          │  screenshot → dsh attachment → image block
- *                          └  Data panel + Settings switch (via dsh-gal)
+ *                          └  Data panel + Settings switch (via Aibo)
  *
  * Nothing here is tied to a model: the tools are ordinary function tools and
  * the guidance is a prompt section, so any model that can read an image and
@@ -32,7 +32,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// ---- the slices of dsh and dsh-gal this plugin uses ------------------------
+// ---- the slices of dsh and Aibo this plugin uses ------------------------
 interface ImageRef { attachmentId: string; mediaType: string; bytes: number; width: number; height: number; name?: string }
 interface AttachmentsLike { saveImage(input: { data: Uint8Array; mediaType: 'image/png'; name?: string }): Promise<ImageRef> }
 interface LlmLike { resolveModelInfo?(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: readonly string[] }> }
@@ -48,7 +48,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -496,9 +496,9 @@ export function apply(ctx: Context, config: Config): void {
   }
   log(`mounted (${settings.enabled ? 'on' : 'off'}; helper builds on first use)`)
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const ago = (iso: string): string => { const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago` }
     const view = (): SourceView => {
       const p = permissions
@@ -512,7 +512,7 @@ export function apply(ctx: Context, config: Config): void {
         : missing.length ? `On · missing ${missing.join(' and ')}`
         : `On · ${actions} action${actions === 1 ? '' : 's'} this session`
       const setup: SourceView['setup'] = []
-      if (p && !p.accessibility) setup.push({ title: 'Allow Accessibility', steps: ['System Settings → Privacy & Security → Accessibility → enable the app you launched dsh-gal from (the desktop app, or your terminal).', 'Then press Check permissions.'] })
+      if (p && !p.accessibility) setup.push({ title: 'Allow Accessibility', steps: ['System Settings → Privacy & Security → Accessibility → enable the app you launched Aibo from (the desktop app, or your terminal).', 'Then press Check permissions.'] })
       if (p && !p.screenRecording && settings.screenshots) setup.push({ title: 'Allow Screen Recording', steps: ['System Settings → Privacy & Security → Screen Recording → enable the same app.', 'Without it she works from the accessibility tree alone, with no screenshot.'] })
       if (helperError) setup.push({ title: 'Helper', steps: ['The native helper is compiled with the Xcode command-line tools on first use: `xcode-select --install`, then press Check permissions.'] })
       return {
@@ -558,7 +558,7 @@ export function apply(ctx: Context, config: Config): void {
         default: throw new Error(`unknown action ${action}`)
       }
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'computer-use', label: 'Computer Use', category: 'other', describe: view, act })
       const notify = (id: string): void => registry.changed(id)
       listeners.add(notify)

@@ -19,6 +19,6 @@ export async function localSpeech(text,language,{signal}={}){
  if(process.platform!=='darwin')throw new Error('Local system voice is unavailable');
  if(!voices[language]||typeof text!=='string'||!text.trim()||text.length>6000)throw new Error('Invalid speech request');
  const key=JSON.stringify([language,text]);if(cache.has(key))return cache.get(key);
- const dir=await mkdtemp(join(tmpdir(),'dsh-gal-speech-'));
+ const dir=await mkdtemp(join(tmpdir(),'aibo-speech-'));
  try{const aiff=join(dir,'voice.aiff'),wav=join(dir,'voice.wav');await run('/usr/bin/say',['-v',voices[language],'-o',aiff],text,signal);await run('/usr/bin/afconvert',['-f','WAVE','-d','LEI16@22050',aiff,wav],undefined,signal);signal?.throwIfAborted();const data=await readFile(wav);cache.set(key,data);while(cache.size>12)cache.delete(cache.keys().next().value);return data;}finally{await rm(dir,{recursive:true,force:true});}
 }

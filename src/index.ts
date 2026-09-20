@@ -1,5 +1,5 @@
 /**
- * dsh-gal: a galgame / visual-novel UI for the DeepSeek Harness.
+ * Aibo: a galgame / visual-novel UI for the DeepSeek Harness.
  *
  * The plugin mirrors the live conversation onto a local web page where a
  * character "speaks" every assistant reply one scene at a time:
@@ -11,7 +11,7 @@
  *   - registers the pack's persona as a system-prompt voice layer,
  *   - feeds input from the page back into the live agent via
  *     `agent.followup(createUserMessage(...))`.
- * @module dsh-gal
+ * @module Aibo
  */
 
 import { createHash } from 'node:crypto'
@@ -34,7 +34,7 @@ import { readPrefs, writePrefs } from './prefs.js'
 import { addItems, createList, deleteList, findList, listsSection, readLists, renderList, reorderItems, updateItem, updateList } from './lists.js'
 import { artifactSection, artifactStat, findArtifact, forgetArtifact, listArtifacts, mimeFor, recordArtifact, writtenPath } from './artifacts.js'
 import { ACTIVITIES, ASSET_NAMES, activityForTool, isActivity } from './activity.js'
-import { GalServer } from './server.js'
+import { AiboServer } from './server.js'
 import { createSourceRegistry } from './sources.js'
 import { openStore } from './store.js'
 import { detectLanguage, looksJapanese, speakableText, translationPrompt, voicevoxSpeakers, voicevoxSynthesize, type SpokenLanguage } from './tts.js'
@@ -92,7 +92,7 @@ type Context = CordisContext & {
   systemPrompt: SystemPromptLike
 }
 
-export const name = 'dsh-gal'
+export const name = 'aibo'
 export const inject = {
   agents: { required: true },
   attachments: { required: false },
@@ -106,10 +106,10 @@ export const inject = {
 export interface Config {
   /** Listen port on 127.0.0.1 for the visual-novel UI. */
   port?: number
-  /** Optional shared token (x-gal-token header or ?token=). */
+  /** Optional shared token (x-aibo-token header or ?token=). */
   token?: string
   /**
-   * Character pack: an id looked up in `~/.dsh/gal/characters/<id>` then the
+   * Character pack: an id looked up in `~/.dsh/aibo/characters/<id>` then the
    * plugin's bundled `characters/<id>`, or a path to a pack directory.
    */
   character?: string
@@ -160,7 +160,7 @@ export const Config: z<Config> = z.object({
   voiceEnabled: z.boolean().default(true),
   voicevoxUrl: z.string().default('http://127.0.0.1:50021'),
   voiceSpeaker: z.number().step(1).min(0).default(2),
-  voicevoxEngine: z.string().default(join(homedir(), 'Library', 'Application Support', 'dsh-gal', 'voicevox', 'macos-arm64', 'run')),
+  voicevoxEngine: z.string().default(join(homedir(), 'Library', 'Application Support', 'aibo', 'voicevox', 'macos-arm64', 'run')),
   voiceLanguage: z.union(['ja', 'auto']).default('ja'),
 })
 
@@ -184,7 +184,7 @@ export function apply(ctx: Context, config: Config): void {
   let pack: CharacterPack = resolveCharacterPack(config.character ?? 'xiaoheiyu', bundledDir, promptsDir)
     ?? resolveCharacterPack('xiaoheiyu', bundledDir)
     ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, assets: {} }
-  if (pack.id === 'none') ctx.logger.warn(`dsh-gal: character "${config.character}" not found and no bundled fallback`)
+  if (pack.id === 'none') ctx.logger.warn(`aibo: character "${config.character}" not found and no bundled fallback`)
 
   const displayName = (): string => config.characterName ?? pack.name
   /** A pack may localize its opening line; the frontend picks by interface language. */
@@ -227,17 +227,17 @@ export function apply(ctx: Context, config: Config): void {
     if (text === '') return
     try {
       disposePersona = ctx.systemPrompt.section({
-        name: 'dsh-gal.persona',
+        name: 'aibo.persona',
         // Late in the prompt (after the tool sections) so the voice stays salient.
         order: 9500,
         text,
       })
       void ctx.systemPrompt.assemble().then(
-        assembly => ctx.logger.info(`dsh-gal: persona "${pack.id}" registered; prompt sections: ${assembly.sections.map(section => section.name).join(', ')}`),
+        assembly => ctx.logger.info(`aibo: persona "${pack.id}" registered; prompt sections: ${assembly.sections.map(section => section.name).join(', ')}`),
         () => { /* diagnostics only */ },
       )
     } catch (error) {
-      ctx.logger.warn(`dsh-gal: persona section not registered (${String(error)})`)
+      ctx.logger.warn(`aibo: persona section not registered (${String(error)})`)
     }
   }
 
@@ -275,7 +275,7 @@ export function apply(ctx: Context, config: Config): void {
 
   /** Unzip a pack archive into the user directory; returns the imported pack id. */
   const importPack = (zip: Buffer, idHint: string): string => {
-    const work = mkdtempSync(join(tmpdir(), 'dsh-gal-import-'))
+    const work = mkdtempSync(join(tmpdir(), 'aibo-import-'))
     try {
       const archive = join(work, 'pack.zip')
       writeFileSync(archive, zip)
@@ -309,7 +309,7 @@ export function apply(ctx: Context, config: Config): void {
 
   /** Zip the active pack (art + character.json; memory stays private) and return the archive path. */
   const exportPack = (): string => {
-    const work = mkdtempSync(join(tmpdir(), 'dsh-gal-export-'))
+    const work = mkdtempSync(join(tmpdir(), 'aibo-export-'))
     const out = join(work, `${pack.id}.zip`)
     execFileSync('zip', ['-q', '-r', out, pack.id, '-x', `${pack.id}/memory.md`, `${pack.id}/memory.md.migrated`, `${pack.id}/*.log`, `${pack.id}/orig24/*`, `${pack.id}/.DS_Store`], { cwd: join(pack.dir, '..') })
     return out
@@ -320,7 +320,7 @@ export function apply(ctx: Context, config: Config): void {
     if (next === undefined) return false
     pack = next
     registerPersona()
-    ctx.logger.info(`dsh-gal: character switched to ${pack.id}`)
+    ctx.logger.info(`aibo: character switched to ${pack.id}`)
     server.broadcast({ type: 'manifest', manifest: manifest() })
     return true
   }
@@ -328,9 +328,9 @@ export function apply(ctx: Context, config: Config): void {
   /** The session the UI mirrors and drives: the root session with the latest activity. */
   let activeSessionId: string | undefined
   // The user's data: one store shared with the bundled connectors and, as the
-  // `galStore` service, with any other plugin.
+  // `aiboStore` service, with any other plugin.
   const store = openStore()
-  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galStore', store), 'dsh-gal.store')
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('aiboStore', store), 'aibo.store')
   const activeDoc = store.doc<{ id: string; at: number }>('sessions', 'active')
   const transcript = (id: string) => store.log<Record<string, unknown>>('transcript', id)
   const rememberActive = (id: string): void => {
@@ -358,7 +358,7 @@ export function apply(ctx: Context, config: Config): void {
   const artifactsWithStat = () => listArtifacts().map(artifact => ({ ...artifact, ...artifactStat(artifact) }))
   // Data sources are other plugins' business; they register here and the panel shows them.
   const sources = createSourceRegistry()
-  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galSources', sources), 'dsh-gal.sources')
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('aiboSources', sources), 'aibo.sources')
   /*
    * Attachments the user pastes or drops. Images become image blocks (the
    * model sees them when it can) and files become file blocks (the model gets
@@ -417,7 +417,7 @@ export function apply(ctx: Context, config: Config): void {
   const attachmentsOf = (content: readonly { type: string; attachment?: { attachmentId: string; name?: string; bytes?: number } }[]) =>
     content.filter(b => (b.type === 'image' || b.type === 'file') && b.attachment !== undefined).map(b => previews.get(b.attachment!.attachmentId) ?? { kind: b.type as 'image' | 'file', name: b.attachment!.name ?? (b.type === 'image' ? 'image' : 'file'), bytes: b.attachment!.bytes ?? 0 })
 
-  const server = new GalServer({
+  const server = new AiboServer({
     port,
     token: config.token ?? '',
     webRoot: join(PKG_ROOT, 'web'),
@@ -455,7 +455,7 @@ export function apply(ctx: Context, config: Config): void {
         // reply read in the wrong language can be explained from /debug/usage.
         voiceStats.failed += 1
         voiceStats.lastError = `dub: ${String(error).slice(0, 280)}`
-        ctx.logger.warn(`dsh-gal: dub to ${language} failed, reading the line as written (${String(error).slice(0, 200)})`)
+        ctx.logger.warn(`aibo: dub to ${language} failed, reading the line as written (${String(error).slice(0, 200)})`)
         throw error
       }
       voiceStats.dubs += 1
@@ -470,7 +470,7 @@ export function apply(ctx: Context, config: Config): void {
       const assembly = await ctx.systemPrompt.assemble()
       return assembly.sections.map(section => ({ name: section.name, text: (section as { text?: string }).text ?? '' }))
     },
-    log: message => ctx.logger.warn(`dsh-gal: ${message}`),
+    log: message => ctx.logger.warn(`aibo: ${message}`),
     characterConfig,
     saveCharacter,
     memory: () => memoryEntries(),
@@ -508,7 +508,7 @@ export function apply(ctx: Context, config: Config): void {
         : process.platform === 'win32' ? ['explorer', [`/select,${artifact.path}`]]
         : ['xdg-open', [dirname(artifact.path)]]
       const child = spawn(bin, args, { stdio: 'ignore', detached: true })
-      child.on('error', (error: unknown) => ctx.logger.warn(`dsh-gal: reveal failed: ${String(error)}`))
+      child.on('error', (error: unknown) => ctx.logger.warn(`aibo: reveal failed: ${String(error)}`))
       child.unref()
       return true
     },
@@ -526,7 +526,7 @@ export function apply(ctx: Context, config: Config): void {
       rememberActive(agent.id)
       server.clearBacklog()
       server.broadcast({ type: 'session', id: agent.id })
-      ctx.logger.info(`dsh-gal: new session ${agent.id}`)
+      ctx.logger.info(`aibo: new session ${agent.id}`)
     },
     uploadFile: (name) => {
       const dir = openStore().blobDir('uploads')
@@ -540,15 +540,15 @@ export function apply(ctx: Context, config: Config): void {
         pendingResume = undefined
         try {
           agent = await resumeSession(id)
-          ctx.logger.info(`dsh-gal: resumed session ${id}`)
+          ctx.logger.info(`aibo: resumed session ${id}`)
         } catch (error) {
-          ctx.logger.warn(`dsh-gal: could not resume session ${id} (${String(error)}); starting a new one`)
+          ctx.logger.warn(`aibo: could not resume session ${id} (${String(error)}); starting a new one`)
           server.broadcast({ type: 'notice', text: 'The previous conversation could not be resumed; this is a new session.' })
         }
       }
       if (agent === undefined) {
         agent = await openSession()
-        ctx.logger.info(`dsh-gal: opened session ${agent.id}`)
+        ctx.logger.info(`aibo: opened session ${agent.id}`)
       }
       rememberActive(agent.id)
       agent.followup(createUserMessage({
@@ -583,7 +583,7 @@ export function apply(ctx: Context, config: Config): void {
     const id = request.agent?.id
     if (id === undefined || !roomSessions.has(String(id))) return next()
     return askInRoom(request)
-  }, true), 'dsh-gal.questions')
+  }, true), 'aibo.questions')
 
   // ---- questions she asks the user (ask_user_question) ----
   interface QuestionItem { id: string; question: string; detail?: string; header?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean }
@@ -618,7 +618,7 @@ export function apply(ctx: Context, config: Config): void {
   const openSession = async (): Promise<AgentLike> => {
     const { agentOptions, presetId, setup } = await sessionSetup()
     const handle = await ctx.agents.create({
-      sessionId: SessionId(`dsh-gal-session-${crypto.randomUUID()}`),
+      sessionId: SessionId(`aibo-session-${crypto.randomUUID()}`),
       agentOptions,
       meta: { cwd: process.cwd(), ...presetId === undefined ? {} : { agentPreset: presetId } },
       ...setup === undefined ? {} : { setup },
@@ -636,7 +636,7 @@ export function apply(ctx: Context, config: Config): void {
 
   // ---- the character's own memory tool ----
   ctx.effect(() => ctx.tools.register(defineTool({
-    name: 'gal_remember',
+    name: 'aibo_remember',
     description: `Save one short note about the user to your long-term memory (shown to you in every future session). Use it when the user tells you something worth keeping: preferences, ongoing projects, how they like to work, facts about their life they share. One concise sentence per call.`,
     parameters: {
       note: { type: 'string', required: true, description: 'One concise sentence to remember, written in the user\'s language' },
@@ -644,12 +644,12 @@ export function apply(ctx: Context, config: Config): void {
     output: { schema: { type: 'string' }, render: (_args: unknown, value: unknown) => [{ type: 'text', text: String(value) }] },
     execute: async (args: unknown) => {
       const note = String((args as { note?: unknown }).note ?? '').trim()
-      if (note === '') throw new Error('gal_remember: note is required')
+      if (note === '') throw new Error('aibo_remember: note is required')
       remember(note)
       server.broadcast({ type: 'memory', entries: memoryEntries() })
       return `Remembered: ${note}`
     },
-  } as never)), 'dsh-gal.tool.remember')
+  } as never)), 'aibo.tool.remember')
 
   // ---- lists: hers to maintain, the user's to edit ----
   const listsChanged = (fresh?: string): void => server.broadcast({ type: 'lists', lists: readLists(), ...fresh === undefined ? {} : { fresh } })
@@ -669,7 +669,7 @@ export function apply(ctx: Context, config: Config): void {
       listsChanged(list.id)
       return renderList(list)
     },
-  } as never)), 'dsh-gal.tool.list_create')
+  } as never)), 'aibo.tool.list_create')
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'list_add',
     description: 'Add items to an existing list (by title or id). Duplicates by name are skipped. Returns the list as markdown.',
@@ -684,7 +684,7 @@ export function apply(ctx: Context, config: Config): void {
       listsChanged()
       return `${added.length} added.\n${renderList(list)}`
     },
-  } as never)), 'dsh-gal.tool.list_add')
+  } as never)), 'aibo.tool.list_add')
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'list_update',
     description: 'Change one item on a list: mark it done or not done, rewrite its text or note, or remove it. The item may be named by id, exact text, or a unique fragment of its text.',
@@ -703,7 +703,7 @@ export function apply(ctx: Context, config: Config): void {
       listsChanged()
       return item === undefined ? `Removed.\n${renderList(list)}` : `${item.done ? 'Done' : 'Updated'}: ${item.text}\n${renderList(list)}`
     },
-  } as never)), 'dsh-gal.tool.list_update')
+  } as never)), 'aibo.tool.list_update')
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'list_get',
     description: 'Read one list in full (by title or id), or all list titles when no list is given. Also used to rename or delete a list.',
@@ -723,7 +723,7 @@ export function apply(ctx: Context, config: Config): void {
       if (list === undefined) throw new Error(`no list matches "${ref}"`)
       return renderList(list)
     },
-  } as never)), 'dsh-gal.tool.list_get')
+  } as never)), 'aibo.tool.list_get')
 
   // ---- voice ----
   const voiceClips = new Map<string, Buffer>()
@@ -752,13 +752,13 @@ export function apply(ctx: Context, config: Config): void {
     const port = new URL(voiceUrl()).port || '50021'
     try {
       const child = spawn(bin, ['--host', '127.0.0.1', '--port', port], { cwd: dirname(bin), stdio: 'ignore', detached: false })
-      child.on('error', error => ctx.logger.warn(`dsh-gal: voicevox engine failed to start (${String(error)})`))
+      child.on('error', error => ctx.logger.warn(`aibo: voicevox engine failed to start (${String(error)})`))
       process.once('exit', () => { try { child.kill() } catch { /* gone */ } })
     } catch (error) {
-      ctx.logger.warn(`dsh-gal: voicevox engine failed to start (${String(error)})`)
+      ctx.logger.warn(`aibo: voicevox engine failed to start (${String(error)})`)
       return false
     }
-    ctx.logger.info(`dsh-gal: starting VOICEVOX engine from ${bin}`)
+    ctx.logger.info(`aibo: starting VOICEVOX engine from ${bin}`)
     for (let i = 0; i < 40; i += 1) {
       await new Promise(resolve => setTimeout(resolve, 1000))
       if (await pingVoice()) return true
@@ -821,7 +821,7 @@ export function apply(ctx: Context, config: Config): void {
       voiceStats.failed += 1
       voiceStats.lastError = String(error).slice(0, 300)
       if (/fetch failed|ECONNREFUSED/.test(String(error))) voiceAvailable = false
-      ctx.logger.debug(`dsh-gal: voice skipped (${String(error)})`)
+      ctx.logger.debug(`aibo: voice skipped (${String(error)})`)
     }
   }
 
@@ -857,11 +857,11 @@ export function apply(ctx: Context, config: Config): void {
     return { id: artifact.id, url: `/artifact/${encodeURIComponent(artifact.id)}` }
   }
   // Other plugins hand her a file to show (an image she found, a chart she
-  // drew): `galArtifacts.publish(path, description)` puts it in the room as a
+  // drew): `aiboArtifacts.publish(path, description)` puts it in the room as a
   // card and returns the URL the reply can embed.
-  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('galArtifacts', {
-    publish: (path: string, description?: string) => publishArtifact(activeSessionId ?? 'dsh-gal', path, 'presented', description),
-  }), 'dsh-gal.artifacts.service')
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('aiboArtifacts', {
+    publish: (path: string, description?: string) => publishArtifact(activeSessionId ?? 'aibo', path, 'presented', description),
+  }), 'aibo.artifacts.service')
 
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     const header = session.header as { origin?: string }
@@ -943,23 +943,23 @@ export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => {
     registerPersona()
     return () => { disposePersona?.(); disposePersona = undefined }
-  }, 'dsh-gal.persona')
+  }, 'aibo.persona')
 
   // Memory belongs to the user, so it is registered independently of the pack
-  // and read at every assembly — `gal_remember` takes effect on the next turn.
-  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.memory', order: 9510, text: () => memorySection() }), 'dsh-gal.memory')
+  // and read at every assembly — `aibo_remember` takes effect on the next turn.
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'aibo.memory', order: 9510, text: () => memorySection() }), 'aibo.memory')
   // How a file reaches the user is the UI's job; the prompt only has to make
   // her name it, and hand it over with `present` when the tool is there.
-  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.artifacts', order: 9520, text: () => artifactSection() }), 'dsh-gal.artifacts')
-  ctx.effect(() => ctx.systemPrompt.section({ name: 'dsh-gal.lists', order: 9515, text: () => listsSection() }), 'dsh-gal.lists')
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'aibo.artifacts', order: 9520, text: () => artifactSection() }), 'aibo.artifacts')
+  ctx.effect(() => ctx.systemPrompt.section({ name: 'aibo.lists', order: 9515, text: () => listsSection() }), 'aibo.lists')
 
-  ctx.effect(() => sources.on(id => server.broadcast({ type: 'sources', id })), 'dsh-gal.sources.events')
+  ctx.effect(() => sources.on(id => server.broadcast({ type: 'sources', id })), 'aibo.sources.events')
   if (activeSessionId !== undefined) server.seedBacklog(transcript(activeSessionId).read().map(entry => entry.event as never))
   ctx.effect(() => {
     server.start().then(
-      () => ctx.logger.info(`dsh-gal: visual novel at ${server.url} (character: ${pack.id})`),
-      (error: unknown) => ctx.logger.warn(`dsh-gal: failed to listen on ${port}: ${String(error)}`),
+      () => ctx.logger.info(`aibo: visual novel at ${server.url} (character: ${pack.id})`),
+      (error: unknown) => ctx.logger.warn(`aibo: failed to listen on ${port}: ${String(error)}`),
     )
     return () => server.stop()
-  }, 'dsh-gal.server')
+  }, 'aibo.server')
 }

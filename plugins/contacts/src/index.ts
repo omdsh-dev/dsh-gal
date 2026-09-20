@@ -6,7 +6,7 @@
  * Google, Exchange — just works after the one-time macOS permission prompt.
  * The agent gets a short prompt section (how many contacts, whose birthday
  * is near) and a lookup tool to resolve "call Anna" into a person. With
- * dsh-gal loaded, the address book shows up in its Data panel.
+ * Aibo loaded, the address book shows up in its Data panel.
  */
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
@@ -17,12 +17,12 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   /** Raw data for the panel's own renderer of this source. */
@@ -32,7 +32,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -236,9 +236,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-contacts.tool.birthdays')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const permission: SourceView['setup'] = [{
       title: 'Allow access to Contacts',
       steps: [
@@ -283,7 +283,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'contactsShared') { writeSettings({ contactsShared: Boolean(value) }); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'contacts', label: 'Contacts', category: 'other', describe, act })
       const notify = (): void => registry.changed('contacts')
       listeners.add(notify)

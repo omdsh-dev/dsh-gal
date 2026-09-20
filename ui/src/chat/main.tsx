@@ -28,7 +28,7 @@ type CharTab = 'pick' | 'art' | 'persona'
 export type ThemePref = 'system' | 'light' | 'dark'
 /** Follows the system until the user picks a side; only an explicit choice is stored. */
 function useTheme(): [ThemePref, (pref: ThemePref) => void] {
-  const [pref, setPrefState] = React.useState<ThemePref>(() => { const v = localStorage.getItem('gal-chat-theme'); return v === 'light' || v === 'dark' ? v : 'system' })
+  const [pref, setPrefState] = React.useState<ThemePref>(() => { const v = localStorage.getItem('aibo-chat-theme'); return v === 'light' || v === 'dark' ? v : 'system' })
   React.useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)')
     const apply = (): void => { document.documentElement.classList.toggle('dark', pref === 'dark' || (pref === 'system' && media.matches)) }
@@ -37,7 +37,7 @@ function useTheme(): [ThemePref, (pref: ThemePref) => void] {
     media.addEventListener('change', apply)
     return () => media.removeEventListener('change', apply)
   }, [pref])
-  const setPref = (next: ThemePref): void => { setPrefState(next); if (next === 'system') localStorage.removeItem('gal-chat-theme'); else localStorage.setItem('gal-chat-theme', next) }
+  const setPref = (next: ThemePref): void => { setPrefState(next); if (next === 'system') localStorage.removeItem('aibo-chat-theme'); else localStorage.setItem('aibo-chat-theme', next) }
   return [pref, setPref]
 }
 
@@ -182,8 +182,8 @@ function App(): React.ReactElement {
   const [listId, setListId] = React.useState<string | null>(null)
   const [artifacts, setArtifacts] = React.useState<Artifact[]>([])
   const [sourcesVersion, setSourcesVersion] = React.useState(0)
-  const [voiceOn, setVoiceOnState] = React.useState(() => localStorage.getItem('gal-voice') !== 'off')
-  const [speechPref, setSpeechPrefState] = React.useState<'auto' | Lang>(() => { const v = localStorage.getItem('gal-speech-language'); return v === 'zh' || v === 'en' || v === 'ja' ? v : 'auto' })
+  const [voiceOn, setVoiceOnState] = React.useState(() => localStorage.getItem('aibo-voice') !== 'off')
+  const [speechPref, setSpeechPrefState] = React.useState<'auto' | Lang>(() => { const v = localStorage.getItem('aibo-speech-language'); return v === 'zh' || v === 'en' || v === 'ja' ? v : 'auto' })
   const [theme, setTheme] = useTheme()
   const lang = browserLanguage()
   const speechLang: Lang = speechPref === 'auto' ? lang : speechPref
@@ -196,9 +196,9 @@ function App(): React.ReactElement {
   // Read-aloud and speech language are the user's, kept on the server so every
   // browser agrees; localStorage only covers the first frame before they load.
   const applyPrefs = (prefs: { voice?: unknown; speechLanguage?: unknown }): void => {
-    if (typeof prefs.voice === 'boolean') { setVoiceOnState(prefs.voice); localStorage.setItem('gal-voice', prefs.voice ? 'on' : 'off') }
+    if (typeof prefs.voice === 'boolean') { setVoiceOnState(prefs.voice); localStorage.setItem('aibo-voice', prefs.voice ? 'on' : 'off') }
     const l = prefs.speechLanguage
-    if (l === 'auto' || l === 'zh' || l === 'en' || l === 'ja') { setSpeechPrefState(l); localStorage.setItem('gal-speech-language', l) }
+    if (l === 'auto' || l === 'zh' || l === 'en' || l === 'ja') { setSpeechPrefState(l); localStorage.setItem('aibo-speech-language', l) }
   }
   const applyPrefsRef = React.useRef(applyPrefs); applyPrefsRef.current = applyPrefs
   React.useEffect(() => { getJson<{ voice: boolean; speechLanguage: string }>('/settings').then(applyPrefs).catch(() => { /* keep the local guess */ }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -361,10 +361,10 @@ function App(): React.ReactElement {
       source.onopen = () => setConnected(true)
       source.onerror = () => setConnected(false)
       source.onmessage = msg => { try { handleEvent(JSON.parse(msg.data)) } catch { /* ignore */ } }
-    }).catch(() => setItems([{ kind: 'notice', key: nextKey(), text: 'Could not reach the dsh-gal server.' }]))
+    }).catch(() => setItems([{ kind: 'notice', key: nextKey(), text: 'Could not reach the Aibo server.' }]))
     return () => { source?.close() }
   }, [handleEvent])
-  React.useEffect(() => { if (manifest) document.title = `${manifest.characterName} · dsh-gal` }, [manifest?.characterName]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (manifest) document.title = `${manifest.characterName} · Aibo` }, [manifest?.characterName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openPanel = React.useCallback((id: PanelId, opts?: { tab?: CharTab; file?: string | null }) => {
     if (opts?.tab) setCharTab(opts.tab)

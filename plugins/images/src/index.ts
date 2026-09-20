@@ -6,7 +6,7 @@
  * and Wikimedia Commons without any key (fine for places, landmarks, animals,
  * art; thin for products and news). `image_search` returns candidates with
  * their thumbnail and full-size URLs; `image_show` downloads the one she picks
- * into the shared store's blob directory and, when dsh-gal is loaded, presents
+ * into the shared store's blob directory and, when Aibo is loaded, presents
  * it in the room as an image card and returns the URL to embed inline. Hotlinking
  * is avoided on purpose: remote image URLs break on referer checks and rot.
  */
@@ -17,9 +17,9 @@ import { join } from 'node:path'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { openStore } from '@dsh-external/dsh-gal/store'
+import { openStore } from '@dsh-external/aibo/store'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   stats?: { label: string; value: string; delta?: string; tone?: 'up' | 'down' | 'flat' }[]
@@ -27,11 +27,11 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
-interface GalArtifacts { publish(path: string, description?: string): { id: string; url: string } }
+interface AiboArtifacts { publish(path: string, description?: string): { id: string; url: string } }
 interface ToolsLike { register(tool: unknown): () => void }
 interface SystemPromptLike { section(section: { name: string; order: number; text: () => string }): () => void }
 type Context = CordisContext & { tools: ToolsLike; systemPrompt: SystemPromptLike }
@@ -72,7 +72,7 @@ const KEEP = 30
 // ---- providers --------------------------------------------------------------
 
 export interface Hit { title: string; page: string; source: string; thumb: string; url: string; width?: number; height?: number; note?: string }
-const UA = 'dsh-images/0.1 (https://github.com/omdsh-dev/dsh-gal; a personal assistant fetching one image for its user)'
+const UA = 'dsh-images/0.1 (https://github.com/omdsh-dev/aibo; a personal assistant fetching one image for its user)'
 
 async function brave(key: string, query: string, count: number, safesearch: string): Promise<Hit[]> {
   const params = new URLSearchParams({ q: query, count: String(count), safesearch, spellcheck: '1' })
@@ -135,7 +135,7 @@ export function apply(ctx: Context, config: Config): void {
   const key = (): string => readKey() || (config.braveKey ?? '').trim()
   const provider = (): 'brave' | 'commons' => key() ? 'brave' : 'commons'
   const readShared = (): boolean => settingsDoc().get()?.shared ?? true
-  let artifacts: GalArtifacts | undefined
+  let artifacts: AiboArtifacts | undefined
   /** The last search's hits, so `image_show` can take an index instead of a URL. */
   let lastHits: Hit[] = []
 
@@ -204,13 +204,13 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-images.tool.show')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galArtifacts'], (gal: CordisContext) => {
-    artifacts = (gal as unknown as { galArtifacts: GalArtifacts }).galArtifacts
-    gal.effect(() => () => { artifacts = undefined }, 'dsh-images.artifacts')
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboArtifacts'], (aibo: CordisContext) => {
+    artifacts = (aibo as unknown as { aiboArtifacts: AiboArtifacts }).aiboArtifacts
+    aibo.effect(() => () => { artifacts = undefined }, 'dsh-images.artifacts')
   })
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const hasKey = key() !== ''
       const recent = readRecent()
@@ -253,7 +253,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'shared') { settingsDoc().set({ shared: Boolean(value) }); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'images', label: 'Pictures', category: 'media', describe, act })
       const notify = (): void => registry.changed('images')
       listeners.add(notify)

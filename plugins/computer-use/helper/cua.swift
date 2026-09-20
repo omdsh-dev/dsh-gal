@@ -16,7 +16,7 @@
  *             CGEvent mouse and keyboard synthesis
  *
  * Needs Accessibility and Screen Recording. Both prompts are attributed to
- * the process that launched dsh (a terminal, or the dsh-gal app).
+ * the process that launched dsh (a terminal, or the Aibo app).
  */
 
 import AppKit

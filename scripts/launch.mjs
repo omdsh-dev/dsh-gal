@@ -27,7 +27,7 @@ function start(file,argv,options={}){
 }
 async function json(endpoint){try{const response=await fetch(endpoint,{signal:AbortSignal.timeout(1500)});return response.ok?await response.json():null;}catch{return null;}}
 async function backendReady(){const manifest=await json('http://127.0.0.1:4877/manifest.json');return Boolean(manifest&&typeof manifest.characterName==="string"&&manifest.states);}
-async function previewReady(){const result=await json('http://127.0.0.1:4878/_gal/health');return result?.app==='dsh-gal-preview'&&result.root===root;}
+async function previewReady(){const result=await json('http://127.0.0.1:4878/_aibo/health');return result?.app==='aibo-preview'&&result.root===root;}
 async function waitReady(check,child,name){
  const until=Date.now()+90000;
  while(Date.now()<until){if(child.launchError)throw child.launchError;if(child.exitCode!==null||child.signalCode!==null)throw new Error(`${name}启动失败，请查看上方日志。端口可能被其他程序占用。`);if(await check())return;await new Promise(resolve=>setTimeout(resolve,300));}
@@ -39,22 +39,22 @@ try{
  if(mode==='choose'){
   if(!process.stdin.isTTY)throw new Error('请选择模式：npm run start:desktop 或 npm run start:web');
   const rl=createInterface({input:process.stdin,output:process.stdout});
-  try{const answer=(await rl.question('\n启动 dsh-gal\n  1. 客户端（独立窗口）\n  2. 网页端（默认浏览器）\n请选择 [1/2，回车为客户端]：')).trim();if(!['','1','2'].includes(answer))throw new Error('请输入 1 或 2。');mode=answer==='2'?'web':'desktop';}finally{rl.close();}
+  try{const answer=(await rl.question('\n启动 Aibo\n  1. 客户端（独立窗口）\n  2. 网页端（默认浏览器）\n请选择 [1/2，回车为客户端]：')).trim();if(!['','1','2'].includes(answer))throw new Error('请输入 1 或 2。');mode=answer==='2'?'web':'desktop';}finally{rl.close();}
  }
  if(!['web','desktop'].includes(mode))throw new Error('模式应为 desktop、web 或 choose。');
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('请安装 Node.js 22 或更新版本。');
- const binary=join(root,'app/src-tauri/target/release/dsh-gal-app');
+ const binary=join(root,'app/src-tauri/target/release/aibo-app');
  if(mode==='desktop'&&!existsSync(binary))throw new Error('客户端尚未构建：请先运行 cd app && npm run build。网页端可直接使用。');
  if(!existsSync(join(root,'lib/speech.js')))throw new Error('请先编译插件：npm run build');
  if(!await backendReady()){
-  temporary=await mkdtemp(join(tmpdir(),'dsh-gal-launch-'));
-  const patch=join(temporary,'gal.patch.yml');
-  // Computer Use ships with dsh-gal (plugins/computer-use) and is mounted next to
+  temporary=await mkdtemp(join(tmpdir(),'aibo-launch-'));
+  const patch=join(temporary,'aibo.patch.yml');
+  // Computer Use ships with Aibo (plugins/computer-use) and is mounted next to
   // it so the character can operate apps; the switch in Settings turns it off.
   const computerUse=join(root,'plugins/computer-use/lib/index.js');
   const computerUseRow=existsSync(computerUse)?`    - id: dsh-computer-use\n      name: ${JSON.stringify(computerUse)}\n`:'';
-  await writeFile(patch,`- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.DSH_GAL_CHARACTER||'xiaoheiyu')}\n${computerUseRow}`,{mode:0o600});
-  const privateDsh=join(homedir(),'Library/Application Support/dsh-gal/runtime/node_modules/.bin/dsh');
+  await writeFile(patch,`- insert:\n    - id: aibo\n      name: ${JSON.stringify(join(root,'lib/index.js'))}\n      config:\n        port: 4877\n        character: ${JSON.stringify(process.env.AIBO_CHARACTER||'xiaoheiyu')}\n${computerUseRow}`,{mode:0o600});
+  const privateDsh=join(homedir(),'Library/Application Support/aibo/runtime/node_modules/.bin/dsh');
   console.log('正在启动对话服务…');
   const child=existsSync(privateDsh)?start(process.execPath,[privateDsh,'--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()}):start('dsh',['--profile','web','--patch',patch,'--no-open','--port','0'],{cwd:homedir()});
   await waitReady(backendReady,child,'对话服务');
@@ -65,7 +65,7 @@ try{
  console.log(`已就绪：${url}`);
  if(args.includes('--smoke')){await cleanup();}
  else if(mode==='desktop'&&!args.includes('--no-open')){
-  console.log('正在打开客户端…');const child=start(binary,[],{env:{...process.env,DSH_GAL_USE_PREVIEW:'1'}});
+  console.log('正在打开客户端…');const child=start(binary,[],{env:{...process.env,AIBO_USE_PREVIEW:'1'}});
   const [code]=await once(child,'exit');if(code)throw new Error(`客户端退出，状态码 ${code}`);await cleanup();
  }else{
   if(!args.includes('--no-open')){
@@ -77,4 +77,4 @@ try{
    await Promise.race([...children].map(child=>once(child,'exit')));throw new Error('一个服务已退出。');
   }
  }
-}catch(error){console.error(`\ndsh-gal：${error.message}`);await cleanup();process.exitCode=1;}
+}catch(error){console.error(`\nAibo：${error.message}`);await cleanup();process.exitCode=1;}

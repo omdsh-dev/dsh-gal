@@ -1,8 +1,8 @@
 # dsh-health
 
-Apple Health for the DeepSeek Harness. The user's daily sleep, activity, heart and weight numbers become a short prompt section (this week against last) and a `health_lookup` tool, in any dsh session. When [dsh-gal](../../README.md) is loaded too, the plugin shows up in its Data panel.
+Apple Health for the DeepSeek Harness. The user's daily sleep, activity, heart and weight numbers become a short prompt section (this week against last) and a `health_lookup` tool, in any dsh session. When [Aibo](../../README.md) is loaded too, the plugin shows up in its Data panel.
 
-HealthKit has no cloud API, so the data only leaves the phone when the user sends it. Three doors, one store (the shared dsh-gal store at `~/.dsh/gal/store.sqlite`, documents `health/settings` and `health/data`, one row per day; an older `~/.dsh/health/health.json` is imported once on first run):
+HealthKit has no cloud API, so the data only leaves the phone when the user sends it. Three doors, one store (the shared aibo store at `~/.dsh/aibo/store.sqlite`, documents `health/settings` and `health/data`, one row per day; an older `~/.dsh/health/health.json` is imported once on first run):
 
 1. **Health Auto Export** (App Store): a REST API automation that POSTs JSON to this plugin's ingest endpoint on a schedule.
 2. **A Shortcut**, no app needed. For each metric: *Find Health Samples* (Steps, today) → *Calculate Statistics* (Sum; Average for heart rate) → then one *Get Contents of URL*: POST, Request Body **Form**, one field per metric. Run it from a Personal Automation (Time of Day). The endpoint also takes JSON (`{"samples":[{"type":"HKQuantityTypeIdentifierStepCount","start":"…","end":"…","value":412,"unit":"count"}]}`) and CSV lines (`steps,8123`).
@@ -13,7 +13,7 @@ HealthKit has no cloud API, so the data only leaves the phone when the user send
 ```yaml
 - insert:
     - id: dsh-health
-      name: /path/to/dsh-gal/plugins/health/lib/index.js
+      name: /path/to/aibo/plugins/health/lib/index.js
       config:
         ingestPort: 4890   # LAN listener for the phone; 0 disables it
 ```
@@ -29,7 +29,7 @@ curl -X POST "http://<mac>:4890/ingest?key=<key>" -d "steps=8123&sleepHours=7.2&
 ## Build
 
 ```bash
-DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds dsh-gal and every plugin
+DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds Aibo and every plugin
 ```
 
 ## What the agent sees

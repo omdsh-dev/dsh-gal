@@ -1,5 +1,5 @@
 {
-  "name": "@dsh-external/dsh-gal",
+  "name": "@dsh-external/aibo",
   "version": "0.1.0",
   "description": "Galgame / visual-novel UI for the DeepSeek Harness: a whale-girl companion who is shown doing what the agent does and speaks its replies one scene at a time",
   "private": true,

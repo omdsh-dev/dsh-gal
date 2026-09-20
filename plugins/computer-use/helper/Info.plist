@@ -11,6 +11,6 @@
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>dsh-gal operates apps on your behalf when you ask the character to use your computer.</string>
+  <string>Aibo operates apps on your behalf when you ask the character to use your computer.</string>
 </dict>
 </plist>

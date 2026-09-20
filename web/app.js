@@ -1,4 +1,4 @@
-/* dsh-gal frontend: visual-novel presentation of a dsh session.
+/* Aibo frontend: visual-novel presentation of a dsh session.
  * Talks to the plugin server: GET /manifest.json, GET /events (SSE), POST /send.
  */
 (() => {
@@ -18,10 +18,10 @@
 
   // ---------- character manifest / theme ----------
   function applyManifest(m) {
-    if(manifest.characterId && manifest.characterId!==m.characterId)window.dispatchEvent(new Event('gal-character-changed'));
+    if(manifest.characterId && manifest.characterId!==m.characterId)window.dispatchEvent(new Event('aibo-character-changed'));
     manifest = m;
     $('char-name').textContent = m.characterName;
-    document.title = `${m.characterName} · dsh-gal`;
+    document.title = `${m.characterName} · Aibo`;
     const theme = m.theme || {};
     const root = document.documentElement.style;
     theme.accent ? root.setProperty('--accent', theme.accent) : root.removeProperty('--accent');
@@ -36,14 +36,14 @@
       layerImg.classList.remove('visible');
       activeLayer = null;
     }
-    renderSprite(window.galCharacter.state.activity);
+    renderSprite(window.aiboCharacter.state.activity);
   }
 
-  window.addEventListener('gal-character-state',event=>{
+  window.addEventListener('aibo-character-state',event=>{
     const state=event.detail;
     const name=manifest.characterName;
-    $('char-name').textContent=name;document.title=`${name} · dsh-gal`;
-    activityTag.textContent=window.galCharacter.text(state.activity==='idle'&&state.speaking?'speaking':state.activity);
+    $('char-name').textContent=name;document.title=`${name} · Aibo`;
+    activityTag.textContent=window.aiboCharacter.text(state.activity==='idle'&&state.speaking?'speaking':state.activity);
     renderSprite(state.activity);
   });
 
@@ -51,7 +51,7 @@
     const list = $('char-list');
     list.textContent = '';
     for (const entry of manifest.characters || []) {
-      const btn = window.galUi.button();
+      const btn = window.aiboUi.button();
       btn.type = 'button';
       const current = entry.id === manifest.characterId;
       btn.className += ' char-option' + (current ? ' active' : '');
@@ -94,10 +94,10 @@
   function closeOverlays(){
     overlayRequest++;
     const open=activeOverlay();
-    if(open)window.dispatchEvent(new Event('gal-overlay-closed'));
+    if(open)window.dispatchEvent(new Event('aibo-overlay-closed'));
     [...overlayIds,'editor','gallery','char-picker'].forEach(id=>$(id).classList.add('hidden'));
     document.querySelectorAll('#gallery video').forEach(v=>v.pause());
-    window.galUi.close();
+    window.aiboUi.close();
     if(open){(returnFocus?.isConnected?returnFocus:input).focus();returnFocus=null;}
   }
   function showOverlay(id,value){
@@ -110,7 +110,7 @@
       id='character-hub';
     }
     $(id).classList.remove('hidden');
-    window.galUi.open(id);
+    window.aiboUi.open(id);
     // The list can be longer than the panel: open it on whoever is on stage.
     $('char-list').querySelector('[data-current]')?.scrollIntoView({block:'nearest'});
     // Focus lands on the dialog itself, not on its first control: opening a
@@ -118,10 +118,10 @@
     // tab or row reads as if something were selected. Tab moves in from here.
     ($(id).closest('[role=dialog]')||$(id)).focus({preventScroll:true});
   }
-  window.addEventListener('gal-request-close',closeOverlays);
+  window.addEventListener('aibo-request-close',closeOverlays);
   $('btn-help').onclick=()=>showHelp();
   $('btn-restore').onclick=()=>setUiHidden(false);
-  function openSpeechSettings(){window.galVoice.stop();showOverlay('speech-panel',true);void window.galSpeechSettings.load();}
+  function openSpeechSettings(){window.aiboVoice.stop();showOverlay('speech-panel',true);void window.aiboSpeechSettings.load();}
   $('btn-speech-settings').onclick=openSpeechSettings;
   document.querySelectorAll('.overlay-close').forEach(btn=>btn.addEventListener('click',closeOverlays));
   document.addEventListener('keydown',ev=>{
@@ -151,7 +151,7 @@
       if(ticket!==overlayRequest)return;
       $('editor-title').textContent = `${c.name} · persona`;
       $('ed-name').value = c.name;
-      $('ed-greeting').value = window.galVoice.greeting(c.greeting);
+      $('ed-greeting').value = window.aiboVoice.greeting(c.greeting);
       $('ed-persona').value = c.persona;
       $('ed-rate').value = c.playbackRate || 1;
       fillVoiceSelect(c.voiceSpeaker);
@@ -163,7 +163,7 @@
         $('ed-art-expr').value = Object.entries(art.expressions || {}).map(([k, v]) => `${k}: ${v}`).join('\n');
         $('ed-art-motion').value = art.motion || '';
       }
-      $('ed-path').textContent = c.bundled ? `${c.dir} (bundled — saving copies it to ~/.dsh/gal/characters/${c.id})` : c.dir;
+      $('ed-path').textContent = c.bundled ? `${c.dir} (bundled — saving copies it to ~/.dsh/aibo/characters/${c.id})` : c.dir;
       showOverlay('editor', true);
     } catch (err) { say(`(failed to load character config: ${err.message})`, 'sad'); }
   }
@@ -174,7 +174,7 @@
   let memoryEntries = [];
 
   function renderMemory() {
-    const list = $('mem-list'), label = window.galLabels || {};
+    const list = $('mem-list'), label = window.aiboLabels || {};
     list.replaceChildren();
     memoryEntries.forEach((entry, index) => {
       const row = document.createElement('div');
@@ -250,7 +250,7 @@
   // put it; only the pointer is kept, so the list survives a restart.
   let artifacts = [];
   let viewing = null;
-  const label = key => (window.galLabels || {})[key] || key;
+  const label = key => (window.aiboLabels || {})[key] || key;
   const artifactIndex = () => { const map = new Map(); for (const item of artifacts) { map.set(item.name, item); map.set(item.path, item); } return map; };
   function setArtifacts(list) {
     artifacts = Array.isArray(list) ? list : [];
@@ -277,7 +277,7 @@
   function whenLabel(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return '';
-    const lang = window.galVoice.language;
+    const lang = window.aiboVoice.language;
     return date.toLocaleString(lang === 'zh' ? 'zh-CN' : lang === 'ja' ? 'ja-JP' : 'en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
   function sizeLabel(bytes) {
@@ -315,7 +315,7 @@
         const text = await res.text();
         if (!card.isConnected) return;
         const page = document.createElement('div'); page.className = 'art-thumb-page';
-        if (item.kind === 'markdown') page.innerHTML = window.galMarkdown.render(text); else { const pre = document.createElement('pre'); pre.textContent = text; page.append(pre); }
+        if (item.kind === 'markdown') page.innerHTML = window.aiboMarkdown.render(text); else { const pre = document.createElement('pre'); pre.textContent = text; page.append(pre); }
         for (const el of page.querySelectorAll('a,button,input,[tabindex]')) el.removeAttribute('href'), el.removeAttribute('tabindex');
         thumb.replaceChildren(page);
       }).catch(() => {});
@@ -391,7 +391,7 @@
         if (!res.ok) throw new Error(await res.text());
         const text = await res.text();
         if (ticket !== overlayRequest) return;
-        if (item.kind === 'markdown') { const page = document.createElement('div'); page.className = 'art-page'; page.innerHTML = window.galMarkdown.render(text); body.append(page); }
+        if (item.kind === 'markdown') { const page = document.createElement('div'); page.className = 'art-page'; page.innerHTML = window.aiboMarkdown.render(text); body.append(page); }
         else { const pre = document.createElement('pre'); pre.className = 'art-pre'; pre.textContent = text; body.append(pre); }
       }
     } catch (err) { const p = document.createElement('p'); p.className = 'dim'; p.textContent = `(${err.message})`; body.append(p); }
@@ -426,7 +426,7 @@
     ja: { reading: '読んでる…', writing: '書いてる…', searching: '調べてる…', running: 'コマンド実行中…', waiting: '待ってる…' },
   };
   function doing(activity) {
-    const words = DOING[window.galVoice.language] || DOING.en;
+    const words = DOING[window.aiboVoice.language] || DOING.en;
     return words[activity] || `${activity}…`;
   }
 
@@ -493,14 +493,14 @@
         else if (shown.image) media.src = shown.image;
         const cap = document.createElement('div');
         cap.className = 'g-cap';
-        const label = window.galCharacter.text(asset.state);
+        const label = window.aiboCharacter.text(asset.state);
         cap.textContent = own ? `${label}${asset.video ? ' · ' + asset.video : ''}${asset.image ? ' · ' + asset.image : ''}`
           : asset.fallback ? `${label} · ← ${asset.fallback}` : `${label} · missing`;
-        const up = window.galUi.button();
+        const up = window.aiboUi.button();
         up.type = 'button'; up.className += ' g-up'; up.textContent = '↑'; up.title = `Upload a .png or .mp4 for ${asset.state}`;
         up.addEventListener('click', (ev) => { ev.stopPropagation(); pickAsset(asset.state); });
         tile.append(media, cap, up);
-        tile.addEventListener('click', () => { if (manifest.states[asset.state]) window.dispatchEvent(new CustomEvent('gal-preview', { detail: { activity: asset.state } })); });
+        tile.addEventListener('click', () => { if (manifest.states[asset.state]) window.dispatchEvent(new CustomEvent('aibo-preview', { detail: { activity: asset.state } })); });
         tile.addEventListener('dragover', (ev) => { ev.preventDefault(); tile.classList.add('drop'); });
         tile.addEventListener('dragleave', () => tile.classList.remove('drop'));
         tile.addEventListener('drop', (ev) => {
@@ -569,8 +569,8 @@
   let noticeTimer;
   function say(text){$('ui-notice').textContent=text;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('ui-notice').textContent='',6500);}
   function showHelp(){
-    window.galVoice.stop();
-    const language=window.galVoice.language;
+    window.aiboVoice.stop();
+    const language=window.aiboVoice.language;
     const descriptions={zh:['开始新会话，旧记录仍保留','选择角色，或按 ID 切换','编辑角色设定与开场白','查看关于你的记忆（所有角色共用）','她写给你的文件','查看立绘与动画资源','查看对话记录','开关自动朗读','打开此帮助'],ja:['新しい会話を開始','キャラクターを選択','人格とあいさつを編集','あなたについての記憶（全キャラ共通）','書いてくれたファイル','画像と動画を表示','会話履歴を表示','自動音声を切り替え','このヘルプを表示'],en:Object.values(COMMANDS)};
     $('help-title').textContent={zh:'命令与快捷键',ja:'コマンドとショートカット',en:'Commands and shortcuts'}[language];
     $('help-list').replaceChildren();Object.keys(COMMANDS).forEach((command,i)=>{const row=document.createElement('div'),code=document.createElement('code'),label=document.createElement('span');code.textContent=command;label.textContent=descriptions[language][i];row.append(code,label);$('help-list').append(row);});
@@ -671,7 +671,7 @@
   function atBottom() { return textWindow.scrollHeight - textWindow.scrollTop - textWindow.clientHeight < 24; }
 
   function updateAdvanceButton() {
-    const button = $('btn-skip'), lang = window.galVoice.language;
+    const button = $('btn-skip'), lang = window.aiboVoice.language;
     const waiting = queue.length > 0;
     button.hidden = !waiting && (following || atBottom());
     button.textContent = waiting
@@ -679,12 +679,12 @@
       : ({ zh: '回到最新', en: 'Jump to latest', ja: '最新へ' }[lang] || 'Jump to latest');
     button.title = button.textContent;
   }
-  window.addEventListener('gal-language', updateAdvanceButton);
+  window.addEventListener('aibo-language', updateAdvanceButton);
 
   textWindow.addEventListener('scroll', () => { following = atBottom(); updateAdvanceButton(); });
 
   function paint(text) {
-    dialogueText.innerHTML = window.galMarkdown.render(text);
+    dialogueText.innerHTML = window.aiboMarkdown.render(text);
     linkArtifacts(dialogueText);
     if (following) textWindow.scrollTop = textWindow.scrollHeight;
     updateAdvanceButton();
@@ -715,7 +715,7 @@
     if (current === null || current.voiceRequested) return;
     current.voiceRequested = true;
     currentMessageId = current.id || null;
-    window.galVoice.setMessage(currentMessageId, current.text);
+    window.aiboVoice.setMessage(currentMessageId, current.text);
   }
 
   function enqueue(item) {
@@ -751,7 +751,7 @@
     }
     if (voiceActive) return;                       // being spoken right now
     const awaitingVoice = current.voiceRequested && !current.voicePlayed
-      && window.galVoice.enabled && current.voiceWait < VOICE_WAIT_LIMIT;
+      && window.aiboVoice.enabled && current.voiceWait < VOICE_WAIT_LIMIT;
     const delay = awaitingVoice ? 500 : current.voicePlayed ? 700 : READING_MS(current.text);
     finishTimer = setTimeout(() => {
       finishTimer = null;
@@ -760,7 +760,7 @@
     }, delay);
   }
 
-  window.addEventListener('gal-speaking', event => {
+  window.addEventListener('aibo-speaking', event => {
     voiceActive = Boolean(event.detail.speaking);
     if (voiceActive && current !== null) current.voicePlayed = true;
     scheduleFinish();
@@ -824,7 +824,7 @@
   }
 
   // ---------- voice ----------
-  function toggleVoice() { return window.galVoice.toggle(); }
+  function toggleVoice() { return window.aiboVoice.toggle(); }
   $('btn-voice').addEventListener('click', toggleVoice);
 
 
@@ -852,7 +852,7 @@
   const SHORTCUTS = {
     l: toggleHistory, v: toggleVoice, h: () => setUiHidden(true), c: toggleCharPicker,
     e: openEditor, g: openGallery, m: openMemory, f: openArtifacts, s: openSpeechSettings,
-    r: () => window.galVoice.replay(), n: () => runCommand('/new'), '?': showHelp,
+    r: () => window.aiboVoice.replay(), n: () => runCommand('/new'), '?': showHelp,
   };
   const typing = target => Boolean(target?.closest?.('input,textarea,select,button,[contenteditable=true]'));
 
@@ -863,7 +863,7 @@
   const ALT_SHORTCUTS = {
     KeyL: toggleHistory, KeyM: openMemory, KeyF: openArtifacts, KeyC: toggleCharPicker, KeyG: openGallery,
     KeyE: openEditor, KeyS: openSpeechSettings, KeyV: toggleVoice,
-    KeyR: () => window.galVoice.replay(), KeyN: () => runCommand('/new'),
+    KeyR: () => window.aiboVoice.replay(), KeyN: () => runCommand('/new'),
     KeyH: () => setUiHidden(true), Slash: showHelp,
   };
   document.addEventListener('keydown', (ev) => {
@@ -904,7 +904,7 @@
     const textEl = document.createElement('div');
     textEl.className = 'h-text';
     // Her lines are markdown in the box; the backlog is the same lines.
-    if (role === 'assistant') { textEl.innerHTML = window.galMarkdown.render(text); linkArtifacts(textEl); }
+    if (role === 'assistant') { textEl.innerHTML = window.aiboMarkdown.render(text); linkArtifacts(textEl); }
     else textEl.textContent = text;
     entry.append(roleEl, textEl);
     historyList.appendChild(entry);
@@ -919,7 +919,7 @@
   // ---------- busy / ticker ----------
   function setBusy(value) {
     busy = value;
-    window.dispatchEvent(new CustomEvent('gal-busy',{detail:{busy:value}}));
+    window.dispatchEvent(new CustomEvent('aibo-busy',{detail:{busy:value}}));
     btnSend.disabled = sending;
     if (value) {
       ticker.classList.remove('hidden');
@@ -956,8 +956,8 @@
   });
 
   function interruptPresentation(){
-    window.dispatchEvent(new Event('gal-dialogue-interrupt'));
-    window.galVoice.stop();
+    window.dispatchEvent(new Event('aibo-dialogue-interrupt'));
+    window.aiboVoice.stop();
     clearPresentation();
   }
   // ---------- event stream ----------
@@ -971,7 +971,7 @@
         setBusy(true);
         break;
       case 'status':
-        if (ev.activity) window.dispatchEvent(new CustomEvent('gal-activity', { detail: { activity: ev.activity } }));
+        if (ev.activity) window.dispatchEvent(new CustomEvent('aibo-activity', { detail: { activity: ev.activity } }));
         tickerText.textContent = ev.activity ? doing(ev.activity) : ev.text;
         ticker.classList.remove('hidden');
         break;
@@ -991,21 +991,21 @@
         setBusy(ev.value);
         break;
       case 'activity':
-        window.dispatchEvent(new CustomEvent(ev.beat ? 'gal-beat' : 'gal-activity', { detail: { activity: ev.activity } }));
+        window.dispatchEvent(new CustomEvent(ev.beat ? 'aibo-beat' : 'aibo-activity', { detail: { activity: ev.activity } }));
         // The ticker follows the steady activity too, so "在写…" does not
         // outlive the write it announced.
         if (!ev.beat && busy && ev.activity !== 'done') tickerText.textContent = doing(ev.activity);
         break;
       case 'voice':
         if (ev.line && ev.line !== '') pushHistory('voice', ev.line);
-        window.galVoice.receive(ev.id, withToken(ev.url));
+        window.aiboVoice.receive(ev.id, withToken(ev.url));
         break;
       case 'session': {
         history.length = 0;
         historyList.textContent = '';
         $('last-user').classList.add('hidden');
         setBusy(false);
-        interruptPresentation();enqueue({text:window.galVoice.greeting(manifest.greeting)});
+        interruptPresentation();enqueue({text:window.aiboVoice.greeting(manifest.greeting)});
         pushHistory('status', `— new session ${ev.id} —`);
         break;
       }
@@ -1025,7 +1025,7 @@
         applyManifest(ev.manifest);
         if (ev.silent) break;
         clearPresentation();
-        enqueue({ text: window.galVoice.greeting(ev.manifest.greeting) });
+        enqueue({ text: window.aiboVoice.greeting(ev.manifest.greeting) });
         break;
       }
       case 'snapshot':
@@ -1056,13 +1056,13 @@
     .then((m) => {
       applyManifest(m);
       connect();
-      const greeting = window.galVoice.greeting(m.greeting);
+      const greeting = window.aiboVoice.greeting(m.greeting);
       // The greeting is spoken once per tab; a refresh shows it silently.
-      const greeted = sessionStorage.getItem('gal-greeted') === '1';
-      sessionStorage.setItem('gal-greeted', '1');
+      const greeted = sessionStorage.getItem('aibo-greeted') === '1';
+      sessionStorage.setItem('aibo-greeted', '1');
       enqueue(greeted ? { text: greeting, voiceRequested: true, voicePlayed: true } : { text: greeting });
     })
     .catch(() => {
-      dialogueText.textContent = 'Failed to load manifest — is the dsh-gal plugin running?';
+      dialogueText.textContent = 'Failed to load manifest — is the Aibo plugin running?';
     });
 })();

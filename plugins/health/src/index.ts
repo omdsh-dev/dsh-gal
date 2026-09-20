@@ -3,7 +3,7 @@
  *
  * Standalone it gives the agent a prompt section (this week against last)
  * and a `health_lookup` tool, and listens on the LAN for what the phone
- * pushes. With dsh-gal loaded it also registers itself as a data source, so
+ * pushes. With Aibo loaded it also registers itself as a data source, so
  * the Data panel can show the numbers, take an export.zip, and print the
  * setup the phone needs.
  */
@@ -14,8 +14,8 @@ import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { METRICS, clearHealth, fmt, healthNotable, healthOverview, healthSection, healthTable, importHealthExport, ingestHealth, ingestKey, parseSimple, setHealthShared, type Metric } from './health.js'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
-// (Kept local on purpose: dsh-health must not depend on dsh-gal.)
+// ---- the slice of Aibo's contract this plugin uses ----------------------
+// (Kept local on purpose: dsh-health must not depend on aibo.)
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean
   /** True when stats and series are a preview of what will appear, not data. */
@@ -26,7 +26,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger'; accept?: string; value?: boolean; confirm?: string; hint?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown; raw?: Buffer; file?: string; contentType: string; query: URLSearchParams }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -128,9 +128,9 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
 
-  // ---- what dsh-gal shows, when it is there ---------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ---------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const o = healthOverview()
       const stat = (metric: Metric, label = METRICS[metric].label): SourceView['stats'] extends (infer T)[] | undefined ? T | undefined : never => {
@@ -199,7 +199,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'ingest') { const result = ingestHealth(input.json, 'panel'); changed(); return { ok: true, ...result } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: SOURCE_ID, label: 'Apple Health', category: 'health', describe, act })
       const notify = (): void => registry.changed(SOURCE_ID)
       listeners.add(notify)

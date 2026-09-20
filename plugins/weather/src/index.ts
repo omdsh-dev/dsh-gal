@@ -3,7 +3,7 @@
  * any dsh session.
  *
  * Open-Meteo, no key. The location is a city name (config, or set from the
- * dsh-gal Data panel), geocoded once; the default is guessed from the
+ * Aibo Data panel), geocoded once; the default is guessed from the
  * system time zone. A short prompt section carries now, today and tomorrow;
  * `weather_lookup` answers about any place or day. Refreshed every half hour.
  *
@@ -18,9 +18,9 @@ import { join } from 'node:path'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -30,7 +30,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -67,7 +67,7 @@ interface State { place?: Place; forecast?: Forecast; at?: string; shared: boole
 export interface Trip { id: string; query: string; place: Place; from?: string; to?: string; forecast?: Forecast; at?: string; error?: string }
 
 /*
- * Everything lives in the shared dsh-gal store: `weather/settings` holds the
+ * Everything lives in the shared Aibo store: `weather/settings` holds the
  * user's choice (`shared`), `weather/state` the geocoded place and the last
  * forecast, `weather/trips` the destinations. The in-memory shape stays one
  * `State`; only where it is read from and written to changed.
@@ -375,9 +375,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-weather.tool.trip')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const tripsData = () => readTrips().filter(t => !tripOver(t)).map(t => {
       const f = t.forecast, todayStr = f?.current.time.slice(0, 10) ?? todayIso()
       const opens = tripOpensIn(t)
@@ -444,7 +444,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'shared') { const s = readState(); s.shared = Boolean(value); writeState(s); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'weather', label: 'Weather', category: 'location', describe, act })
       const notify = (): void => registry.changed('weather')
       listeners.add(notify)

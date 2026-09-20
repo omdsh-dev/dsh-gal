@@ -8,7 +8,7 @@
  * departure, rarely far from it — and drops it two days after it flew. The
  * prompt carries the flights of the next few days; `flight_status` checks
  * any flight, `flight_track` keeps one here. Only the key is a secret
- * (`~/.dsh/flights/key.json`); the rest is in dsh-gal's shared store.
+ * (`~/.dsh/flights/key.json`); the rest is in Aibo's shared store.
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -16,9 +16,9 @@ import { join } from 'node:path'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { openStore } from '@dsh-external/dsh-gal/store'
+import { openStore } from '@dsh-external/aibo/store'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -27,7 +27,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -259,9 +259,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-flights.tool.track')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const hasKey = key() !== ''
       const flights = upcoming()
@@ -320,7 +320,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'shared') { writeShared(Boolean(value)); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'flights', label: 'Flights', category: 'travel', describe, act })
       const notify = (): void => registry.changed('flights')
       listeners.add(notify)

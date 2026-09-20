@@ -11,9 +11,9 @@ import { dirname, join } from 'node:path'
 import { userCharactersDir } from './characters.js'
 import { migrateFile, openStore } from './store.js'
 
-/** `~/.dsh/gal/memory.md`, the pre-store file (imported once, then renamed). */
+/** `~/.dsh/aibo/memory.md`, the pre-store file (imported once, then renamed). */
 export function memoryPath(): string {
-  return process.env['DSH_GAL_MEMORY'] ?? join(dirname(userCharactersDir()), 'memory.md')
+  return process.env['AIBO_MEMORY'] ?? join(dirname(userCharactersDir()), 'memory.md')
 }
 
 /**
@@ -103,7 +103,7 @@ export function memorySection(): string {
     memory === '' ? 'Nothing yet.' : 'Notes kept across sessions and across characters. Use them naturally; do not recite them unprompted.',
     '',
     ...memory === '' ? [] : [memory, ''],
-    'When the user states something about themselves that will still be true next week — a preference, a constraint, what they are working on, how they like things done — call `gal_remember` in that same turn. A stated dislike ("I cannot eat spicy food") is exactly this. Keep it to one short sentence, and do not announce that you are writing it down; a brief acknowledgement in your reply is enough.',
+    'When the user states something about themselves that will still be true next week — a preference, a constraint, what they are working on, how they like things done — call `aibo_remember` in that same turn. A stated dislike ("I cannot eat spicy food") is exactly this. Keep it to one short sentence, and do not announce that you are writing it down; a brief acknowledgement in your reply is enough.',
     'Do not record one-off details of the current task, anything you inferred rather than were told, or anything the user has since corrected.',
   ].join('\n')
 }

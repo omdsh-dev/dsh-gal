@@ -26,7 +26,7 @@ export async function localSpeech(text: string, voice: string, signal: AbortSign
   if (process.platform !== 'darwin') throw new Error('local_unavailable')
   const key = JSON.stringify([voice, text])
   if (cache.has(key)) return cache.get(key)!
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-gal-speech-'))
+  const dir = await mkdtemp(join(tmpdir(), 'aibo-speech-'))
   try {
     const aiff = join(dir, 'voice.aiff'), wav = join(dir, 'voice.wav')
     await run('/usr/bin/say', ['-v', voice, '-o', aiff], text, signal)

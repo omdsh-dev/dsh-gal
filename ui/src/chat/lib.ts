@@ -95,8 +95,8 @@ export function whenLabel(iso: string): string {
 
 // ---- composer draft: survives a reload ---------------------------------------
 // Text goes to localStorage; files are Blobs, which IndexedDB stores as-is.
-const DRAFT_TEXT = 'gal-draft-text'
-const DRAFT_DB = 'gal-draft'
+const DRAFT_TEXT = 'aibo-draft-text'
+const DRAFT_DB = 'aibo-draft'
 export type DraftFile = { id: string; kind: 'image' | 'file'; name: string; type: string; blob: Blob }
 export const readDraftText = (): string => { try { return localStorage.getItem(DRAFT_TEXT) ?? '' } catch { return '' } }
 export const writeDraftText = (text: string): void => { try { if (text === '') localStorage.removeItem(DRAFT_TEXT); else localStorage.setItem(DRAFT_TEXT, text) } catch { /* private mode */ } }

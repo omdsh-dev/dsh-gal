@@ -1,13 +1,13 @@
 [package]
-name = "dsh-gal-app"
+name = "aibo-app"
 version = "0.1.0"
-description = "dsh-gal: a visual-novel desktop shell for the DeepSeek Harness"
+description = "Aibo: a visual-novel desktop shell for the DeepSeek Harness"
 authors = ["William Jin"]
 edition = "2021"
 license = "BSD-3-Clause"
 
 [lib]
-name = "dsh_gal_app_lib"
+name = "aibo_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

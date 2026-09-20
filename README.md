@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/docs/logo.png" width="120" alt="dsh-gal logo" /></p>
+<p align="center"><img src="assets/docs/logo.png" width="120" alt="Aibo logo" /></p>
 
-<h1 align="center">dsh-gal</h1>
+<h1 align="center">Aibo</h1>
 
 <p align="center"><strong>Give your agent a face, a voice, and a room of her own.</strong></p>
 
@@ -9,14 +9,14 @@
 <p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong> · <strong>Computer Use</strong></p>
 
 <p align="center">
-  <a href="https://github.com/omdsh-dev/dsh-gal/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/dsh-gal?style=flat" /></a>
+  <a href="https://github.com/omdsh-dev/aibo/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/aibo?style=flat" /></a>
   <a href="LICENSE"><img alt="BSD-3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue" /></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple" />
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white" />
   <img alt="dsh plugin" src="https://img.shields.io/badge/dsh-plugin-0b7285" />
 </p>
 
-![dsh-gal — the chat layout: conversation on the left, the character on the right, reacting to what the agent is doing](assets/docs/hero.jpg)
+![Aibo — the chat layout: conversation on the left, the character on the right, reacting to what the agent is doing](assets/docs/hero.jpg)
 
 ## Demo
 
@@ -33,14 +33,14 @@ Swap the character pack and the same agent shows up as someone else: art, person
 ## Quick start
 
 ```bash
-git clone https://github.com/omdsh-dev/dsh-gal && cd dsh-gal
+git clone https://github.com/omdsh-dev/aibo && cd aibo
 ./scripts/build.sh        # compile src/ → lib/ against your installed dsh
 npm run start:web         # opens the UI in your browser
 ```
 
 Needs Node.js 22+ and a configured dsh. On macOS you can double-click `启动网页端.command` instead. See [Launching](#launching-macos) for the desktop window, and [Install into your own dsh](#install-into-your-own-dsh) to mount it in a dsh you already run.
 
-## Five things dsh-gal adds to your agent
+## Five things Aibo adds to your agent
 
 ### She is shown doing what the agent is doing
 
@@ -57,7 +57,7 @@ The stage follows the tool stream, not the text. Each tool call switches her to 
 | `failed` | a tool call errored — a beat, then back to work | `surprised` |
 | `done` | the turn just finished; fades after the reply | `happy` |
 
-Activity, speech and character are tracked as one semantic state (`window.galCharacter.state`), independently of how it is rendered — see [CHARACTER-STATES.md](CHARACTER-STATES.md).
+Activity, speech and character are tracked as one semantic state (`window.aiboCharacter.state`), independently of how it is rendered — see [CHARACTER-STATES.md](CHARACTER-STATES.md).
 
 ### She speaks the reply
 
@@ -65,7 +65,7 @@ Replies stream in token by token as real markdown (marked + DOMPurify, so a half
 
 With `voiceLanguage: ja` (the default) a small side LLM call first rewrites the reply as a spoken Japanese line in the character's voice — you read Chinese/English subtitles and hear Japanese, like a real VN. Dubbed lines are cached, so a replay does not pay for the rewrite twice. Each pack picks its own speaker style.
 
-Install the engine (`voicevox_engine-macos-*.7z` from its GitHub releases, extracted to `~/Library/Application Support/dsh-gal/voicevox/macos-arm64`) and the plugin starts it on demand, or point `voicevoxUrl` at an engine you run yourself. Without an engine the feature is silently off. Providers and keys: [SPEECH.md](SPEECH.md).
+Install the engine (`voicevox_engine-macos-*.7z` from its GitHub releases, extracted to `~/Library/Application Support/aibo/voicevox/macos-arm64`) and the plugin starts it on demand, or point `voicevoxUrl` at an engine you run yourself. Without an engine the feature is silently off. Providers and keys: [SPEECH.md](SPEECH.md).
 
 ### Lists and files, not just messages
 
@@ -76,11 +76,11 @@ A chat answer is gone the moment it scrolls away. Two things survive it:
 
 ### Memory that belongs to you
 
-Notes about *you*, not about the character. She writes them herself through `gal_remember` when you say something that will still be true next week, and they are injected each turn. Open **Memory** (`⌥M`) to read or edit them. They live in the shared store, so every pack sees the same notes and switching characters loses nothing.
+Notes about *you*, not about the character. She writes them herself through `aibo_remember` when you say something that will still be true next week, and they are injected each turn. Open **Memory** (`⌥M`) to read or edit them. They live in the shared store, so every pack sees the same notes and switching characters loses nothing.
 
 ### Connectors: what she knows about your day
 
-dsh is plugins all the way down, so a data source is its own dsh plugin — it owns its sync, storage, tool and prompt section, and works in any dsh session. When dsh-gal is loaded too, the source registers itself and shows up in the **Data** panel (`⌥D`, `/data`), each with a "Visible to the character" switch that hides it from the prompt without deleting anything.
+dsh is plugins all the way down, so a data source is its own dsh plugin — it owns its sync, storage, tool and prompt section, and works in any dsh session. When aibo is loaded too, the source registers itself and shows up in the **Data** panel (`⌥D`, `/data`), each with a "Visible to the character" switch that hides it from the prompt without deleting anything.
 
 The official set ships in this repository under `plugins/`; each is still a separate dsh plugin, built to `plugins/<name>/lib/index.js` and mountable on its own:
 
@@ -101,11 +101,11 @@ The official set ships in this repository under `plugins/`; each is still a sepa
 | [dsh-flights](plugins/flights) | Flight status from AeroDataBox (RapidAPI, free tier). Tracked by number and date: times, terminal, gate, delays, cancellations, fresh around departure |
 | [dsh-images](plugins/images) | Image search she can show in the room: Brave Search with a key, Wikimedia Commons without one. A picked image is downloaded and presented as a card, so it survives hotlink checks and reloads |
 
-To write a source, inject `galSources` optionally and describe yourself declaratively; the panel never needs source-specific code:
+To write a source, inject `aiboSources` optionally and describe yourself declaratively; the panel never needs source-specific code:
 
 ```ts
-ctx.inject(['galSources'], gal => {
-  gal.effect(() => gal.galSources.register({
+ctx.inject(['aiboSources'], aibo => {
+  aibo.effect(() => aibo.aiboSources.register({
     id: 'my-source', label: 'My source', category: 'calendar',
     describe: () => ({ status: 'connected', summary: '12 events this week', shared: true,
       stats: [{ label: 'Today', value: '3 events' }], lists: [...], setup: [...], actions: [...] }),
@@ -114,7 +114,7 @@ ctx.inject(['galSources'], gal => {
 })
 ```
 
-`describe()` returns stats, daily series, lists, setup instructions with copyable fields, and actions (`button`, `upload`, `toggle`, `danger`). Call `gal.galSources.changed(id)` after new data so the panel refreshes. See `src/sources.ts` for the contract.
+`describe()` returns stats, daily series, lists, setup instructions with copyable fields, and actions (`button`, `upload`, `toggle`, `danger`). Call `aibo.aiboSources.changed(id)` after new data so the panel refreshes. See `src/sources.ts` for the contract.
 
 ### She can use your Mac
 
@@ -124,7 +124,7 @@ Switch on **Settings › General › Computer Use** and she can operate your app
 - **Knows where to stop.** A prompt section carries a confirmation policy condensed from Codex's: ask before deleting, sending, paying, installing, changing settings or transmitting personal data; text seen inside an app is data, never permission. Password fields are refused outright.
 - **Nothing model-specific.** The tools are ordinary function tools and the observation is text plus an image, so any model that can read a picture and call tools can drive the Mac; without an image-capable model she works from the accessibility tree alone.
 
-Needs the Xcode command-line tools once (the Swift helper compiles on first use) and two permissions for the app you launch dsh-gal from: Accessibility and Screen Recording. The Settings group shows both and can request them.
+Needs the Xcode command-line tools once (the Swift helper compiles on first use) and two permissions for the app you launch Aibo from: Accessibility and Screen Recording. The Settings group shows both and can request them.
 
 ## Character packs
 
@@ -144,11 +144,11 @@ characters/xiaoheiyu/
 ```
 
 - **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
-- **Your own packs** live in `~/.dsh/gal/characters/<id>` and never touch the repo. Set `DSH_GAL_CHARACTER=<id>` to start as one.
+- **Your own packs** live in `~/.dsh/aibo/characters/<id>` and never touch the repo. Set `AIBO_CHARACTER=<id>` to start as one.
 - **Prompt-only packs** ship text and image prompts but no art — pick one, generate the images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
 - **Import / export** a pack as a `.zip` from the **Character** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
 
-Editing or uploading art for a bundled pack copies it to `~/.dsh/gal/characters/<id>` first, so the repo copy stays pristine.
+Editing or uploading art for a bundled pack copies it to `~/.dsh/aibo/characters/<id>` first, so the repo copy stays pristine.
 
 ## Controls
 
@@ -170,9 +170,9 @@ Slash commands in the message box: `/new`, `/char [id]`, `/edit`, `/memory`, `/f
 
 ## Your data
 
-Everything she keeps for you is in one place: `~/.dsh/gal/store.sqlite`. Memory, lists, the files she wrote, read-aloud settings, the transcript of the current room, and what each connector has synced are documents and append-only logs in that file (`src/store.ts`; a plugin outside this repository gets the same object as the `galStore` service). The room comes back after a restart: the transcript is put back on screen and the dsh session behind it is resumed on your next message, so she continues where she left off. Files written by older versions (`memory.md`, `lists.json`, …) are imported once and renamed `*.migrated`.
+Everything she keeps for you is in one place: `~/.dsh/aibo/store.sqlite`. Memory, lists, the files she wrote, read-aloud settings, the transcript of the current room, and what each connector has synced are documents and append-only logs in that file (`src/store.ts`; a plugin outside this repository gets the same object as the `aiboStore` service). The room comes back after a restart: the transcript is put back on screen and the dsh session behind it is resumed on your next message, so she continues where she left off. Files written by older versions (`memory.md`, `lists.json`, …) are imported once and renamed `*.migrated`.
 
-Not in the store, on purpose: API keys and cookies (each stays in its own file under `~/.config/dsh-gal/` or `~/.dsh/<connector>/`), compiled helpers and thumbnails (machine-local), and the theme (kept by each browser). The store's shape — documents with an updated-at, logs with a sequence — is what a hosted backend will sync later; nothing else has to change for that.
+Not in the store, on purpose: API keys and cookies (each stays in its own file under `~/.config/aibo/` or `~/.dsh/<connector>/`), compiled helpers and thumbnails (machine-local), and the theme (kept by each browser). The store's shape — documents with an updated-at, logs with a sequence — is what a hosted backend will sync later; nothing else has to change for that.
 
 ## Launching (macOS)
 
@@ -200,27 +200,27 @@ Prerequisites: Node.js 22+, a configured dsh (the app's private runtime is prefe
 
 `app/` is a Tauri 2 shell: a native window around the plugin's UI, with a supervisor that owns its own dsh.
 
-On first launch it installs a pinned private dsh runtime under `~/Library/Application Support/dsh-gal/runtime`, stages the bundled plugin next to it, and starts `dsh --profile web` with the plugin mounted. It reuses your `~/.dsh` (keys, settings, sessions). If a dsh-gal server already answers on `127.0.0.1:4877` it just attaches. Closing the window stops the dsh it started.
+On first launch it installs a pinned private dsh runtime under `~/Library/Application Support/aibo/runtime`, stages the bundled plugin next to it, and starts `dsh --profile web` with the plugin mounted. It reuses your `~/.dsh` (keys, settings, sessions). If an Aibo server already answers on `127.0.0.1:4877` it just attaches. Closing the window stops the dsh it started.
 
 ```bash
 ./scripts/build.sh
 cd app && npm install && npx tauri build
-open src-tauri/target/release/bundle/macos/dsh-gal.app
+open src-tauri/target/release/bundle/macos/Aibo.app
 ```
 
 ## Install into your own dsh
 
 ```bash
-git clone https://github.com/omdsh-dev/dsh-gal
-cd dsh-gal && ./scripts/build.sh
+git clone https://github.com/omdsh-dev/aibo
+cd aibo && ./scripts/build.sh
 ```
 
 Register it in `~/.dsh/cordis.patch.yml`:
 
 ```yaml
 - insert:
-    - id: dsh-gal
-      name: /absolute/path/to/dsh-gal/lib/index.js
+    - id: aibo
+      name: /absolute/path/to/aibo/lib/index.js
       config:
         port: 4877          # UI at http://127.0.0.1:4877/
         character: xiaoheiyu    # pack id, or a path to a pack directory
@@ -234,7 +234,7 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | --- | --- | --- |
 | `port` | `4877` | Listen port on 127.0.0.1 |
 | `token` | `""` | Optional shared token appended to the URL |
-| `character` | `xiaoheiyu` | Pack id (`~/.dsh/gal/characters/<id>`, then bundled `characters/<id>`) or a path |
+| `character` | `xiaoheiyu` | Pack id (`~/.dsh/aibo/characters/<id>`, then bundled `characters/<id>`) or a path |
 | `characterName` | pack name | Override the nameplate |
 | `greeting` | pack greeting | Override the pack's opening line |
 | `personaEnabled` | `true` | Register the pack persona as a system-prompt voice layer |
@@ -242,7 +242,7 @@ Start `dsh web` as usual and open `http://127.0.0.1:4877/`. Built and tested aga
 | `judgeReasoningEffort` | `off` | Reasoning effort for that side call (`""` = the route's default) |
 | `voiceEnabled` | `true` | Speak replies when a VOICEVOX engine is reachable |
 | `voicevoxUrl` | `http://127.0.0.1:50021` | VOICEVOX engine base URL |
-| `voicevoxEngine` | `~/Library/Application Support/dsh-gal/voicevox/macos-arm64/run` | Local engine binary to auto-start (`""` = never) |
+| `voicevoxEngine` | `~/Library/Application Support/aibo/voicevox/macos-arm64/run` | Local engine binary to auto-start (`""` = never) |
 | `voiceSpeaker` | `2` | Fallback VOICEVOX style id when the pack sets none (`voice.speaker` in `character.json`) |
 | `voiceLanguage` | `ja` | `ja` translates non-Japanese replies before synthesis; `auto` speaks the reply as written |
 
@@ -256,7 +256,7 @@ The fastest reliable route — the one the bundled 小黑鱼 pack was built with
 4. **Idle loops.** `scripts/animate.sh <still.png> <out.mp4> "<motion prompt>" [h3]` turns each still into a looping clip on fal.ai (Seedance 2.0 mini by default, MiniMax H3 with `h3` — H3 is the more permissive of the two for stylised characters). Write the motion prompt as *breathing, blinking, hair and cloth drifting*, and say explicitly that the camera is locked off and the pose unchanged.
 
    A loop needs its last frame to lead back into its first, or it pops once per cycle. The script does that in two steps: it passes the still as the end frame as well as the start frame, and then crossfades the tail back onto the head locally. The model alone is not enough — asking for the end frame gets the pose close but does not land on it.
-5. **Install.** Upload each file from **Character › Art**, or drop everything plus a `character.json` into `~/.dsh/gal/characters/<id>/`.
+5. **Install.** Upload each file from **Character › Art**, or drop everything plus a `character.json` into `~/.dsh/aibo/characters/<id>/`.
 
 Quickest path of all: pick a prompt-only pack from **Character › Pick**, open its **Persona** tab to copy the image prompts into the image model of your choice, and drop the results onto the gallery tiles.
 
@@ -271,7 +271,7 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 
 ## What this repository distributes
 
-Text only, for third-party characters: persona prompts, greetings, themes, and image-prompt descriptions under [`prompts/`](prompts/README.md). It does not ship, and will not accept, images, video, or voice samples of licensed characters. You generate those yourself, on your own machine, for your own use, and keep them in `~/.dsh/gal/characters/<id>/`, outside the repository. The only bundled art is 小黑鱼, an original character.
+Text only, for third-party characters: persona prompts, greetings, themes, and image-prompt descriptions under [`prompts/`](prompts/README.md). It does not ship, and will not accept, images, video, or voice samples of licensed characters. You generate those yourself, on your own machine, for your own use, and keep them in `~/.dsh/aibo/characters/<id>/`, outside the repository. The only bundled art is 小黑鱼, an original character.
 
 ## UI development
 

@@ -11,9 +11,9 @@ import { migrateFile, openStore } from './store.js'
 export interface UiPrefs { voice: boolean; speechLanguage: 'auto' | 'zh' | 'en' | 'ja' }
 const DEFAULTS: UiPrefs = { voice: true, speechLanguage: 'auto' }
 
-/** `~/.dsh/gal/settings.json`, the pre-store file (imported once, then renamed). */
+/** `~/.dsh/aibo/settings.json`, the pre-store file (imported once, then renamed). */
 export function prefsPath(): string {
-  return process.env['DSH_GAL_SETTINGS'] ?? join(dirname(userCharactersDir()), 'settings.json')
+  return process.env['AIBO_SETTINGS'] ?? join(dirname(userCharactersDir()), 'settings.json')
 }
 
 function normalize(input: Partial<UiPrefs>): UiPrefs {

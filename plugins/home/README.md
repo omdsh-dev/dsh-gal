@@ -1,6 +1,6 @@
 # dsh-home
 
-Your smart home for the DeepSeek Harness. The current state of the home (as one line per reading) becomes a prompt section in any dsh session, `home_status` re-reads it, and `home_run` runs an action — a scene, lights off, whatever you have set up. When [dsh-gal](../../README.md) is loaded too, it shows up in its Data panel with reading cards and big action tiles.
+Your smart home for the DeepSeek Harness. The current state of the home (as one line per reading) becomes a prompt section in any dsh session, `home_status` re-reads it, and `home_run` runs an action — a scene, lights off, whatever you have set up. When [Aibo](../../README.md) is loaded too, it shows up in its Data panel with reading cards and big action tiles.
 
 ## How it reaches HomeKit
 
@@ -24,7 +24,7 @@ With `homeAssistant.url` and a long-lived access token (Profile → Security →
 ```yaml
 - insert:
     - id: dsh-home
-      name: /path/to/dsh-gal/plugins/home/lib/index.js
+      name: /path/to/aibo/plugins/home/lib/index.js
       config:
         folder: Home           # Shortcuts folder to expose
         refreshMinutes: 10     # how often readers are re-run
@@ -39,10 +39,10 @@ With `homeAssistant.url` and a long-lived access token (Profile → Security →
 - Section `dsh-home` (order 9575): one line per reading, Home Assistant devices and sensors, and the list of available actions, with a note that actions change the physical home and need confirmation unless clearly asked.
 - Tools: `home_status()` re-runs readers and returns everything; `home_run({name})` runs an action shortcut or a Home Assistant command.
 
-The "Visible to the character" switch lives in the Data panel and is stored in the shared dsh-gal store (`~/.dsh/gal/store.sqlite`, documents `home/settings` and `home/state` — the latter holds the readers' last outputs); an older `~/.dsh/home/settings.json` is imported once on first start. The Home Assistant token is read from the config only and never stored. Nothing runs on its own except the "Get …" readers.
+The "Visible to the character" switch lives in the Data panel and is stored in the shared aibo store (`~/.dsh/aibo/store.sqlite`, documents `home/settings` and `home/state` — the latter holds the readers' last outputs); an older `~/.dsh/home/settings.json` is imported once on first start. The Home Assistant token is read from the config only and never stored. Nothing runs on its own except the "Get …" readers.
 
 ## Build
 
 ```bash
-DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds dsh-gal and every plugin
+DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds Aibo and every plugin
 ```

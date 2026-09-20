@@ -6,18 +6,18 @@
  * the web endpoints with the cookie of a logged-in browser session, pasted once
  * in the Data panel (or set in the plugin config). The shelf is refreshed every
  * few hours; highlights are fetched per book on demand or by "Sync highlights",
- * and cached in dsh-gal's shared store (`~/.dsh/gal/store.sqlite`); only the
+ * and cached in Aibo's shared store (`~/.dsh/aibo/store.sqlite`); only the
  * cookie stays in `~/.dsh/weread/cookie.json`. Nothing is ever written to WeRead.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -26,7 +26,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -76,7 +76,7 @@ interface Shelf { books: Book[]; shelfAt?: string; error?: string; expired?: boo
 /*
  * Where things live: the cookie (a secret) in `~/.dsh/weread/cookie.json`
  * (`DSH_WEREAD_DIR` overrides the directory); the settings and the shelf as two
- * documents in dsh-gal's store; highlights as one document per book under
+ * documents in Aibo's store; highlights as one document per book under
  * `weread.highlights`. An older `state.json` holding all of it is imported once.
  */
 const dataDir = (): string => process.env['DSH_WEREAD_DIR'] ?? join(homedir(), '.dsh', 'weread')
@@ -449,9 +449,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-weread.tool.search')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const state = readState()
       const connected = cookieOf(state) !== ''
@@ -523,7 +523,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'weread', label: 'WeRead', category: 'media', describe, act })
       const notify = (): void => registry.changed('weread')
       listeners.add(notify)

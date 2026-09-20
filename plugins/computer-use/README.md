@@ -1,10 +1,10 @@
 # dsh-computer-use
 
-Computer Use for the DeepSeek Harness on macOS: the agent operates the user's apps the way Codex's Computer Use does. One app at a time, observed as a screenshot plus an indexed accessibility tree, acted on by element index or screenshot pixel, with the user asked once per app before anything is touched. When [dsh-gal](../../README.md) is loaded too, the switch is in **Settings › General** and the details (permissions, allowed apps, recent actions) under **Connectors › Computer Use**; the desktop app mounts it automatically.
+Computer Use for the DeepSeek Harness on macOS: the agent operates the user's apps the way Codex's Computer Use does. One app at a time, observed as a screenshot plus an indexed accessibility tree, acted on by element index or screenshot pixel, with the user asked once per app before anything is touched. When [Aibo](../../README.md) is loaded too, the switch is in **Settings › General** and the details (permissions, allowed apps, recent actions) under **Connectors › Computer Use**; the desktop app mounts it automatically.
 
 Everything that touches the screen is a small Swift helper (`helper/cua.swift`) compiled on first use into `~/.dsh/computer-use/bin/cua` and kept running for the lifetime of the plugin, spoken to over stdio as one JSON object per line. The plugin is policy and transport: approvals, screenshots into dsh attachments, the prompt section, the panel.
 
-Requires the Xcode command-line tools (`xcode-select --install`) for the one-time compile, and two permissions granted to the app dsh was launched from (the dsh-gal app, or your terminal): **Accessibility** (read the UI, synthesize input) and **Screen Recording** (screenshots; without it she works from the accessibility tree alone).
+Requires the Xcode command-line tools (`xcode-select --install`) for the one-time compile, and two permissions granted to the app dsh was launched from (the aibo app, or your terminal): **Accessibility** (read the UI, synthesize input) and **Screen Recording** (screenshots; without it she works from the accessibility tree alone).
 
 ## How it works
 
@@ -30,7 +30,7 @@ model ──computer_click {app, element_index}──▶ plugin ──{"method":
 ```yaml
 - insert:
     - id: dsh-computer-use
-      name: /path/to/dsh-gal/plugins/computer-use/lib/index.js
+      name: /path/to/aibo/plugins/computer-use/lib/index.js
       config:
         enabled: true        # initial state of the switch
         screenshots: true    # attach a screenshot to every observation

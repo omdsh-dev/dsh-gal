@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * dsh-gal overhead evaluation.
+ * Aibo overhead evaluation.
  *
  * Runs the same small tasks under two plugin configurations and compares
  * wall time and token usage:
  *   baseline — personaEnabled: false (plugin only mirrors)
- *   gal      — persona + memory sections on
+ *   Aibo      — persona + memory sections on
  *
  * Usage: node scripts/eval.mjs [--dsh <path-to-dsh-bin>] [--character haibara]
- *        [--reps 2] [--cwd /tmp/gal-eval] [--out eval-results.json]
+ *        [--reps 2] [--cwd /tmp/aibo-eval] [--out eval-results.json]
  * Requires: a dsh install with the plugin built (lib/), `zstd` on PATH.
  */
 
@@ -20,10 +20,10 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1] ?? ''] : []).filter(Boolean))
-const DSH = args.dsh ?? join(homedir(), 'Library/Application Support/dsh-gal/runtime/node_modules/.bin/dsh')
+const DSH = args.dsh ?? join(homedir(), 'Library/Application Support/aibo/runtime/node_modules/.bin/dsh')
 const CHARACTER = args.character ?? 'haibara'
 const REPS = Number(args.reps ?? 2)
-const CWD = args.cwd ?? '/tmp/gal-eval'
+const CWD = args.cwd ?? '/tmp/aibo-eval'
 const OUT = args.out ?? join(ROOT, 'eval-results.json')
 const PORT = 4877
 const BASE = `http://127.0.0.1:${PORT}`
@@ -36,7 +36,7 @@ const TASKS = [
 
 const CONFIGS = {
   baseline: { port: PORT, character: CHARACTER, personaEnabled: false },
-  gal: { port: PORT, character: CHARACTER, personaEnabled: true },
+  aibo: { port: PORT, character: CHARACTER, personaEnabled: true },
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -52,10 +52,10 @@ async function waitFor(fn, timeoutMs, everyMs = 500) {
 }
 
 function startDsh(configName) {
-  const patchDir = mkdtempSync(join(tmpdir(), 'gal-eval-'))
+  const patchDir = mkdtempSync(join(tmpdir(), 'aibo-eval-'))
   const patch = join(patchDir, `${configName}.patch.yml`)
   const cfg = CONFIGS[configName]
-  writeFileSync(patch, `- insert:\n    - id: dsh-gal\n      name: ${JSON.stringify(join(ROOT, 'lib/index.js'))}\n      config:\n${Object.entries(cfg).map(([k, v]) => `        ${k}: ${JSON.stringify(v)}`).join('\n')}\n`)
+  writeFileSync(patch, `- insert:\n    - id: aibo\n      name: ${JSON.stringify(join(ROOT, 'lib/index.js'))}\n      config:\n${Object.entries(cfg).map(([k, v]) => `        ${k}: ${JSON.stringify(v)}`).join('\n')}\n`)
   const child = spawn(DSH, ['--profile', 'web', '--patch', patch, '--no-open', '--port', '0'], { cwd: CWD, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
   let log = ''
   child.stdout.on('data', (d) => { log += d })

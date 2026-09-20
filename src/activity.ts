@@ -56,7 +56,7 @@ export const ASSET_NAMES: readonly string[] = [...new Set(Object.values(ASSET_FA
  */
 export function activityForTool(name: string, command?: string): Activity {
   if (name === 'str_replace_editor') return command === 'view' ? 'reading' : 'writing'
-  if (name === 'present' || name === 'gal_remember') return 'writing'
+  if (name === 'present' || name === 'aibo_remember') return 'writing'
   // Operating the user's apps through Computer Use: she is at the keyboard.
   if (name.startsWith('computer_')) return name === 'computer_get_app_state' || name === 'computer_list_apps' ? 'reading' : 'running'
   if (/bash|shell|exec|terminal|python|node\b|command/i.test(name)) return 'running'

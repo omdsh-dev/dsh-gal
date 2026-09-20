@@ -11,7 +11,7 @@
  * "Movie scene"). An optional Home Assistant backend reads entity states over
  * its REST API and calls services. The agent gets a one-line summary per
  * reading as a prompt section, `home_status` to re-read, and `home_run` to
- * act. With dsh-gal loaded, it shows up in the Data panel.
+ * act. With Aibo loaded, it shows up in the Data panel.
  */
 import { execFile } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -21,12 +21,12 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const SHORTCUTS = '/usr/bin/shortcuts'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -35,7 +35,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -64,7 +64,7 @@ export const Config: z<Config> = z.object({
 })
 
 // ---- storage ----------------------------------------------------------------
-// Settings and the last reader outputs live in the shared dsh-gal store; the
+// Settings and the last reader outputs live in the shared Aibo store; the
 // Home Assistant token stays in the plugin config and is never written here.
 
 interface Settings { homeShared: boolean }
@@ -342,9 +342,9 @@ export function apply(ctx: Context, config: Config): void {
     execute: async (args: unknown) => runAction(String((args as { name?: string }).name ?? '')),
   } as never)), 'dsh-home.tool.run')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const ago = (ms: number): string => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 60 * 36 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago` }
     const setup: SourceView['setup'] = [{
       title: 'Connect your Home through Shortcuts',
@@ -401,7 +401,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'run') { const message = await runAction(String(value ?? '')); changed(); return { ok: true, message } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'home', label: 'Home', category: 'other', describe, act })
       const notify = (): void => registry.changed('home')
       listeners.add(notify)

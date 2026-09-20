@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>dsh-gal reads your calendar so your companion knows your day.</string>
+  <string>Aibo reads your calendar so your companion knows your day.</string>
   <key>NSCalendarsUsageDescription</key>
-  <string>dsh-gal reads your calendar so your companion knows your day.</string>
+  <string>Aibo reads your calendar so your companion knows your day.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
-  <string>dsh-gal reads and adds reminders for you.</string>
+  <string>Aibo reads and adds reminders for you.</string>
   <key>NSRemindersUsageDescription</key>
-  <string>dsh-gal reads and adds reminders for you.</string>
+  <string>Aibo reads and adds reminders for you.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>dsh-gal operates your apps when you ask your companion to use the computer.</string>
+  <string>Aibo operates your apps when you ask your companion to use the computer.</string>
 </dict>
 </plist>

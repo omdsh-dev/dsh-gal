@@ -2,7 +2,7 @@
 
 Everything in this directory is **text**: a name, a greeting, a persona (the system-prompt voice layer), a UI theme, and an `art` block describing how the character should look. No images or videos are distributed here, and none should be added.
 
-Why: fan art of licensed characters — including AI-generated fan art — is a derivative work. A written description of how a character talks and looks is not. This project ships the description; you generate the pictures on your own machine, for your own use, and keep them in `~/.dsh/gal/characters/<id>/`.
+Why: fan art of licensed characters — including AI-generated fan art — is a derivative work. A written description of how a character talks and looks is not. This project ships the description; you generate the pictures on your own machine, for your own use, and keep them in `~/.dsh/aibo/characters/<id>/`.
 
 ## Included packs
 
@@ -29,7 +29,7 @@ Picked from what is currently most chatted on character-chat platforms plus the 
 ## Using one
 
 1. Pick the pack in the **CHAR** menu — prompt-only packs are listed alongside the others and work immediately with a placeholder stage.
-2. Open **EDIT** and save once. That copies the pack into `~/.dsh/gal/characters/<id>/`, which is where your generated files go.
+2. Open **EDIT** and save once. That copies the pack into `~/.dsh/aibo/characters/<id>/`, which is where your generated files go.
 3. Generate a neutral base image with any image model using `art.base`, then five variants using `art.expressions` with the base as the reference image so the character stays consistent. Save them in that directory named by activity (`idle.png`, `reading.png`, `writing.png`, `failed.png`, `done.png`, …); the prompt's older names (`neutral`, `thinking`, `surprised`, `happy`) work too as stand-ins, and any activity without a file borrows a neighbour. Optional: `scripts/animate.sh` turns each into an idle loop (`art.motion` is the prompt), and `ffmpeg minterpolate` smooths them to 60 fps.
 4. Switch away and back (or restart) — the stage picks the files up.
 

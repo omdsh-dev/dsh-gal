@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the dsh-gal plugin: compile src/ → lib/ against the packages the
+# Build the Aibo plugin: compile src/ → lib/ against the packages the
 # installed dsh ships. The plugin's node_modules holds symlinks into the dsh
 # install (Homebrew/npm global: <prefix>/lib/node_modules/@deepseek-ai/dsh)
 # so tsc type-checks against the exact versions that will load it at runtime.

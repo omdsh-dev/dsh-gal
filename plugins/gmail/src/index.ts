@@ -5,7 +5,7 @@
  * once in the Data panel or set in the plugin config; it stays in
  * `~/.dsh/gmail/credentials.json`. Every half hour the plugin counts unread
  * mail and pulls the headers of recent inbox mail and of travel-looking mail
- * (bookings, itineraries, e-tickets) from the last six months into dsh-gal's
+ * (bookings, itineraries, e-tickets) from the last six months into Aibo's
  * shared store; the prompt carries a short digest. `gmail_search` takes
  * Gmail's own search syntax, `gmail_read` returns one message as text.
  * Nothing is ever written to the mailbox: bodies are fetched with PEEK, so
@@ -17,10 +17,10 @@ import { join } from 'node:path'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { openStore } from '@dsh-external/dsh-gal/store'
+import { openStore } from '@dsh-external/aibo/store'
 import { Imap, type Header } from './imap.js'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -29,7 +29,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -202,9 +202,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-gmail.tool.read')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const c = credentials()
       const index = readIndex()
@@ -258,7 +258,7 @@ export function apply(ctx: Context, config: Config): void {
       if (action === 'shared') { settingsDoc().set({ shared: Boolean(value) }); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'gmail', label: 'Gmail', category: 'mail', describe, act })
       const notify = (): void => registry.changed('gmail')
       listeners.add(notify)

@@ -6,7 +6,7 @@
  * Calendar.app and Reminders.app — iCloud, Google, Exchange — just works,
  * after the one-time macOS permission prompt. The agent gets today's agenda
  * and open reminders as a prompt section, lookup tools, and tools to add and
- * complete reminders. With dsh-gal loaded, both show up in its Data panel.
+ * complete reminders. With Aibo loaded, both show up in its Data panel.
  */
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
@@ -17,12 +17,12 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   /** Raw data for the panel's own renderer of this source. */
@@ -32,7 +32,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -69,7 +69,7 @@ interface Settings { calendarShared: boolean; remindersShared: boolean }
 /** Machine-local files only: the compiled helper lives in `<dataDir>/bin`. */
 const dataDir = (): string => process.env['DSH_CALENDAR_DIR'] ?? join(homedir(), '.dsh', 'calendar')
 
-// Settings live in dsh-gal's store as doc('calendar', 'settings'). Events and
+// Settings live in Aibo's store as doc('calendar', 'settings'). Events and
 // reminders are never stored: they are re-read from EventKit on every refresh.
 const DEFAULT_SETTINGS: Settings = { calendarShared: true, remindersShared: true }
 const settingsDoc = () => openStore().doc<Settings>('calendar', 'settings')
@@ -293,9 +293,9 @@ export function apply(ctx: Context, config: Config): void {
     } as never)), 'dsh-calendar.tool.complete')
   }
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const permission = (kind: 'calendars' | 'reminders'): SourceView['setup'] => [{
       title: `Allow access to ${kind}`,
       steps: [
@@ -375,7 +375,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const disposers = [registry.register({ id: 'calendar', label: 'Calendar', category: 'calendar', describe: calendarView, act })]
       if (withReminders) disposers.push(registry.register({ id: 'reminders', label: 'Reminders', category: 'tasks', describe: remindersView, act }))
       const notify = (id: string): void => registry.changed(id)

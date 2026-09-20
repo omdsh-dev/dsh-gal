@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>dsh-gal</title>
+<title>Aibo</title>
 <style>
   html, body { height: 100%; margin: 0; }
   body {
@@ -33,7 +33,7 @@
 </head>
 <body>
   <div id="box">
-    <div id="title">DSH-GAL</div>
+    <div id="title">AIBO</div>
     <div id="diamond">◆</div>
     <div id="stage">Starting…</div>
     <div id="detail"></div>
@@ -52,11 +52,11 @@
       install: 'Installing the DeepSeek Harness runtime (first launch only)…',
       stage: 'Preparing the visual-novel plugin…',
       spawn: 'Starting dsh web…',
-      attach: 'Attaching to the running dsh-gal server…',
+      attach: 'Attaching to the running aibo server…',
       ready: 'Ready — opening…',
-      error: 'Could not start dsh-gal',
+      error: 'Could not start aibo',
     };
-    event.listen('dsh-gal://status', ({ payload }) => {
+    event.listen('aibo://status', ({ payload }) => {
       stageEl.textContent = labels[payload.stage] || payload.stage;
       const isError = payload.stage === 'error';
       detailEl.textContent = payload.detail;

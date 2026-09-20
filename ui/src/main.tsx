@@ -8,21 +8,21 @@ import {CharacterHub,MemoryPanel,ArtifactsPanel,SpeechPanel,HelpPanel,History} f
 import './theme.css';
 import {render as renderMarkdown} from './markdown';
 
-declare global { interface Window {galUi:any;galVoice:any;galMarkdown:any;} }
+declare global { interface Window {aiboUi:any;aiboVoice:any;aiboMarkdown:any;} }
 // The imperative controllers below expect this to exist before they load.
-window.galMarkdown={render:renderMarkdown};
+window.aiboMarkdown={render:renderMarkdown};
 const definitions={'character-hub':CharacterHub,'memory-panel':MemoryPanel,'artifacts-panel':ArtifactsPanel,'speech-panel':SpeechPanel,'help-panel':HelpPanel,history:History};
 type PanelId=keyof typeof definitions;
 const parking=document.createElement('div');parking.id='panel-parking';parking.hidden=true;document.body.append(parking);
-const hosts=Object.fromEntries(Object.keys(definitions).map(id=>{const el=document.createElement('div');el.id=id;el.className='gal-panel hidden';parking.append(el);return[id,el];})) as Record<PanelId,HTMLDivElement>;
+const hosts=Object.fromEntries(Object.keys(definitions).map(id=>{const el=document.createElement('div');el.id=id;el.className='aibo-panel hidden';parking.append(el);return[id,el];})) as Record<PanelId,HTMLDivElement>;
 let setPanel:(id:PanelId|null)=>void;
 const bridge={
  open(id:PanelId){flushSync(()=>setPanel(id));},
  close(){flushSync(()=>setPanel(null));},
  button(){const button=document.createElement('button');button.type='button';button.className=buttonVariants({variant:'ghost'});button.dataset.slot='button';return button;},
- requestClose(){window.dispatchEvent(new Event('gal-request-close'));}
+ requestClose(){window.dispatchEvent(new Event('aibo-request-close'));}
 };
-window.galUi=bridge;
+window.aiboUi=bridge;
 function PanelMount({id}:{id:PanelId}){
  const ref=React.useRef<HTMLDivElement>(null);
  React.useLayoutEffect(()=>{const el=hosts[id];ref.current!.append(el);return()=>{parking.append(el);};},[id]);
@@ -31,10 +31,10 @@ function PanelMount({id}:{id:PanelId}){
 function ModalManager(){
  const [current,setCurrent]=React.useState<PanelId|null>(null);const[language,setLanguage]=React.useState('zh');
  setPanel=setCurrent;
- React.useEffect(()=>{const change=()=>setLanguage(window.galVoice?.language||'zh');window.addEventListener('gal-language',change);return()=>window.removeEventListener('gal-language',change);},[]);
+ React.useEffect(()=>{const change=()=>setLanguage(window.aiboVoice?.language||'zh');window.addEventListener('aibo-language',change);return()=>window.removeEventListener('aibo-language',change);},[]);
  const names:Record<string,string[]>={zh:['角色','记忆','手记','设置','帮助与快捷键','对话记录'],en:['Character','Memory','Files','Settings','Help & shortcuts','Conversation history'],ja:['キャラクター','記憶','手記','設定','ヘルプとショートカット','会話履歴']};
  const title=current?(names[language]||names.zh)[Object.keys(definitions).indexOf(current)]:'';
- return <Dialog open={Boolean(current)} onOpenChange={open=>{if(!open)bridge.requestClose();}}><DialogContent className="gal-dialog" closeLabel={language==='zh'?'关闭':language==='ja'?'閉じる':'Close'} aria-describedby={undefined} onOpenAutoFocus={e=>e.preventDefault()} onCloseAutoFocus={e=>e.preventDefault()} onEscapeKeyDown={e=>{if(e.isComposing)e.preventDefault();}}>
+ return <Dialog open={Boolean(current)} onOpenChange={open=>{if(!open)bridge.requestClose();}}><DialogContent className="aibo-dialog" closeLabel={language==='zh'?'关闭':language==='ja'?'閉じる':'Close'} aria-describedby={undefined} onOpenAutoFocus={e=>e.preventDefault()} onCloseAutoFocus={e=>e.preventDefault()} onEscapeKeyDown={e=>{if(e.isComposing)e.preventDefault();}}>
  <DialogTitle className="sr-only">{title}</DialogTitle>
  {current&&<PanelMount key={current} id={current}/>}
  </DialogContent></Dialog>;

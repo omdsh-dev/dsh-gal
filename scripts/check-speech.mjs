@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {SpeechService} from '../lib/speech.js';
-const dir=await mkdtemp(join(tmpdir(),'gal-speech-test-'));
+const dir=await mkdtemp(join(tmpdir(),'aibo-speech-test-'));
 const signal=new AbortController().signal;
 let calls=[],mode='ok';
 const mock=async(url,options)=>{

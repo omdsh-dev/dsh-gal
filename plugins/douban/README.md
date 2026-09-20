@@ -1,6 +1,6 @@
 # dsh-douban
 
-Your Douban shelves for the DeepSeek Harness: 想看 / 看过 for films, books and music. A short prompt section (counts, latest wishes, latest ratings) tells the character what you have already seen and what you want to see, and two lookup tools let it check before recommending. When [dsh-gal](../../README.md) is loaded too, the shelves show up in its Data panel as a poster grid.
+Your Douban shelves for the DeepSeek Harness: 想看 / 看过 for films, books and music. A short prompt section (counts, latest wishes, latest ratings) tells the character what you have already seen and what you want to see, and two lookup tools let it check before recommending. When [Aibo](../../README.md) is loaded too, the shelves show up in its Data panel as a poster grid.
 
 Douban has no personal API, so the plugin reads the profile pages (`movie|book|music.douban.com/people/<uid>/wish|collect`) with a desktop user agent, 500 ms apart, at most 40 pages per shelf, and parses the HTML. Nothing is ever written to Douban.
 
@@ -9,7 +9,7 @@ Douban has no personal API, so the plugin reads the profile pages (`movie|book|m
 ```yaml
 - insert:
     - id: dsh-douban
-      name: /path/to/dsh-gal/plugins/douban/lib/index.js
+      name: /path/to/aibo/plugins/douban/lib/index.js
       config:
         uid: ahbei          # https://www.douban.com/people/<uid>/ — or set it from the Data panel
         cookie: ""          # optional: your douban.com Cookie header, for a private profile
@@ -24,7 +24,7 @@ Douban has no personal API, so the plugin reads the profile pages (`movie|book|m
 
 ## Storage
 
-The uid, the "Visible to the character" switch, the items, counts and last sync live in the shared dsh-gal store (`~/.dsh/gal/store.sqlite`, docs `douban/settings`, `douban/state` and one `douban.items` doc per item). Only the cookie and the `bid` stay in `~/.dsh/douban/secrets.json`; override that directory with `DSH_DOUBAN_DIR`. An older `settings.json` / `state.json` there is imported once on first load and renamed `.migrated`.
+The uid, the "Visible to the character" switch, the items, counts and last sync live in the shared aibo store (`~/.dsh/aibo/store.sqlite`, docs `douban/settings`, `douban/state` and one `douban.items` doc per item). Only the cookie and the `bid` stay in `~/.dsh/douban/secrets.json`; override that directory with `DSH_DOUBAN_DIR`. An older `settings.json` / `state.json` there is imported once on first load and renamed `.migrated`.
 
 ## What the agent sees
 
@@ -34,5 +34,5 @@ The uid, the "Visible to the character" switch, the items, counts and last sync 
 ## Build
 
 ```bash
-DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds dsh-gal and every plugin
+DSH_PKG_ROOT=/path/to/dsh/node_modules ../../scripts/build.sh   # builds Aibo and every plugin
 ```

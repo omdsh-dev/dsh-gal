@@ -20,7 +20,7 @@ export const catalog = [
 const defaults = (): State => ({ profiles: Object.fromEntries(['zh','en','ja'].map(language => [language, { provider:'local', model:'system', voice: catalog[0].voices[language as Language] }])) as State['profiles'], keys: {} })
 export class SpeechService {
   private queue: Promise<unknown> = Promise.resolve()
-  constructor(private file = join(homedir(), '.config', 'dsh-gal', 'speech.json'), private fetcher: typeof fetch = fetch) {}
+  constructor(private file = join(homedir(), '.config', 'aibo', 'speech.json'), private fetcher: typeof fetch = fetch) {}
   private async state(): Promise<State> {
     try { return JSON.parse(await readFile(this.file, 'utf8')) as State }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaults(); throw new Error('config_error') }

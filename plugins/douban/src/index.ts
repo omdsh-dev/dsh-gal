@@ -7,10 +7,10 @@
  * parses the HTML. Private profiles work with the user's browser cookie. The
  * agent gets a short prompt section (counts, the latest wishes and ratings)
  * and lookup tools so it never recommends what the user already watched.
- * Nothing is written to Douban. With dsh-gal loaded, the shelves show up in
+ * Nothing is written to Douban. With Aibo loaded, the shelves show up in
  * its Data panel.
  *
- * Data lives in the shared dsh-gal store (`~/.dsh/gal/store.sqlite`): the
+ * Data lives in the shared Aibo store (`~/.dsh/aibo/store.sqlite`): the
  * settings doc (uid, shared), the state doc (counts, last sync, error,
  * back-off) and one doc per shelf item. Only the secrets — the cookie and the
  * `bid` — stay in `~/.dsh/douban/secrets.json`.
@@ -18,12 +18,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   data?: unknown
@@ -32,7 +32,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -214,7 +214,7 @@ export function apply(ctx: Context, config: Config): void {
   const warn = (message: string): void => ctx.logger.warn(`dsh-douban: ${message}`)
   const refreshMs = (config.refreshHours ?? 12) * 3_600_000
   const imported = importLegacyFiles()
-  if (imported.length > 0) log(`imported ${imported.join(', ')} into the dsh-gal store`)
+  if (imported.length > 0) log(`imported ${imported.join(', ')} into the Aibo store`)
   const uidOf = (): string => (readSettings().uid || config.uid || '').trim()
   const cookieOf = (): string => {
     const s = readSecrets()
@@ -330,9 +330,9 @@ export function apply(ctx: Context, config: Config): void {
     },
   } as never)), 'dsh-douban.tool.list')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const describe = (): SourceView => {
       const s = readSettings(), uid = uidOf()
       const actions: SourceView['actions'] = [
@@ -390,7 +390,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'douban', label: 'Douban', category: 'media', describe, act })
       const notify = (): void => registry.changed('douban')
       listeners.add(notify)

@@ -4,16 +4,16 @@
  * HealthKit has no cloud API: the data only leaves the phone when the user
  * sends it. Three doors, one store: a Health Auto Export / Shortcuts payload
  * pushed to the ingest endpoint, or the Health app's export.zip dropped on
- * the dsh-gal Data panel. Everything collapses into one row per day of a few daily
+ * the Aibo Data panel. Everything collapses into one row per day of a few daily
  * numbers — enough to notice a trend, never a clinical record — kept in the
- * shared dsh-gal store; only the ingest key stays in `~/.dsh/health/`.
+ * shared Aibo store; only the ingest key stays in `~/.dsh/health/`.
  */
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 /** Daily numbers. Sums are per day; rates are day averages; levels are the last reading. */
 export const METRICS = {
@@ -54,7 +54,7 @@ export function dataDir(): string {
 }
 
 /*
- * Where it is kept: the shared dsh-gal store, as two documents. `health/settings`
+ * Where it is kept: the shared Aibo store, as two documents. `health/settings`
  * is the user's choice (shared or not), `health/data` is everything the phone
  * sent. One document for all the days keeps the merge in `commit` a plain
  * object spread, the same as when it was one file.

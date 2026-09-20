@@ -5,8 +5,8 @@
 - **Activity**: `idle`, `reading`, `writing`, `searching`, `running`, `waiting`, `failed`, `done`.
 - **Mood** (chat layout only, decided in the page): `speaking` while her voice plays, `listening` while a draft is being typed, and `sad` / `excited` / `surprised` / `reading` / `done` read from the parenthesised stage directions in her reply as they stream in (`MOODS` in `ui/src/chat/main.tsx`). A mood holds through streaming and voice playback, is dropped by the next tool call or user message, and fades a few seconds after the turn ends. Streaming text itself shows `writing`.
 - **Speech**: tracked beside the activity (`speaking`), shown on the nameplate when she is otherwise idle.
-- **Inputs**: `gal-activity` (steady: the running tool's activity, `waiting` on an approval, `reading` when a tool finishes, `done` when the turn ends), `gal-beat` (a moment: `failed`), `gal-busy`, `gal-speaking`, `gal-preview`, `gal-character-changed`.
-- **Output**: the `gal-character-state` event. Consumers that initialize late can read `window.galCharacter.state`.
+- **Inputs**: `aibo-activity` (steady: the running tool's activity, `waiting` on an approval, `reading` when a tool finishes, `done` when the turn ends), `aibo-beat` (a moment: `failed`), `aibo-busy`, `aibo-speaking`, `aibo-preview`, `aibo-character-changed`.
+- **Output**: the `aibo-character-state` event. Consumers that initialize late can read `window.aiboCharacter.state`.
 
 Only one thing can show at a time, so the most salient wins. Priority, highest first, mirrored in `src/activity.ts`:
 

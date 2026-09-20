@@ -24,7 +24,7 @@ Desktop and web launchers serve the same compiled `web/ui/app.js` and `web/ui/ap
 - `src/main.tsx`: persistent panel hosts and the controller adapter. Dialog portals own focus trapping, backdrop dismissal and scroll locking. Panel content stays mounted in React portals and is parked in a hidden container when closed, so existing controller references and form values remain valid.
 - Existing `web/app.js`, speech and character controllers still own dialogue, requests and model state. They never rerender the React shell; React does not reconcile controller-managed dialogue text, character lists or media canvases on each turn.
 
-Do not replace a panel host or re-render its uncontrolled values from React state without also migrating its controller. Open/close dialogs through `window.galUi`; preserve the `gal-overlay-closed` event that cancels voice previews.
+Do not replace a panel host or re-render its uncontrolled values from React state without also migrating its controller. Open/close dialogs through `window.aiboUi`; preserve the `aibo-overlay-closed` event that cancels voice previews.
 
 ## Validated
 

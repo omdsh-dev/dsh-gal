@@ -23,7 +23,7 @@ export const Stage=React.memo(function Stage(){return (<div id="stage">
 <div id="vignette">
 </div>
 <header id="topbar">
-<div id="title"><img id="logo" src="./assets/logo.png" alt="" width={22} height={22} />{"DSH-GAL "}<span id="conn-dot" title="disconnected">
+<div id="title"><img id="logo" src="./assets/logo.png" alt="" width={22} height={22} />{"AIBO "}<span id="conn-dot" title="disconnected">
 </span>
 </div>
 <div className="app-controls">

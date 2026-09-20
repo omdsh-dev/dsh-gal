@@ -34,9 +34,9 @@ export interface List {
   updatedAt: string
 }
 
-/** `~/.dsh/gal/lists.json`, the pre-store file (imported once, then renamed). */
+/** `~/.dsh/aibo/lists.json`, the pre-store file (imported once, then renamed). */
 export function listsPath(): string {
-  return process.env['DSH_GAL_LISTS'] ?? join(dirname(userCharactersDir()), 'lists.json')
+  return process.env['AIBO_LISTS'] ?? join(dirname(userCharactersDir()), 'lists.json')
 }
 const COLLECTION = 'lists'
 let imported = false

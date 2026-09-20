@@ -109,7 +109,7 @@ export const SpeechPanel=React.memo(function SpeechPanel(){return (<>
 <div className="language-settings">
 <Label className="language-control">
 <span id="language-label">{"界面语言"}</span>
-<NativeSelect id="gal-language" aria-describedby="language-hint">
+<NativeSelect id="aibo-language" aria-describedby="language-hint">
 <option value="auto">{"自动"}</option>
 <option value="zh">{"中文"}</option>
 <option value="ja">{"日本語"}</option>
@@ -118,7 +118,7 @@ export const SpeechPanel=React.memo(function SpeechPanel(){return (<>
 </Label>
 <Label className="language-control">
 <span id="speech-language-label">{"语音语言"}</span>
-<NativeSelect id="gal-speech-language" aria-describedby="language-hint">
+<NativeSelect id="aibo-speech-language" aria-describedby="language-hint">
 <option value="auto">{"自动"}</option>
 <option value="zh">{"中文"}</option>
 <option value="ja">{"日本語"}</option>

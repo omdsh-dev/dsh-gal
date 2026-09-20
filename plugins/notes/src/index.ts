@@ -5,7 +5,7 @@
  * with `osascript`, so every account already synced into Notes — iCloud,
  * Google, Exchange — just works after the one-time Automation prompt. The
  * agent gets a short index as a prompt section, search/read tools, and tools
- * to create or append to a note. With dsh-gal loaded, notes show up in its
+ * to create or append to a note. With Aibo loaded, notes show up in its
  * Data panel.
  */
 import { execFile } from 'node:child_process'
@@ -16,13 +16,13 @@ import { promisify } from 'node:util'
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { migrateFile, openStore } from '@dsh-external/dsh-gal/store'
+import { migrateFile, openStore } from '@dsh-external/aibo/store'
 
 const execFileAsync = promisify(execFile)
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const HELPER = join(PKG_ROOT, 'helper', 'notes.js')
 
-// ---- the slice of dsh-gal's contract this plugin uses ----------------------
+// ---- the slice of Aibo's contract this plugin uses ----------------------
 interface SourceView {
   status: 'connected' | 'empty' | 'error'; summary: string; shared: boolean; placeholder?: boolean
   /** Raw data for the panel's own renderer of this source. */
@@ -32,7 +32,7 @@ interface SourceView {
   setup?: { title: string; steps: string[]; fields?: { label: string; value: string; secret?: boolean }[] }[]
   actions?: { id: string; label: string; kind: 'button' | 'upload' | 'toggle' | 'danger' | 'input'; value?: boolean; confirm?: string; hint?: string; placeholder?: string }[]
 }
-interface GalSources {
+interface AiboSources {
   register(source: { id: string; label: string; category: string; describe(): SourceView | Promise<SourceView>; act?(action: string, input: { json?: unknown }): Promise<unknown> | unknown }): () => void
   changed(id: string): void
 }
@@ -48,10 +48,13 @@ export interface Config {
   refreshMinutes?: number
   /** Only these folders (names); empty = all. */
   folders?: string[]
+  /** Let a background refresh launch Notes.app. Off: while Notes is closed the index just goes stale. */
+  wakeApp?: boolean
 }
 export const Config: z<Config> = z.object({
   refreshMinutes: z.number().min(1).default(15),
   folders: z.array(z.string()).default([]),
+  wakeApp: z.boolean().default(false),
 })
 
 // ---- storage and the helper -------------------------------------------------
@@ -67,7 +70,7 @@ const PREVIEW_NOTES = 300
 const DEFAULT_SETTINGS: Settings = { notesShared: true }
 /** Where this plugin's files used to live; only the legacy `settings.json` (imported once) is looked for here now. */
 const dataDir = (): string => process.env['DSH_NOTES_DIR'] ?? join(homedir(), '.dsh', 'notes')
-// Settings live in the shared dsh-gal store (`~/.dsh/gal/store.sqlite`, doc notes/settings). The notes index itself stays in memory.
+// Settings live in the shared Aibo store (`~/.dsh/aibo/store.sqlite`, doc notes/settings). The notes index itself stays in memory.
 const settingsDoc = () => openStore().doc<Settings>('notes', 'settings')
 function readSettings(): Settings {
   return { ...DEFAULT_SETTINGS, ...(settingsDoc().get() ?? {}) }
@@ -92,18 +95,24 @@ const agoWords = (iso: string | null): string => {
 }
 const oneLine = (s: string, n: number): string => s.replace(/\s+/g, ' ').trim().slice(0, n)
 
+/** True when Notes.app is already up. Any JXA property access launches it, so background refreshes ask first. */
+async function notesRunning(): Promise<boolean> {
+  try { await execFileAsync('pgrep', ['-x', 'Notes']); return true } catch { return false }
+}
+
 // ---- the plugin -------------------------------------------------------------
 
 export function apply(ctx: Context, config: Config): void {
   const log = (message: string): void => ctx.logger.info(`dsh-notes: ${message}`)
   const warn = (message: string): void => ctx.logger.warn(`dsh-notes: ${message}`)
   const refreshMs = (config.refreshMinutes ?? 15) * 60_000
-  if (importLegacySettings()) log('imported settings.json into the dsh-gal store')
+  const wakeApp = config.wakeApp ?? false
+  if (importLegacySettings()) log('imported settings.json into the Aibo store')
   const onlyFolders = new Set((config.folders ?? []).map(f => f.toLowerCase()))
   const inScope = (n: { folder: string }): boolean => onlyFolders.size === 0 || onlyFolders.has(n.folder.toLowerCase())
 
   // The cache is what the prompt section reads; sections are synchronous.
-  const cache = { notes: [] as NoteRow[], folders: [] as Folder[], at: 0, error: '', denied: false, truncated: false }
+  const cache = { notes: [] as NoteRow[], folders: [] as Folder[], at: 0, error: '', denied: false, truncated: false, asleep: false }
   const listeners = new Set<() => void>()
   const changed = (): void => { for (const fn of listeners) fn() }
 
@@ -122,7 +131,13 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   let refreshing: Promise<void> | undefined
-  const refresh = (): Promise<void> => {
+  /** `force` is for what the user or the agent asked for; a scheduled refresh stands down while Notes.app is closed. */
+  const refresh = async (force = false): Promise<void> => {
+    if (!force && !wakeApp && !(await notesRunning())) {
+      if (!cache.asleep) { cache.asleep = true; changed() }
+      return
+    }
+    cache.asleep = false
     refreshing ??= (async () => {
       try {
         const result = await run<ListResult>('list', String(MAX_NOTES), String(PREVIEW_NOTES))
@@ -152,7 +167,7 @@ export function apply(ctx: Context, config: Config): void {
   const resolveId = async (id?: string, title?: string): Promise<string> => {
     if (id?.trim()) return id.trim()
     if (!title?.trim()) throw new Error('give a note id or a title')
-    if (cache.at === 0) await refresh()
+    if (cache.at === 0) await refresh(true)
     const hit = findByTitle(title) ?? (await run<NoteRow[]>('search', title, '5')).find(n => n.match === 'title')
     if (!hit) throw new Error(`no note titled "${title}"`)
     return hit.id
@@ -205,7 +220,7 @@ export function apply(ctx: Context, config: Config): void {
       const { title, body, folder } = args as { title: string; body: string; folder?: string }
       if (!title?.trim()) throw new Error('title is required')
       const made = await run<{ id: string; name: string; folder: string }>('create', folder ?? '', title.trim(), body ?? '')
-      void refresh()
+      void refresh(true)
       return `Created "${made.name}" in ${made.folder || 'Notes'} (id ${made.id}).`
     },
   } as never)), 'dsh-notes.tool.create')
@@ -218,14 +233,14 @@ export function apply(ctx: Context, config: Config): void {
       const { id, title, text: body } = args as { id?: string; title?: string; text: string }
       if (!body?.trim()) throw new Error('text is required')
       const done = await run<{ id: string; name: string }>('append', await resolveId(id, title), body)
-      void refresh()
+      void refresh(true)
       return `Appended to "${done.name}".`
     },
   } as never)), 'dsh-notes.tool.append')
 
-  // ---- what dsh-gal shows, when it is there ----------------------------------
-  ctx.inject(['galSources'], (gal: CordisContext) => {
-    const registry = (gal as unknown as { galSources: GalSources }).galSources
+  // ---- what Aibo shows, when it is there ----------------------------------
+  ctx.inject(['aiboSources'], (aibo: CordisContext) => {
+    const registry = (aibo as unknown as { aiboSources: AiboSources }).aiboSources
     const permission: SourceView['setup'] = [{
       title: 'Allow dsh to control Notes',
       steps: [
@@ -233,7 +248,10 @@ export function apply(ctx: Context, config: Config): void {
         'Then press Refresh.',
       ],
     }]
-    const stamp = (): string => cache.at === 0 ? 'not loaded yet' : `refreshed ${agoWords(new Date(cache.at).toISOString())}`
+    const stamp = (): string => {
+      const closed = cache.asleep ? ' · Notes.app is closed, press Refresh to reread' : ''
+      return cache.at === 0 ? `not loaded yet${closed}` : `refreshed ${agoWords(new Date(cache.at).toISOString())}${closed}`
+    }
     const describe = (): SourceView => {
       const s = readSettings()
       const actions: SourceView['actions'] = [
@@ -262,16 +280,16 @@ export function apply(ctx: Context, config: Config): void {
     }
     const act = async (action: string, input: { json?: unknown }): Promise<unknown> => {
       const value = (input.json as { value?: unknown })?.value
-      if (action === 'refresh') { await refresh(); if (cache.error) throw new Error(cache.error); return { ok: true } }
+      if (action === 'refresh') { await refresh(true); if (cache.error) throw new Error(cache.error); return { ok: true } }
       if (action === 'notesShared') { writeSettings({ notesShared: Boolean(value) }); changed(); return { ok: true } }
       throw new Error(`unknown action ${action}`)
     }
-    gal.effect(() => {
+    aibo.effect(() => {
       const dispose = registry.register({ id: 'notes', label: 'Notes', category: 'notes', describe, act })
       const notify = (): void => registry.changed('notes')
       listeners.add(notify)
       return () => { listeners.delete(notify); dispose() }
     }, 'dsh-notes.source')
   })
-  log(`loaded (refresh every ${config.refreshMinutes ?? 15} min)`)
+  log(`loaded (refresh every ${config.refreshMinutes ?? 15} min${wakeApp ? '' : ', only while Notes.app is open'})`)
 }

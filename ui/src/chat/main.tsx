@@ -45,6 +45,9 @@ function useTheme(): [ThemePref, (pref: ThemePref) => void] {
 // A one-sample silent WAV. Playing it inside a real user gesture unlocks the
 // shared player, so later replies (fetched asynchronously) may play in WebKit.
 const SILENT = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+// Whether this engine can be fed an mp3 progressively. WebKit can; the flag
+// also decides whether the service is asked to stream its provider through.
+const STREAMS = typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')
 
 function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => void; stop: () => void; status: string; speaking: boolean } {
   const [status, setStatus] = React.useState('')
@@ -52,7 +55,8 @@ function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => 
   const generation = React.useRef(0)
   const player = React.useRef<HTMLAudioElement | null>(null)
   const unlocked = React.useRef(false)
-  const pending = React.useRef<string | null>(null)
+  // A reply that autoplay rules blocked, waiting for the next real gesture.
+  const pending = React.useRef<(() => Promise<void>) | null>(null)
   const request = React.useRef<AbortController | null>(null)
   const objectUrl = React.useRef<string | null>(null)
   // Recent lines, synthesized once: a replay plays from here instead of
@@ -83,6 +87,64 @@ function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => 
     await el.play()
     if (ticket === generation.current) { setSpeaking(true); setStatus('Speaking…') }
   }, [stop])
+  const start = React.useCallback(async (url: string, ticket: number): Promise<void> => {
+    try { await playUrl(url, ticket) }
+    catch (err) {
+      if (err instanceof DOMException && err.name === 'NotAllowedError') { pending.current = () => playUrl(url, ticket); setStatus('Click or press a key to hear the reply') }
+      else throw err
+    }
+  }, [playUrl])
+  /**
+   * Plays an mp3 as it arrives. WebKit will not take a fetch stream, but it
+   * will play a MediaSource fed chunk by chunk, so she starts on the provider's
+   * first chunk (~0.5s from Fish) instead of on its last (~5s for a long line).
+   * The chunks are kept so the finished line still lands in the replay cache.
+   */
+  const playStream = React.useCallback(async (body: ReadableStream<Uint8Array<ArrayBuffer>>, ticket: number): Promise<Blob | null> => {
+    const media = new MediaSource()
+    const url = URL.createObjectURL(media); objectUrl.current = url
+    const opened = new Promise<SourceBuffer>((resolve, reject) => {
+      media.addEventListener('sourceopen', () => { try { resolve(media.addSourceBuffer('audio/mpeg')) } catch (err) { reject(err as Error) } }, { once: true })
+      media.addEventListener('error', () => reject(new Error('speech_error')), { once: true })
+    })
+    const el = getPlayer()
+    el.onended = () => { if (ticket === generation.current) stop() }
+    el.onerror = () => { if (ticket === generation.current) { stop(); setStatus(errorText('speech_error')) } }
+    // Pointing the player at the MediaSource is what opens it, so playback has
+    // to be armed before the first chunk can go in — and never awaited here:
+    // WebKit settles play() only once the first samples land, which is the loop
+    // below. Autoplay may hold it back; the stream fills either way and the
+    // next gesture releases it, no re-attaching (a MediaSource attaches once).
+    el.src = url
+    void el.play().then(
+      () => { if (ticket === generation.current) { setSpeaking(true); setStatus('Speaking…') } },
+      (err: unknown) => {
+        if (ticket !== generation.current) return
+        if (err instanceof DOMException && err.name === 'NotAllowedError') {
+          pending.current = async () => { await el.play(); if (ticket === generation.current) { setSpeaking(true); setStatus('Speaking…') } }
+          setStatus('Click or press a key to hear the reply')
+        } else { stop(); setStatus(errorText('speech_error')) }
+      },
+    )
+    const buffer = await opened
+    const parts: BlobPart[] = []
+    const reader = body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (ticket !== generation.current) { await reader.cancel().catch(() => {}); return null }
+      if (done) break
+      parts.push(value)
+      buffer.appendBuffer(value)
+      await new Promise<void>((resolve, reject) => {
+        buffer.addEventListener('updateend', () => resolve(), { once: true })
+        buffer.addEventListener('error', () => reject(new Error('speech_error')), { once: true })
+      })
+    }
+    // A provider that dies mid-line can only end the response; she stops where
+    // the audio stopped rather than reporting an error over what she did say.
+    if (media.readyState === 'open') media.endOfStream()
+    return new Blob(parts, { type: 'audio/mpeg' })
+  }, [stop])
   const speak = React.useCallback((text: string) => {
     stop()
     if (!enabled || text.trim() === '') return
@@ -92,31 +154,39 @@ function useVoice(enabled: boolean, language: Lang): { speak: (text: string) => 
     void (async () => {
       try {
         const key = `${language}\n${text}`
-        let blob = clips.current.get(key)
-        if (blob === undefined) {
-          const res = await fetch(withToken('/voice/read'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, language, dub: true }), signal: controller.signal })
+        const cached = clips.current.get(key)
+        if (cached === undefined) {
+          const res = await fetch(withToken('/voice/read'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, language, dub: true, stream: STREAMS }), signal: controller.signal })
           if (!res.ok) throw new Error(((await res.json().catch(() => ({ error: 'speech_error' }))) as { error?: string }).error ?? 'speech_error')
-          blob = await res.blob()
+          if (ticket !== generation.current) return
+          // Only the mp3 providers stream; local and VOICEVOX answer in wav,
+          // which MediaSource will not take, and arrive complete anyway.
+          if (STREAMS && res.body !== null && (res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) {
+            const blob = await playStream(res.body, ticket)
+            if (blob !== null && ticket === generation.current) remember(key, blob)
+            return
+          }
+          const blob = await res.blob()
           remember(key, blob)
+          if (ticket !== generation.current) return
+          const url = URL.createObjectURL(blob); objectUrl.current = url
+          await start(url, ticket)
+          return
         }
         if (ticket !== generation.current) return
-        const url = URL.createObjectURL(blob); objectUrl.current = url
-        try { await playUrl(url, ticket) }
-        catch (err) {
-          if (err instanceof DOMException && err.name === 'NotAllowedError') { pending.current = url; setStatus('Click or press a key to hear the reply') }
-          else throw err
-        }
+        const url = URL.createObjectURL(cached); objectUrl.current = url
+        await start(url, ticket)
       } catch (err) {
         if (ticket !== generation.current) return
         stop()
         if (!(err instanceof DOMException && err.name === 'AbortError')) setStatus(errorText((err as Error).message))
       }
     })()
-  }, [enabled, language, stop, playUrl])
+  }, [enabled, language, stop, start, playStream])
   // First real gesture: unlock the shared player, and flush a reply that was blocked by autoplay rules.
   React.useEffect(() => {
     const unlock = (): void => {
-      if (pending.current) { const url = pending.current; pending.current = null; void playUrl(url, generation.current).catch(() => setStatus(errorText('speech_error'))); unlocked.current = true; return }
+      if (pending.current) { const resume = pending.current; pending.current = null; void resume().catch(() => setStatus(errorText('speech_error'))); unlocked.current = true; return }
       if (unlocked.current) return
       const el = getPlayer()
       // The player is shared with the reply that may be speaking right now, and

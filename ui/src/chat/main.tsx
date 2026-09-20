@@ -359,7 +359,7 @@ function App(): React.ReactElement {
         const finalMood = moodOf(text)
         if (finalMood) setMood(finalMood)
         lastLine.current = text
-        speakRef.current(text)
+        if (!ev.interrupted) speakRef.current(text)
         break
       }
       case 'busy':
@@ -474,6 +474,7 @@ function App(): React.ReactElement {
 
   const send = React.useCallback(async (text: string, attachments: Pending[] = []) => {
     if (text.startsWith('/') && attachments.length === 0) { await runCommand(text); return }
+    stopRef.current()
     const encoded = await Promise.all(attachments.map(async a => ({ kind: a.kind, name: a.file.name || (a.kind === 'image' ? 'pasted.png' : 'file'), mediaType: a.file.type || 'application/octet-stream', data: await toBase64(a.file) })))
     const res = await fetch(withToken('/send'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, attachments: encoded }) })
     if (!res.ok) throw new Error(await res.text())
@@ -583,8 +584,10 @@ function TitlebarStrip(): React.ReactElement {
 // ---- header pieces ------------------------------------------------------
 
 function Avatar({ manifest }: { manifest: Manifest | null }): React.ReactElement {
-  const image = manifest?.states.idle?.image
-  if (image) return <img className="avatar" src={withToken(image)} alt="" />
+  // Her portrait when the pack ships one; otherwise the idle frame, cropped.
+  const portrait = manifest?.avatar
+  const image = portrait ?? manifest?.states.idle?.image
+  if (image) return <img className={`avatar${portrait === undefined ? '' : ' avatar-portrait'}`} src={withToken(image)} alt="" />
   return <div className="avatar avatar-letter">{(manifest?.characterName ?? '?').slice(0, 1)}</div>
 }
 
@@ -826,6 +829,10 @@ const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, 
     const [error, setError] = React.useState('')
     const [pending, setPending] = React.useState<Pending[]>([])
     const [dragging, setDragging] = React.useState(false)
+    const composing = React.useRef(false)
+    const compositionEnded = React.useRef(-Infinity)
+    const sending = React.useRef(false)
+    const [submitting, setSubmitting] = React.useState(false)
     const restored = React.useRef(false)
     const ref = React.useRef<HTMLTextAreaElement>(null)
     const fileRef = React.useRef<HTMLInputElement>(null)
@@ -845,6 +852,7 @@ const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, 
     }, [])
     React.useEffect(() => { if (restored.current) void writeDraftFiles(pending.map(p => ({ id: p.id, kind: p.kind, name: p.file.name, type: p.file.type, blob: p.file }))) }, [pending])
     const addFiles = (files: Iterable<File>): void => {
+      if (sending.current) return
       const next: Pending[] = []
       let problem = ''
       for (const file of files) {
@@ -862,7 +870,7 @@ const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, 
       if (problem) setError(problem)
       ref.current?.focus()
     }
-    const removePending = (id: string): void => setPending(prev => prev.filter(p => p.id !== id))
+    const removePending = (id: string): void => { if (!sending.current) setPending(prev => prev.filter(p => p.id !== id)) }
     const onPaste = (e: React.ClipboardEvent): void => {
       const files = [...e.clipboardData.items].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter((f): f is File => f !== null)
       if (files.length === 0) return
@@ -874,9 +882,14 @@ const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, 
     const submit = async (): Promise<void> => {
       const value = text.trim()
       const files = pending
-      if (value === '' && files.length === 0) return
-      setText(''); setPending([]); setError('')
-      try { await onSend(value, files); for (const p of files) if (p.preview) URL.revokeObjectURL(p.preview) } catch (err) { setText(value); setPending(files); setError(err instanceof Error ? err.message : String(err)) }
+      if (sending.current || composing.current || (value === '' && files.length === 0)) return
+      sending.current = true; setSubmitting(true); setError('')
+      try {
+        await onSend(value, files)
+        setText(''); setPending([])
+        for (const p of files) if (p.preview) URL.revokeObjectURL(p.preview)
+      } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
+      finally { sending.current = false; setSubmitting(false) }
       ref.current?.focus()
     }
     // Transient text floats above the pill so the layout never shifts. Errors clear on the next keystroke.
@@ -897,14 +910,18 @@ const Composer = React.forwardRef<HTMLTextAreaElement, { onSend: (text: string, 
           <div className="composer-pill">
             <input ref={fileRef} type="file" multiple hidden onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = '' }} />
             <button type="button" className="send quiet attach" onClick={() => fileRef.current?.click()} title="Attach a file (or paste / drop one)" aria-label="Attach a file"><Paperclip /></button>
-            <textarea ref={ref} value={text} rows={1} placeholder={dragging ? 'Drop to attach' : `Message ${name}`} spellCheck={false} onChange={e => { setText(e.target.value); if (error) setError('') }}
+            <textarea ref={ref} readOnly={submitting} value={text} rows={1} placeholder={dragging ? 'Drop to attach' : `Message ${name}`} spellCheck={false} onChange={e => { setText(e.target.value); if (error) setError('') }}
               onPaste={onPaste} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              onCompositionStart={() => { composing.current = true }}
+              onCompositionEnd={() => { composing.current = false; compositionEnded.current = performance.now() }}
               onKeyDown={e => {
+                // WebKit can end composition before dispatching the confirming Enter.
+                if (composing.current || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229 || performance.now() - compositionEnded.current < 50) return
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit() }
                 if (e.key === 'Escape') ref.current?.blur()
               }} />
             {speaking && <button type="button" className="send quiet" onClick={onStopVoice} title="Stop speaking" aria-label="Stop speaking"><Square /></button>}
-            <button type="button" className="send" onClick={() => { void submit() }} disabled={text.trim() === '' && pending.length === 0} title="Send (Enter)" aria-label="Send"><ArrowUp /></button>
+            <button type="button" className="send" onClick={() => { void submit() }} disabled={submitting || (text.trim() === '' && pending.length === 0)} title={busy ? 'Interrupt and send (Enter)' : 'Send (Enter)'} aria-label={busy ? 'Interrupt and send' : 'Send'}><ArrowUp /></button>
           </div>
           {chip && <div className={`composer-chip ${chip.kind}`} role="status">{chip.text}</div>}
         </div>

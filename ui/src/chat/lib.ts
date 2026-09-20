@@ -19,6 +19,8 @@ export type Manifest = {
   greeting: string | Partial<Record<Lang, string>>
   playbackRate?: number
   promptOnly?: boolean
+  /** The pack's round portrait, drawn to be worn small. */
+  avatar?: string
   states: Record<string, StateAsset>
   characters: { id: string; name: string; promptOnly: boolean }[]
 }

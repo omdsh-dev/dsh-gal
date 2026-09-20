@@ -54,6 +54,7 @@ interface AgentLike {
   readonly id: string
   readonly options: { provider?: string; model?: string }
   readonly status: 'idle' | 'running'
+  cancel(cause: { kind: 'user' }): void
   followup(message: ReturnType<typeof createUserMessage>): void
 }
 
@@ -209,6 +210,7 @@ export function apply(ctx: Context, config: Config): void {
       playbackRate: pack.playbackRate,
     voiceSpeaker: pack.voice.speaker,
       promptOnly: pack.promptOnly,
+      ...pack.avatar === undefined ? {} : { avatar: `/character/${encodeURIComponent(pack.avatar)}` },
       states,
       characters: listCharacterPacks(bundledDir).map(entry => ({ id: entry.id, name: entry.name, promptOnly: entry.promptOnly })),
     }
@@ -449,11 +451,10 @@ export function apply(ctx: Context, config: Config): void {
       let line: string
       try { line = await translateForVoice(text, agent, language) }
       catch (error) {
-        // The caller falls back to the line as written; leave a trace so a
-        // reply read in the wrong language can be explained from /debug/usage.
+        // Keep translation failures visible without reading the wrong language.
         voiceStats.failed += 1
         voiceStats.lastError = `dub: ${String(error).slice(0, 280)}`
-        ctx.logger.warn(`aibo: dub to ${language} failed, reading the line as written (${String(error).slice(0, 200)})`)
+        ctx.logger.warn(`aibo: dub to ${language} failed, skipping speech (${String(error).slice(0, 200)})`)
         throw error
       }
       voiceStats.dubs += 1
@@ -549,10 +550,13 @@ export function apply(ctx: Context, config: Config): void {
         ctx.logger.info(`aibo: opened session ${agent.id}`)
       }
       rememberActive(agent.id)
-      agent.followup(createUserMessage({
+      const message = createUserMessage({
         content: await admitUploads(text, attachments) as never,
         source: { kind: 'user' },
-      }))
+      })
+      // Cancel first: followup wakes the replacement after the old turn settles.
+      agent.cancel({ kind: 'user' })
+      agent.followup(message)
     },
   })
 
@@ -897,7 +901,7 @@ export function apply(ctx: Context, config: Config): void {
         if (activeSessionId !== undefined && session.id !== activeSessionId) return
         const messageId = `m${++voiceSeq}`
         // Speech is requested by the frontend with its selected provider.
-        server.broadcast({ type: 'assistant', id: messageId, text })
+        server.broadcast({ type: 'assistant', id: messageId, text, interrupted: event.data.interrupted === true })
         break
       }
       case 'tool/call': {

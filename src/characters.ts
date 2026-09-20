@@ -57,6 +57,12 @@ export interface CharacterPack {
   playbackRate: number
   voice: { speaker?: number }
   art?: { base?: string; expressions?: Record<string, string>; motion?: string }
+  /**
+   * The pack's own small portrait (`avatar.png`), worn wherever the UI shows
+   * her as a round icon — the chat header, the launcher bar. A stage frame
+   * cropped into a circle reads as a mistake; this is drawn to be one.
+   */
+  avatar?: string
   /** True when the pack ships no stage assets (prompt-only pack). */
   promptOnly: boolean
   /** Assets that exist, by base name. Use `resolveStateAsset` to pick one for an activity. */
@@ -127,6 +133,7 @@ export function loadCharacterPack(dir: string, id = basename(dir)): CharacterPac
     playbackRate: typeof file.playbackRate === 'number' && file.playbackRate > 0 ? file.playbackRate : 1,
     voice: typeof file.voice === 'object' && file.voice !== null ? file.voice : {},
     ...file.art === undefined ? {} : { art: file.art },
+    ...(() => { const avatar = firstExisting(dir, 'avatar', IMAGE_EXTS); return avatar === undefined ? {} : { avatar } })(),
     promptOnly: !ACTIVITIES.some(activity => resolveStateAsset({ assets }, activity) !== undefined),
     assets,
   }

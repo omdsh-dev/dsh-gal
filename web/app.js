@@ -931,7 +931,12 @@
   }
 
   // ---------- input ----------
-  input.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.isComposing){ev.preventDefault();ev.stopPropagation();}});
+  let composingInput = false, compositionEnded = -Infinity;
+  input.addEventListener('compositionstart', () => { composingInput = true; });
+  input.addEventListener('compositionend', () => { composingInput = false; compositionEnded = performance.now(); });
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && (composingInput || ev.isComposing || ev.keyCode === 229 || performance.now() - compositionEnded < 50)) { ev.preventDefault(); ev.stopPropagation(); }
+  });
   $('input-row').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const text = input.value.trim();

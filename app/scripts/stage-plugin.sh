@@ -25,18 +25,23 @@ if [ -n "$PACK" ] && [ -f "$PACK/idle.mp4" ]; then
   cp "$PACK/idle.mp4" "$BOOT/idle.mp4"
   if [ -f "$PACK/idle.png" ] && command -v sips &>/dev/null; then
     sips -Z 900 -s format jpeg -s formatOptions 70 "$PACK/idle.png" --out "$BOOT/idle.jpg" >/dev/null
-    # The launcher wears her as a 40px circle, so it needs her head, not the
-    # whole stage frame. Crop where a standing character's face sits in a
-    # 16:9 portrait plate (fractions of the frame, so any pack lands close).
-    W="$(sips -g pixelWidth "$PACK/idle.png" | awk '/pixelWidth/{print $2}')"
-    H="$(sips -g pixelHeight "$PACK/idle.png" | awk '/pixelHeight/{print $2}')"
-    if [ -n "$W" ] && [ -n "$H" ]; then
-      S=$(( H * 30 / 100 ))
-      X=$(( W * 471 / 1000 - S / 2 )); if [ "$X" -lt 0 ]; then X=0; fi
-      Y=$(( H * 213 / 1000 - S / 2 )); if [ "$Y" -lt 0 ]; then Y=0; fi
-      sips -c "$S" "$S" --cropOffset "$Y" "$X" "$PACK/idle.png" --out "$BOOT/avatar.png" >/dev/null
-      sips -Z 160 -s format jpeg -s formatOptions 80 "$BOOT/avatar.png" --out "$BOOT/avatar.jpg" >/dev/null
-      command rm -f "$BOOT/avatar.png"
+    # The launcher wears her as a 40px circle. A pack that ships a portrait
+    # (avatar.png, the same face the app icon wears) gets worn as drawn; a pack
+    # without one falls back to cropping where a standing character's face sits
+    # in a 16:9 plate (fractions of the frame, so any pack lands close).
+    if [ -f "$PACK/avatar.png" ]; then
+      sips -Z 160 "$PACK/avatar.png" --out "$BOOT/avatar.png" >/dev/null
+    else
+      W="$(sips -g pixelWidth "$PACK/idle.png" | awk '/pixelWidth/{print $2}')"
+      H="$(sips -g pixelHeight "$PACK/idle.png" | awk '/pixelHeight/{print $2}')"
+      if [ -n "$W" ] && [ -n "$H" ]; then
+        S=$(( H * 30 / 100 ))
+        X=$(( W * 471 / 1000 - S / 2 )); if [ "$X" -lt 0 ]; then X=0; fi
+        Y=$(( H * 213 / 1000 - S / 2 )); if [ "$Y" -lt 0 ]; then Y=0; fi
+        sips -c "$S" "$S" --cropOffset "$Y" "$X" "$PACK/idle.png" --out "$BOOT/crop.png" >/dev/null
+        sips -Z 160 "$BOOT/crop.png" --out "$BOOT/avatar.png" >/dev/null
+        command rm -f "$BOOT/crop.png"
+      fi
     fi
   fi
 else

@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Loading page listens for supervisor status events; the UI drags and zooms the window from its top strip, and page zoom answers the usual hotkeys",
+  "description": "Loading page listens for supervisor status events; the UI drags and zooms the window from its top strip; the launcher sends a line and dismisses itself",
   "windows": [
-    "main"
+    "main",
+    "launcher"
   ],
   "permissions": [
     "core:default",
@@ -11,7 +12,8 @@
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
-    "core:webview:allow-set-webview-zoom"
+    "core:webview:allow-set-webview-zoom",
+    "global-shortcut:default"
   ],
   "remote": {
     "urls": [

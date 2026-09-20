@@ -21,6 +21,22 @@
         "hiddenTitle": true,
         "backgroundColor": "#04101c",
         "zoomHotkeysEnabled": true
+      },
+      {
+        "label": "launcher",
+        "url": "launcher.html",
+        "title": "Aibo",
+        "width": 560,
+        "height": 76,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true,
+        "shadow": true,
+        "acceptFirstMouse": true
       }
     ],
     "security": {

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aibo</title>
+<style>
+  /*
+   * The quick-message bar: one line to her from anywhere, summoned by the
+   * global shortcut. Same tokens as the chat UI (ui/src/chat/chat.css), so it
+   * reads as the same app shrunk to a single row.
+   */
+  :root {
+    --surface: #131111; --ink: #ece9e6; --brand: #827be6;
+    --muted-fg: color-mix(in oklab, var(--ink) 56%, var(--surface));
+    --border: color-mix(in oklab, var(--ink) 16%, var(--surface));
+    --sea: #151a2e;
+    color-scheme: dark;
+  }
+  @font-face {
+    font-family: 'Google Sans Flex';
+    src: url('boot/GoogleSansFlex.woff2') format('woff2');
+    font-weight: 300 800; font-style: normal; font-display: swap;
+  }
+  html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
+  body {
+    display: flex; align-items: center; justify-content: center; padding: 8px;
+    font-family: 'Google Sans Flex', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans', sans-serif;
+    color: var(--ink); user-select: none; -webkit-user-select: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; height: 60px; padding: 0 10px 0 10px; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: 18px; corner-shape: superellipse(1.6);
+    /* Her sea, not a grey panel: the stage navy warmed toward the app surface. */
+    background: linear-gradient(180deg, color-mix(in oklab, var(--sea) 88%, var(--surface)), var(--surface));
+    box-shadow: 0 18px 48px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+  }
+  /* Her, watching the caret. stage-plugin.sh crops boot/avatar.jpg to her head. */
+  .avatar {
+    width: 40px; height: 40px; flex: none; border-radius: 50%; corner-shape: round;
+    object-fit: cover; object-position: center;
+    border: 1px solid color-mix(in oklab, var(--ink) 22%, transparent);
+    background: var(--sea);
+  }
+  input {
+    flex: 1; min-width: 0; height: 40px; border: 0; background: none; outline: none;
+    color: var(--ink); font: inherit; font-size: 15px; user-select: text; -webkit-user-select: text;
+  }
+  input::placeholder { color: var(--muted-fg); }
+  .hint {
+    flex: none; padding: 3px 8px; border-radius: 999px; corner-shape: round;
+    background: color-mix(in oklab, var(--ink) 10%, transparent);
+    color: var(--muted-fg); font-size: 11.5px; letter-spacing: .02em;
+    transition: opacity .15s;
+  }
+  .bar.sending .hint { opacity: .5; }
+  .bar.sending input { opacity: .5; }
+</style>
+</head>
+<body>
+  <div class="bar" id="bar">
+    <img class="avatar" id="avatar" src="boot/avatar.jpg" alt="">
+    <input id="text" type="text" placeholder="Message 小黑鱼" autocomplete="off" spellcheck="false">
+    <span class="hint" id="hint">⏎</span>
+  </div>
+  <script>
+    const { core, event } = window.__TAURI__;
+    const bar = document.getElementById('bar');
+    const input = document.getElementById('text');
+    const hint = document.getElementById('hint');
+
+    const focusInput = () => { input.focus(); input.select(); };
+    focusInput();
+    // Re-focus every time the shortcut summons it: the window is reused, so
+    // without this the caret stays wherever the last dismissal left it.
+    event.listen('aibo://launcher-open', () => { hint.textContent = '⏎'; bar.classList.remove('sending'); focusInput(); });
+    window.addEventListener('focus', focusInput);
+
+    const dismiss = () => { input.value = ''; void core.invoke('hide_launcher'); };
+
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
+      if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
+      e.preventDefault();
+      const text = input.value.trim();
+      if (text === '' || bar.classList.contains('sending')) return;
+      bar.classList.add('sending'); hint.textContent = 'Sending…';
+      try {
+        await core.invoke('send_message', { text });
+        input.value = '';
+      } catch {
+        hint.textContent = 'Could not reach her';
+        bar.classList.remove('sending');
+        return;
+      }
+      bar.classList.remove('sending'); hint.textContent = '⏎';
+    });
+  </script>
+</body>
+</html>

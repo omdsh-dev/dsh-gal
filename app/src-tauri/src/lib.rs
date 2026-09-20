@@ -9,6 +9,9 @@
 //!      answering there, in which case it simply attaches,
 //!   4. polls the plugin's manifest and navigates the window to it.
 //! The child process is killed when the window closes.
+//!
+//! A second, frameless `launcher` window is bound to a global shortcut so a
+//! message can be sent from any app without going to the main window first.
 
 use std::fs;
 use std::io::Write;
@@ -350,16 +353,103 @@ fn support_dir() -> String {
     app_support().display().to_string()
 }
 
+/// Shortcut that summons the launcher from anywhere.
+const LAUNCHER_SHORTCUT: &str = "shift+cmd+space";
+
+/// Show the launcher centred and focused, or put it away if it is already up.
+fn toggle_launcher(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("launcher") else { return };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        return;
+    }
+    let _ = window.center();
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = window.emit("aibo://launcher-open", ());
+}
+
+#[tauri::command]
+fn hide_launcher(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("launcher") {
+        let _ = window.hide();
+    }
+}
+
+/// Post the line to the running plugin and bring the main window forward so the
+/// reply is where the user expects it. Sending from here rather than from the
+/// page keeps the launcher off the plugin's origin: no CORS, no token.
+#[tauri::command]
+fn send_message(app: AppHandle, text: String) -> Result<(), String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err("empty".into());
+    }
+    // ureq is built without its json feature here, so the body is serialised by
+    // hand — the same one field the composer posts.
+    let body = serde_json::json!({ "text": text }).to_string();
+    ureq::post(&format!("{AIBO_URL}send"))
+        .config().timeout_global(Some(Duration::from_secs(15))).build()
+        .header("content-type", "application/json")
+        .send(body.as_str())
+        .map_err(|error: ureq::Error| error.to_string())?;
+    if let Some(window) = app.get_webview_window("launcher") {
+        let _ = window.hide();
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+/// Bind the global shortcut. Another app may already own the combination, in
+/// which case registration fails and the launcher is simply unavailable —
+/// never a reason to fail the launch.
+fn register_launcher_shortcut(app: &AppHandle) {
+    use tauri_plugin_global_shortcut::{Builder, ShortcutState};
+    let handle = app.clone();
+    if let Err(error) = app.plugin(
+        Builder::new()
+            .with_handler(move |_app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    toggle_launcher(&handle);
+                }
+            })
+            .build(),
+    ) {
+        eprintln!("[aibo] launcher: cannot install the shortcut plugin: {error}");
+        return;
+    }
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    if let Err(error) = app.global_shortcut().register(LAUNCHER_SHORTCUT) {
+        eprintln!("[aibo] launcher: {LAUNCHER_SHORTCUT} is taken by another app ({error})");
+    }
+}
+
 pub fn run() {
     #[cfg(unix)]
     install_signal_handlers();
     tauri::Builder::default()
         .manage(Mutex::new(Supervisor { child: None }))
-        .invoke_handler(tauri::generate_handler![retry, support_dir])
+        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher])
         .setup(|app| {
             // The `main` window comes from tauri.conf.json; only the supervisor starts here.
             let handle = app.handle().clone();
             std::thread::spawn(move || boot(handle));
+            register_launcher_shortcut(app.handle());
+            // Clicking away from the launcher dismisses it, the way a panel should.
+            if let Some(window) = app.get_webview_window("launcher") {
+                let handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(false) = event {
+                        if let Some(window) = handle.get_webview_window("launcher") {
+                            let _ = window.hide();
+                        }
+                    }
+                });
+            }
             Ok(())
         })
         .build(tauri::generate_context!())

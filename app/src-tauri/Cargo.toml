@@ -28,6 +28,14 @@ tauri-plugin-global-shortcut = "2"
 # NSVisualEffectView so it reads as glass over whatever is behind it.
 [target."cfg(target_os = \"macos\")".dependencies]
 window-vibrancy = "0.5"
+# Who was frontmost before the launcher took over, so dismissing it hands focus
+# straight back there instead of leaving Aibo the active app.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication", "libc"] }
+# The launcher is re-classed into a non-activating NSPanel (see lib.rs): a plain
+# NSWindow cannot take the keyboard without its app becoming active, which would
+# drag the main window on screen behind the bar.
+objc2 = "0.6"
+block2 = "0.6"
 
 [profile.release]
 codegen-units = 1

@@ -11,7 +11,10 @@
 //! The child process is killed when the window closes.
 //!
 //! A second, frameless `launcher` window is bound to a global shortcut so a
-//! message can be sent from any app without going to the main window first.
+//! message can be sent from any app without going to the main window at all:
+//! the line goes to the running session, the bar puts itself away, and focus
+//! returns to whatever you were doing. Her reply is waiting in the main window
+//! whenever you next open it.
 
 use std::fs;
 use std::io::Write;
@@ -20,6 +23,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+#[cfg(target_os = "macos")]
+mod launcher_panel;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
@@ -356,31 +362,178 @@ fn support_dir() -> String {
 /// Shortcut that summons the launcher from anywhere.
 const LAUNCHER_SHORTCUT: &str = "shift+cmd+space";
 
-/// Show the launcher centred and focused, or put it away if it is already up.
-fn toggle_launcher(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("launcher") else { return };
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
+/// The app that was frontmost when the launcher was summoned. Showing the bar
+/// normally leaves that app active. Restore only if Aibo actually took over;
+/// never raise every window of the previous app or override a subsequent switch.
+/// 0 = nothing to restore (summoned from Aibo itself, or already handed back).
+static PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
+
+#[cfg(target_os = "macos")]
+fn remember_frontmost() {
+    use objc2_app_kit::NSWorkspace;
+    let pid = NSWorkspace::sharedWorkspace()
+        .frontmostApplication()
+        .map(|app| app.processIdentifier())
+        .unwrap_or(0);
+    // Summoned from Aibo itself: there is nowhere else to hand focus back to.
+    let pid = if pid == std::process::id() as i32 { 0 } else { pid };
+    PREVIOUS_APP.store(pid, Ordering::SeqCst);
+}
+
+#[cfg(target_os = "macos")]
+fn restore_frontmost(pid: i32) {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
+    if NSWorkspace::sharedWorkspace().frontmostApplication()
+        .map(|app| app.processIdentifier()) != Some(std::process::id() as i32) {
         return;
     }
-    let _ = window.center();
-    let _ = window.show();
-    let _ = window.set_focus();
-    let _ = window.emit("aibo://launcher-open", ());
+    if pid <= 0 {
+        return;
+    }
+    if let Some(app) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+        // Not `ActivateIgnoringOtherApps`: deprecated and a no-op since macOS 14,
+        // and unnecessary anyway — Aibo is the active app here and is yielding.
+        app.activateWithOptions(NSApplicationActivationOptions::empty());
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn remember_frontmost() {}
+
+#[cfg(not(target_os = "macos"))]
+fn restore_frontmost(_pid: i32) {
+    PREVIOUS_APP.store(0, Ordering::SeqCst);
+}
+
+/// Put the bar away. `restore` hands activation back to the app it was summoned
+/// from — right after a send or an Escape, wrong when the launcher lost focus
+/// because the user clicked somewhere else, which already moved activation.
+fn dismiss_launcher(app: &AppHandle, restore: bool) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || dismiss_launcher_on_main(&handle, restore));
+}
+
+fn dismiss_launcher_on_main(app: &AppHandle, restore: bool) {
+    // Take this before orderOut triggers the focus-loss callback reentrantly.
+    let previous = PREVIOUS_APP.swap(0, Ordering::SeqCst);
+    #[cfg(target_os = "macos")]
+    launcher_panel::remove_outside_click_monitor();
+    if let Some(window) = app.get_webview_window("launcher") {
+        #[cfg(target_os = "macos")]
+        if let Ok(ptr) = window.ns_window() { launcher_panel::order_out(ptr); }
+        #[cfg(not(target_os = "macos"))]
+        let _ = window.hide();
+    }
+    if restore { restore_frontmost(previous); }
+}
+
+#[cfg(target_os = "macos")]
+fn make_nonactivating_panel(window: &tauri::WebviewWindow) {
+    if let Ok(ptr) = window.ns_window() { launcher_panel::configure(ptr); }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn make_nonactivating_panel(_window: &tauri::WebviewWindow) {}
+
+/// Where the bar sits on the screen it is summoned to: centred across, and a
+/// little above the middle — dead centre puts it under the eye's resting line
+/// and makes the screen feel bottom-heavy, which is why no launcher does it.
+#[cfg(not(target_os = "macos"))]
+const LAUNCHER_TOP: f64 = 0.24;
+
+/// Place the launcher on the monitor the pointer (and so the user) is on,
+/// rather than wherever the window happened to be left.
+#[cfg(not(target_os = "macos"))]
+fn place_launcher(app: &AppHandle, window: &tauri::WebviewWindow) {
+    // The monitor under the pointer, not the one the hidden window was left on:
+    // summoned from a second screen, the bar has to arrive on that screen.
+    let monitor = app
+        .cursor_position()
+        .ok()
+        .and_then(|point| app.monitor_from_point(point.x, point.y).ok().flatten())
+        .or_else(|| window.current_monitor().ok().flatten());
+    let Some(monitor) = monitor else {
+        let _ = window.center();
+        return;
+    };
+    let Ok(size) = window.outer_size() else { return };
+    let area = monitor.size();
+    let origin = monitor.position();
+    let x = origin.x + ((area.width as i32 - size.width as i32) / 2);
+    let y = origin.y + (area.height as f64 * LAUNCHER_TOP) as i32;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+/// Suppress the incidental Reopen generated when a hidden app presents a panel.
+static LAST_LAUNCHER_OPEN: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Toggle the entire native lifecycle in one main-thread pass.
+fn toggle_launcher(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window("launcher") else { return };
+        #[cfg(target_os = "macos")]
+        let visible = window.ns_window().ok().is_some_and(launcher_panel::is_presented);
+        #[cfg(not(target_os = "macos"))]
+        let visible = window.is_visible().unwrap_or(false);
+        if visible {
+            dismiss_launcher_on_main(&handle, true);
+            return;
+        }
+        remember_frontmost();
+        *LAST_LAUNCHER_OPEN.lock().unwrap() = Some(Instant::now());
+        #[cfg(target_os = "macos")]
+        {
+            let main = handle.get_webview_window("main").and_then(|w| w.ns_window().ok())
+                .unwrap_or(std::ptr::null_mut());
+            if let Ok(ptr) = window.ns_window() {
+                launcher_panel::place_on_mouse_screen(ptr);
+                launcher_panel::present(ptr, main);
+                let monitor_app = handle.clone();
+                launcher_panel::install_outside_click_monitor(move || {
+                    dismiss_launcher_on_main(&monitor_app, false);
+                });
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            place_launcher(&handle, &window);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        let _ = window.emit("aibo://launcher-open", ());
+    });
+}
+
+fn focus_main(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        *LAST_LAUNCHER_OPEN.lock().unwrap() = None;
+        dismiss_launcher_on_main(&handle, false);
+        if let Some(window) = handle.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    });
 }
 
 #[tauri::command]
 fn hide_launcher(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("launcher") {
-        let _ = window.hide();
-    }
+    dismiss_launcher(&app, true);
 }
 
-/// Post the line to the running plugin and bring the main window forward so the
-/// reply is where the user expects it. Sending from here rather than from the
-/// page keeps the launcher off the plugin's origin: no CORS, no token.
+/// Post the line to the running plugin. Where the user ends up afterwards is
+/// the bar's own switch (`open_main`, on by default and remembered by the page):
+///   * on — the main window comes forward, which is also the confirmation that
+///     the line landed, so no focus is handed back.
+///   * off — nothing is summoned: the turn runs in the session, dismissing the
+///     bar hands focus back to the app they were in, and her reply is on the
+///     stage when they next open it.
+/// Sending from here rather than from the page keeps the launcher off the
+/// plugin's origin: no CORS, no token.
 #[tauri::command]
-fn send_message(app: AppHandle, text: String) -> Result<(), String> {
+fn send_message(app: AppHandle, text: String, open_main: bool) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("empty".into());
@@ -393,13 +546,8 @@ fn send_message(app: AppHandle, text: String) -> Result<(), String> {
         .header("content-type", "application/json")
         .send(body.as_str())
         .map_err(|error: ureq::Error| error.to_string())?;
-    if let Some(window) = app.get_webview_window("launcher") {
-        let _ = window.hide();
-    }
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+    if open_main {
+        focus_main(&app);
     }
     Ok(())
 }
@@ -428,12 +576,41 @@ fn register_launcher_shortcut(app: &AppHandle) {
     }
 }
 
+/// One desktop preference, independent of the page's origin or backend session.
+fn saved_zoom() -> f64 {
+    fs::read_to_string(app_support().join("zoom.json")).ok()
+        .and_then(|text| serde_json::from_str::<f64>(&text).ok())
+        .filter(|value| value.is_finite() && (0.2..=10.0).contains(value))
+        .unwrap_or(1.0)
+}
+
+#[tauri::command]
+fn set_zoom_level(window: tauri::WebviewWindow, value: f64) -> Result<(), String> {
+    if window.label() != "main" || !value.is_finite() || !(0.2..=10.0).contains(&value) {
+        return Err("invalid zoom".into());
+    }
+    window.set_zoom(value).map_err(|error| error.to_string())?;
+    let root = app_support();
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    fs::write(root.join("zoom.json"), value.to_string()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn restore_zoom(window: tauri::WebviewWindow) -> Result<f64, String> {
+    let value = saved_zoom();
+    set_zoom_level(window, value)?;
+    Ok(value)
+}
+
 pub fn run() {
     #[cfg(unix)]
     install_signal_handlers();
     tauri::Builder::default()
         .manage(Mutex::new(Supervisor { child: None }))
-        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher])
+        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher, set_zoom_level, restore_zoom])
+        .plugin(tauri::plugin::Builder::<tauri::Wry>::new("saved-zoom")
+            .js_init_script(include_str!("../../ui/zoom.js"))
+            .build())
         .setup(|app| {
             // The `main` window comes from tauri.conf.json; only the supervisor starts here.
             let handle = app.handle().clone();
@@ -444,6 +621,7 @@ pub fn run() {
                 // Frost it. The page paints a translucent wash on top, so what
                 // shows through is the desktop blurred by AppKit rather than a
                 // CSS backdrop-filter, which in a webview can only blur itself.
+                make_nonactivating_panel(&window);
                 #[cfg(target_os = "macos")]
                 {
                     use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
@@ -457,9 +635,7 @@ pub fn run() {
                 let handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::Focused(false) = event {
-                        if let Some(window) = handle.get_webview_window("launcher") {
-                            let _ = window.hide();
-                        }
+                        dismiss_launcher(&handle, false);
                     }
                 });
             }
@@ -468,6 +644,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building aibo")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { .. } = &event {
+                // Like Cetus: presenting a hidden app may itself emit Reopen.
+                // Only an explicit later Dock reopen should restore main.
+                let recent_panel = LAST_LAUNCHER_OPEN.lock().unwrap()
+                    .is_some_and(|at| at.elapsed() < Duration::from_millis(1500));
+                if !recent_panel { focus_main(app); }
+            }
             if let RunEvent::Exit | RunEvent::ExitRequested { .. } = event {
                 let state = app.state::<Mutex<Supervisor>>();
                 let child = state.lock().unwrap().child.take();

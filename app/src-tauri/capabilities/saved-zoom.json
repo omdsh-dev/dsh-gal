@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "saved-zoom",
+  "description": "Allow the main UI to persist zoom across the bundled and local-server pages",
+  "windows": ["main"],
+  "local": true,
+  "remote": { "urls": ["http://127.0.0.1:4877/*", "http://127.0.0.1:4878/*"] },
+  "permissions": ["allow-saved-zoom"]
+}

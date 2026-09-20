@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-shell-commands"
+description = "Bundled boot and launcher pages can retry startup, inspect the support path, send, and dismiss."
+commands.allow = ["retry", "support_dir", "send_message", "hide_launcher"]
+
+[[permission]]
+identifier = "allow-saved-zoom"
+description = "Read and update the desktop main window's local zoom preference."
+commands.allow = ["restore_zoom", "set_zoom_level"]

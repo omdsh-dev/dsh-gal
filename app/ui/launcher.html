@@ -30,33 +30,55 @@
     text-shadow: 0 1px 2px rgb(0 0 0 / .35);
   }
   .bar {
-    position: relative; display: flex; align-items: center; gap: 12px;
-    width: 100%; height: 100%; padding: 0 12px; box-sizing: border-box;
+    position: relative; display: flex; flex-direction: column;
+    width: 100%; height: 100%; box-sizing: border-box;
     border-radius: 16px;   /* matches the vibrancy view's corner radius */
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08);
+    /* A hairline all round, and a lighter one along the top edge where the
+       light would catch a pane of glass. */
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / .09), inset 0 1px 0 rgb(255 255 255 / .06);
     /* Her sea, thin enough that the blur behind still reads as glass. */
     background: linear-gradient(180deg,
       color-mix(in oklab, var(--sea) 58%, transparent),
       color-mix(in oklab, var(--surface) 50%, transparent));
     overflow: hidden;
+    /* The window is put on screen at full size; the panel's contents arrive a
+       beat later, which is what makes it read as summoned rather than pasted. */
+    animation: arrive .16s cubic-bezier(.2, .7, .3, 1) both;
   }
+  @keyframes arrive { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   /* A soft glow off her side of the bar, the way the stage lights her. */
   .bar::before {
     content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(120px 64px at 34px 50%, rgb(120 168 255 / .16), transparent 70%);
+    background: radial-gradient(150px 80px at 40px 30px, rgb(120 168 255 / .16), transparent 70%);
+  }
+  /* The line itself: her, the field, and the one button. */
+  .row {
+    position: relative; display: flex; align-items: center; gap: 12px;
+    flex: 1; min-height: 0; padding: 0 16px;
+  }
+  /* The action bar under it, the way a launcher keeps its state and its
+     options out of the line you are typing. */
+  .foot {
+    position: relative; display: flex; align-items: center; justify-content: space-between;
+    flex: none; height: 40px; padding: 0 16px;
+    border-top: 1px solid rgb(255 255 255 / .07);
+    background: rgb(0 0 0 / .14);
   }
   .avatar {
-    position: relative; width: 40px; height: 40px; flex: none; border-radius: 50%;
-    object-fit: cover; object-position: center;
-    box-shadow: 0 0 0 1px rgb(255 255 255 / .18), 0 2px 8px rgb(0 0 0 / .35);
-    background: var(--sea);
+    position: relative; width: 32px; height: 32px; flex: none;
+    /* Her icon is drawn as a squircle already — rounding it into a circle
+       would crop the shape the app wears everywhere else. */
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgb(0 0 0 / .4));
   }
   input {
     position: relative; flex: 1; min-width: 0; height: 100%;
     border: 0; background: none; outline: none;
-    color: var(--ink); font: inherit; font-size: 15px; letter-spacing: .01em;
+    color: var(--ink); font: inherit; font-size: 18px; font-weight: 400;
+    caret-color: var(--brand);
     text-shadow: inherit; user-select: text; -webkit-user-select: text;
   }
+  ::selection { background: color-mix(in oklab, var(--brand) 55%, transparent); }
   input::placeholder { color: var(--muted-fg); }
   /* What used to be a keycap pill. A line this short needs no legend for the
      Return key; it needs the same round send button the composer has. */
@@ -71,50 +93,65 @@
   .send.ready { background: var(--brand); color: #fff; cursor: pointer; }
   .send.ready:hover { opacity: .88; }
   .send.ready:active { transform: scale(.94); }
-  /* Sending, sent, or failed — a word beside the button, not inside it. */
-  .note {
-    position: relative; flex: none; color: var(--muted-fg);
+  /* Sending, sent, or failed — a word in the action bar, where the name of
+     the app sits the rest of the time. */
+  .name, .note {
+    position: relative; color: var(--muted-fg);
     font-size: 11.5px; line-height: 1; white-space: nowrap;
     transition: color .15s;
   }
   .note:empty { display: none; }
-  .mode {
-    position: relative; flex: none; height: 22px;
-    display: inline-flex; align-items: center; gap: 6px; padding: 0 9px;
-    border: 0; border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1);
-    background: rgb(255 255 255 / .07);
-    color: var(--muted-fg); font: inherit; font-size: 11.5px; line-height: 1;
-    text-shadow: inherit; cursor: pointer;
-    transition: opacity .15s, color .15s, background .15s;
+  .bar.sending .name, .bar.sent .name, .bar.failed .name { display: none; }
+  /* The shadcn switch, to the same spec as the ones in the main UI's panels:
+     a 36×20 track, a 16px thumb, 16px of travel. This page is plain HTML with
+     no React or Tailwind, so it is written out here rather than imported. */
+  .mode { position: relative; flex: none; display: inline-flex; align-items: center; gap: 7px; }
+  .mode-label {
+    color: var(--muted-fg); font-size: 11.5px; line-height: 1; white-space: nowrap;
+    cursor: pointer; transition: color .15s;
   }
-  .mode:hover { background: rgb(255 255 255 / .12); }
-  .mode .dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: color-mix(in oklab, var(--ink) 34%, transparent);
-    transition: background .15s, box-shadow .15s;
+  .switch {
+    width: 36px; height: 20px; flex: none; padding: 0; border: 0; border-radius: 999px;
+    position: relative; cursor: pointer; background: rgb(255 255 255 / .16);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1);
+    transition: background .15s;
   }
-  /* Lit only in the mode that takes you somewhere. */
-  .mode[aria-pressed="true"] { color: var(--ink); }
-  .mode[aria-pressed="true"] .dot {
-    background: #7ea8ff; box-shadow: 0 0 6px rgb(126 168 255 / .8);
+  .switch::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25);
+    transition: transform .15s;
   }
+  .switch[aria-checked="true"] { background: var(--brand); }
+  .switch[aria-checked="true"]::after { transform: translateX(16px); }
+  .switch:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  /* The label carries the state as well as the track, for a bar this small. */
+  .mode:has(.switch[aria-checked="true"]) .mode-label { color: var(--ink); }
   /* While the line is in flight the bar dims rather than swapping layout. */
   .bar.sending input, .bar.sending .avatar, .bar.sending .send, .bar.sending .mode { opacity: .55; }
+  .bar.sending .switch { pointer-events: none; }
   .bar.failed .note { color: #ffb4a8; }
-  /* The send is the only confirmation there is now — the main window is left
-     alone — so the bar says so for a beat before putting itself away. */
+  /* With the switch off nothing else confirms the send — the main window is
+     left alone — so the bar says so for a beat before putting itself away. */
   .bar.sent .note { color: #a8e6c0; }
 </style>
 </head>
 <body>
   <div class="bar" id="bar">
-    <img class="avatar" id="avatar" src="boot/avatar.jpg" alt="">
-    <input id="text" type="text" placeholder="Message 小黑鱼" autocomplete="off" spellcheck="false">
-    <button class="mode" id="mode" type="button" aria-pressed="false"><span class="dot"></span><span id="mode-label">Background</span></button>
-    <span class="note" id="note"></span>
-    <button class="send" id="send" type="button" aria-label="Send">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-    </button>
+    <div class="row">
+      <img class="avatar" id="avatar" src="boot/avatar.png" alt="">
+      <input id="text" type="text" placeholder="Message 小黑鱼" autocomplete="off" spellcheck="false">
+      <button class="send" id="send" type="button" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+      </button>
+    </div>
+    <div class="foot">
+      <span class="name">Aibo</span>
+      <span class="note" id="note"></span>
+      <span class="mode">
+        <span class="mode-label" id="mode-label">Open Aibo</span>
+        <button class="switch" id="mode" type="button" role="switch" aria-checked="true" aria-labelledby="mode-label"></button>
+      </span>
+    </div>
   </div>
   <script>
     const { core, event } = window.__TAURI__;
@@ -126,33 +163,42 @@
     const modeLabel = document.getElementById('mode-label');
 
     /*
-     * Where a send leaves you. Off (the default) is what a quick launcher is
-     * for: the line goes, the bar goes, you stay in the app you were in. On
-     * brings the main window forward afterwards. The choice is this window's
-     * alone, so it lives in its own localStorage rather than in the plugin's
-     * settings — nothing about it concerns the agent or the other clients.
+     * Where a send leaves you. On — the default — brings the main window
+     * forward afterwards, the way sending from the launcher always has. Off
+     * keeps you in the app you were already in and hands focus back there.
+     * The choice is this window's alone, so it lives in its own localStorage
+     * rather than in the plugin's settings — nothing about it concerns the
+     * agent or the other clients.
      */
     const OPEN_MAIN_KEY = 'aibo.launcher.openMain';
-    let openMain = localStorage.getItem(OPEN_MAIN_KEY) === '1';
+    let openMain = localStorage.getItem(OPEN_MAIN_KEY) !== '0';
     const paintMode = () => {
-      mode.setAttribute('aria-pressed', String(openMain));
-      modeLabel.textContent = openMain ? 'Open Aibo' : 'Background';
+      mode.setAttribute('aria-checked', String(openMain));
       mode.title = openMain
         ? 'After sending, the Aibo window comes forward'
         : 'After sending, you stay in the app you are in';
     };
-    paintMode();
-    // mousedown, not click: the default would move focus out of the input and
-    // leave the caret nowhere after the toggle.
-    mode.addEventListener('mousedown', (e) => {
-      e.preventDefault();
+    const toggleMode = () => {
       openMain = !openMain;
       localStorage.setItem(OPEN_MAIN_KEY, openMain ? '1' : '0');
       paintMode();
-      focusInput();
+    };
+    paintMode();
+    // mousedown, not click: the default would move focus out of the input and
+    // leave the caret nowhere after the toggle. The label flips it too, the
+    // way a shadcn Label bound to a Switch does.
+    for (const target of [mode, modeLabel]) {
+      target.addEventListener('mousedown', (e) => { e.preventDefault(); toggleMode(); focusInput(); });
+    }
+    // Reachable from the keyboard as well; Space and Enter must not send.
+    mode.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      toggleMode();
     });
 
-    const dismiss = () => { input.value = ''; reset(); void core.invoke('hide_launcher'); };
+    let openGeneration = 0, dismissTimer;
+    const dismiss = () => { ++openGeneration; clearTimeout(dismissTimer); input.value = ''; reset(); void core.invoke('hide_launcher'); };
     // The button is lit only when there is a line to send, which is also the
     // only affordance left now that the keycap legend is gone.
     const paintSend = () => { sendButton.classList.toggle('ready', input.value.trim() !== ''); };
@@ -161,24 +207,30 @@
     focusInput();
     // Re-focus every time the shortcut summons it: the window is reused, so
     // without this the caret stays wherever the last dismissal left it.
-    event.listen('aibo://launcher-open', () => { reset(); focusInput(); });
+    // Replay the arrival on every summons: the window is reused, so without
+    // restarting the animation the panel would only ever ease in once.
+    const replayArrival = () => { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; };
+    event.listen('aibo://launcher-open', () => { ++openGeneration; clearTimeout(dismissTimer); reset(); replayArrival(); focusInput(); });
     window.addEventListener('focus', focusInput);
 
     const send = async () => {
       const text = input.value.trim();
       if (text === '' || bar.classList.contains('sending')) return;
+      const generation = openGeneration, openAfterSend = openMain;
       bar.classList.add('sending'); bar.classList.remove('failed'); note.textContent = 'Sending…';
       try {
-        await core.invoke('send_message', { text, openMain });
+        await core.invoke('send_message', { text, openMain: openAfterSend });
+        if (generation !== openGeneration) return;
         input.value = ''; paintSend();
         // In Open mode the window arriving is confirmation enough, so the bar
         // just gets out of the way. In Background mode this beat is the only
         // confirmation there is, then focus goes back to where it came from.
-        if (openMain) { dismiss(); return; }
+        if (openAfterSend) { dismiss(); return; }
         bar.classList.remove('sending'); bar.classList.add('sent');
         note.textContent = 'Sent';
-        setTimeout(dismiss, 600);
+        dismissTimer = setTimeout(() => { if (generation === openGeneration) dismiss(); }, 600);
       } catch {
+        if (generation !== openGeneration) return;
         bar.classList.remove('sending'); bar.classList.add('failed');
         note.textContent = 'Could not reach her';
       }
@@ -187,8 +239,19 @@
     input.addEventListener('input', () => { if (bar.classList.contains('failed')) reset(); else paintSend(); });
     // mousedown, like the mode toggle: a click would take the caret with it.
     sendButton.addEventListener('mousedown', (e) => { e.preventDefault(); focusInput(); void send(); });
+    let composing = false, compositionEnded = -Infinity;
+    input.addEventListener('compositionstart', () => { composing = true; });
+    input.addEventListener('compositionend', () => { composing = false; compositionEnded = performance.now(); });
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); dismiss(); return; }
+      if (composing || e.isComposing || e.keyCode === 229 || performance.now() - compositionEnded < 50) return;
+      // Escape clears a line in progress before it closes anything, so a
+      // typo costs one key rather than the whole summons.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (input.value !== '') { input.value = ''; reset(); return; }
+        dismiss();
+        return;
+      }
       if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
       e.preventDefault();
       void send();

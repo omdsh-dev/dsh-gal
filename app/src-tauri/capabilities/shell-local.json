@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shell-local",
+  "description": "Keep existing application commands available to bundled boot and launcher pages only",
+  "windows": ["main", "launcher"],
+  "local": true,
+  "permissions": ["allow-shell-commands"]
+}

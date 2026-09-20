@@ -43,7 +43,10 @@ try{
  }
  if(!['web','desktop'].includes(mode))throw new Error('模式应为 desktop、web 或 choose。');
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('请安装 Node.js 22 或更新版本。');
- const binary=join(root,'app/src-tauri/target/release/aibo-app');
+ // Prefer the executable inside the bundle: run from there and the window
+ // wears the app's icon and name, instead of the bare binary's blank one.
+ const bundled=join(root,'app/src-tauri/target/release/bundle/macos/Aibo.app/Contents/MacOS/aibo-app');
+ const binary=existsSync(bundled)?bundled:join(root,'app/src-tauri/target/release/aibo-app');
  if(mode==='desktop'&&!existsSync(binary))throw new Error('客户端尚未构建：请先运行 cd app && npm run build。网页端可直接使用。');
  if(!existsSync(join(root,'lib/speech.js')))throw new Error('请先编译插件：npm run build');
  if(!await backendReady()){

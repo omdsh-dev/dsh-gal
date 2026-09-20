@@ -21,14 +21,15 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "backgroundColor": "#04101c",
-        "zoomHotkeysEnabled": true
+        "backgroundThrottling": "disabled",
+        "zoomHotkeysEnabled": false
       },
       {
         "label": "launcher",
         "url": "launcher.html",
         "title": "Aibo",
-        "width": 620,
-        "height": 64,
+        "width": 700,
+        "height": 104,
         "resizable": false,
         "decorations": false,
         "transparent": true,

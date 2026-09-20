@@ -153,7 +153,7 @@ characters/xiaoheiyu/
 
 - **Bundled pack: 小黑鱼 (Xiaoheiyu)**, an original orca-maid whale girl, with 5-second idle loops. She is the only art this repository ships; her pack id is `xiaoheiyu`.
 - **Your own packs** live in `~/.dsh/aibo/characters/<id>` and never touch the repo. Set `AIBO_CHARACTER=<id>` to start as one.
-- **Prompt-only packs** ship text and image prompts but no art — pick one, generate the images yourself, drop them onto the gallery tiles. See [prompts/README.md](prompts/README.md) and [characters/README.md](characters/README.md).
+- **Make your own.** A pack is a `character.json` plus one image per activity. Write the text in the **Character** panel (`⌥C`), generate the art yourself and drop it onto the gallery tiles — a pack with text but no art still works, she just has no stage presence until you add it. See [characters/README.md](characters/README.md).
 - **Import / export** a pack as a `.zip` from the **Character** panel. Exports carry art and `character.json`; what she remembers about you stays on your machine.
 
 Editing or uploading art for a bundled pack copies it to `~/.dsh/aibo/characters/<id>` first, so the repo copy stays pristine.
@@ -266,9 +266,9 @@ The fastest reliable route — the one the bundled 小黑鱼 pack was built with
    A loop needs its last frame to lead back into its first, or it pops once per cycle. The script does that in two steps: it passes the still as the end frame as well as the start frame, and then crossfades the tail back onto the head locally. The model alone is not enough — asking for the end frame gets the pose close but does not land on it.
 5. **Install.** Upload each file from **Character › Art**, or drop everything plus a `character.json` into `~/.dsh/aibo/characters/<id>/`.
 
-Quickest path of all: pick a prompt-only pack from **Character › Pick**, open its **Persona** tab to copy the image prompts into the image model of your choice, and drop the results onto the gallery tiles.
+You can also start from text alone: write the name, greeting, persona and the `art` prompts in **Character › Edit**, run the prompts through the image model of your choice, and drop the results onto the gallery tiles. Until art arrives the pack is marked *prompt only* and she has no stage presence, but everything else — voice, persona, memory — already works.
 
-Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to date — they are the recipe for regenerating the pack later, and what a prompt-only pack hands to its next owner.
+Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to date: they are the recipe for regenerating the pack later, and the only thing a pack can hand to its next owner if you ever share it.
 
 ## Status and limitations
 
@@ -279,7 +279,7 @@ Keep `art.base`, `art.expressions` and `art.motion` in `character.json` up to da
 
 ## What this repository distributes
 
-Text only, for third-party characters: persona prompts, greetings, themes, and image-prompt descriptions under [`prompts/`](prompts/README.md). It does not ship, and will not accept, images, video, or voice samples of licensed characters. You generate those yourself, on your own machine, for your own use, and keep them in `~/.dsh/aibo/characters/<id>/`, outside the repository. The only bundled art is 小黑鱼, an original character.
+This repository ships exactly one character: 小黑鱼, an original orca girl. It does not ship, and will not accept, any material for a licensed character — not art, not video, not voice samples, and not persona text either. Make whatever character you like on your own machine: packs in `~/.dsh/aibo/characters/<id>/` are found before the bundled one and never enter the repository.
 
 ## UI development
 

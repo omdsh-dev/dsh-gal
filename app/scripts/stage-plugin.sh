@@ -13,7 +13,6 @@ mkdir -p "$APP/plugin/characters"
 if [ -d "$ROOT/characters/cetus" ]; then cp -R "$ROOT/characters/cetus" "$APP/plugin/characters/"
 else cp -R "$ROOT/characters/xiaoheiyu" "$APP/plugin/characters/"; fi
 cp "$ROOT/characters/README.md" "$APP/plugin/characters/"
-cp -R "$ROOT/prompts" "$APP/plugin/"
 # Computer Use: the compiled plugin plus the Swift helper source it builds on first use.
 if [ -f "$ROOT/plugins/computer-use/lib/index.js" ]; then
   mkdir -p "$APP/plugin/plugins/computer-use"

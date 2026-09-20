@@ -177,11 +177,9 @@ export function apply(ctx: Context, config: Config): void {
   if (port === 0) return // explicitly disabled
 
   const bundledDir = join(PKG_ROOT, 'characters')
-  /** Prompt-only packs shipped with the repo (text only, lowest lookup priority). */
-  const promptsDir = join(PKG_ROOT, 'prompts')
 
   // ---- character pack ----
-  let pack: CharacterPack = resolveCharacterPack(config.character ?? 'xiaoheiyu', bundledDir, promptsDir)
+  let pack: CharacterPack = resolveCharacterPack(config.character ?? 'xiaoheiyu', bundledDir)
     ?? resolveCharacterPack('xiaoheiyu', bundledDir)
     ?? { id: 'none', dir: bundledDir, name: 'dsh', greeting: 'No character pack found.', persona: '', theme: {}, playbackRate: 1, voice: {}, promptOnly: true, assets: {} }
   if (pack.id === 'none') ctx.logger.warn(`aibo: character "${config.character}" not found and no bundled fallback`)
@@ -212,7 +210,7 @@ export function apply(ctx: Context, config: Config): void {
     voiceSpeaker: pack.voice.speaker,
       promptOnly: pack.promptOnly,
       states,
-      characters: listCharacterPacks(bundledDir, promptsDir).map(entry => ({ id: entry.id, name: entry.name, promptOnly: entry.promptOnly })),
+      characters: listCharacterPacks(bundledDir).map(entry => ({ id: entry.id, name: entry.name, promptOnly: entry.promptOnly })),
     }
   }
 
@@ -252,7 +250,7 @@ export function apply(ctx: Context, config: Config): void {
     voiceSpeaker: pack.voice.speaker,
     art: pack.art,
     promptOnly: pack.promptOnly,
-    bundled: pack.dir.startsWith(bundledDir) || pack.dir.startsWith(promptsDir),
+    bundled: pack.dir.startsWith(bundledDir),
     userDir: join(userCharactersDir(), pack.id),
     assets: ACTIVITIES.map(state => {
       const own = pack.assets[state]
@@ -262,14 +260,14 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   const saveCharacter = (patch: CharacterPatch): void => {
-    pack = saveCharacterPack(pack, patch, bundledDir, promptsDir)
+    pack = saveCharacterPack(pack, patch, bundledDir)
     registerPersona()
     server.broadcast({ type: 'manifest', manifest: manifest(), silent: true })
   }
 
   const uploadAsset = (state: string, kind: 'image' | 'video', ext: string, data: Buffer): void => {
     if (!isActivity(state)) throw new Error(`unknown state ${state}`)
-    pack = storePackAsset(pack, state, kind, ext, data, bundledDir, promptsDir)
+    pack = storePackAsset(pack, state, kind, ext, data, bundledDir)
     server.broadcast({ type: 'manifest', manifest: manifest(), silent: true })
   }
 
@@ -316,7 +314,7 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   const switchCharacter = (id: string): boolean => {
-    const next = resolveCharacterPack(id, bundledDir, promptsDir)
+    const next = resolveCharacterPack(id, bundledDir)
     if (next === undefined) return false
     pack = next
     registerPersona()

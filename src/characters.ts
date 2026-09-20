@@ -145,9 +145,9 @@ export interface CharacterPatch {
  * Persist edits. A bundled pack is first copied into the user directory so the
  * plugin's own files stay pristine; the returned pack points at the copy.
  */
-export function saveCharacterPack(pack: CharacterPack, patch: CharacterPatch, bundledDir: string, promptsDir?: string): CharacterPack {
+export function saveCharacterPack(pack: CharacterPack, patch: CharacterPatch, bundledDir: string): CharacterPack {
   let dir = pack.dir
-  if (dir.startsWith(bundledDir) || (promptsDir !== undefined && dir.startsWith(promptsDir))) {
+  if (dir.startsWith(bundledDir)) {
     dir = join(userCharactersDir(), pack.id)
     mkdirSync(dir, { recursive: true })
     for (const entry of readdirSync(pack.dir)) {
@@ -169,14 +169,14 @@ export function saveCharacterPack(pack: CharacterPack, patch: CharacterPatch, bu
   return reloaded
 }
 
-/** Make sure the pack lives in the user directory (copies bundled/prompt packs); returns it. */
-export function materializePack(pack: CharacterPack, bundledDir: string, promptsDir?: string): CharacterPack {
-  return saveCharacterPack(pack, {}, bundledDir, promptsDir)
+/** Make sure the pack lives in the user directory (copies bundled packs); returns it. */
+export function materializePack(pack: CharacterPack, bundledDir: string): CharacterPack {
+  return saveCharacterPack(pack, {}, bundledDir)
 }
 
 /** Write one uploaded asset into the pack (copying it to the user dir first) and reload. */
-export function storePackAsset(pack: CharacterPack, state: Activity, kind: 'image' | 'video', ext: string, data: Buffer, bundledDir: string, promptsDir?: string): CharacterPack {
-  const live = materializePack(pack, bundledDir, promptsDir)
+export function storePackAsset(pack: CharacterPack, state: Activity, kind: 'image' | 'video', ext: string, data: Buffer, bundledDir: string): CharacterPack {
+  const live = materializePack(pack, bundledDir)
   // one file per state+kind: drop other extensions so discovery is unambiguous
   for (const old of kind === 'image' ? IMAGE_EXTS : VIDEO_EXTS) {
     const stale = join(live.dir, `${state}${old}`)
@@ -193,12 +193,12 @@ export function storePackAsset(pack: CharacterPack, state: Activity, kind: 'imag
  * directory, or a pack id looked up in the user directory first, then the
  * plugin's bundled `characters/`.
  */
-export function resolveCharacterPack(spec: string, bundledDir: string, promptsDir?: string): CharacterPack | undefined {
+export function resolveCharacterPack(spec: string, bundledDir: string): CharacterPack | undefined {
   if (spec.includes('/') || spec.includes('\\')) {
     const dir = isAbsolute(spec) ? spec : resolve(process.cwd(), spec)
     return loadCharacterPack(dir)
   }
-  for (const root of [userCharactersDir(), bundledDir, ...promptsDir === undefined ? [] : [promptsDir]]) {
+  for (const root of [userCharactersDir(), bundledDir]) {
     const pack = loadCharacterPack(join(root, spec), spec)
     if (pack !== undefined) return pack
   }
@@ -206,9 +206,9 @@ export function resolveCharacterPack(spec: string, bundledDir: string, promptsDi
 }
 
 /** Every discoverable pack, user packs shadowing bundled ones by id. */
-export function listCharacterPacks(bundledDir: string, promptsDir?: string): CharacterPack[] {
+export function listCharacterPacks(bundledDir: string): CharacterPack[] {
   const packs = new Map<string, CharacterPack>()
-  for (const root of [...promptsDir === undefined ? [] : [promptsDir], bundledDir, userCharactersDir()]) {
+  for (const root of [bundledDir, userCharactersDir()]) {
     if (!existsSync(root)) continue
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue

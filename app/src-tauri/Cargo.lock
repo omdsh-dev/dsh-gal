@@ -18,6 +18,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "aibo-app"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "libc",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "ureq",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -674,19 +687,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "aibo-app"
-version = "0.1.0"
-dependencies = [
- "dirs",
- "libc",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "ureq",
 ]
 
 [[package]]

@@ -7,7 +7,7 @@
  *   baseline — personaEnabled: false (plugin only mirrors)
  *   Aibo      — persona + memory sections on
  *
- * Usage: node scripts/eval.mjs [--dsh <path-to-dsh-bin>] [--character haibara]
+ * Usage: node scripts/eval.mjs [--dsh <path-to-dsh-bin>] [--character xiaoheiyu]
  *        [--reps 2] [--cwd /tmp/aibo-eval] [--out eval-results.json]
  * Requires: a dsh install with the plugin built (lib/), `zstd` on PATH.
  */
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1] ?? ''] : []).filter(Boolean))
 const DSH = args.dsh ?? join(homedir(), 'Library/Application Support/aibo/runtime/node_modules/.bin/dsh')
-const CHARACTER = args.character ?? 'haibara'
+const CHARACTER = args.character ?? 'xiaoheiyu'
 const REPS = Number(args.reps ?? 2)
 const CWD = args.cwd ?? '/tmp/aibo-eval'
 const OUT = args.out ?? join(ROOT, 'eval-results.json')

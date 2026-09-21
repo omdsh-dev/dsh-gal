@@ -20,3 +20,10 @@ dist/
 app/release.env
 *.key
 *.key.pub
+
+# Local installers, installed-app backups and intermediate icon exports.
+# Source artwork and interactive previews under output/ remain versioned.
+output/releases/
+output/install-backups/
+output/pet/backups/
+output/pet/Aibo.iconset/

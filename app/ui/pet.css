@@ -1,0 +1,33 @@
+/* Same palette, type and controls as the chat room, sized for the companion. */
+@font-face{font-family:'Google Sans Flex';src:url('boot/GoogleSansFlex.woff2') format('woff2');font-weight:300 800;font-display:swap}
+:root{--surface:#fcfcfd;--ink:#1b1b1b;--brand:#827be6;--danger:#c94446;--card:var(--surface);--muted:color-mix(in oklab,var(--ink) 5%,var(--surface));--muted-fg:color-mix(in oklab,var(--ink) 52%,var(--surface));--border:color-mix(in oklab,var(--ink) 9%,var(--surface));--input:color-mix(in oklab,var(--ink) 12%,var(--surface));--shadow:0 8px 24px #00000014,0 1px 3px #0000000a;color:var(--ink);color-scheme:light;font-family:'Google Sans Flex',ui-sans-serif,system-ui,-apple-system,'PingFang SC','Hiragino Sans','Segoe UI',sans-serif;font-size:13px}
+@media(prefers-color-scheme:dark){:root{--surface:#131111;--ink:#ece9e6;--danger:#ff7e78;--card:color-mix(in oklab,var(--ink) 7%,var(--surface));--muted:color-mix(in oklab,var(--ink) 13%,var(--surface));--muted-fg:color-mix(in oklab,var(--ink) 56%,var(--surface));--border:color-mix(in oklab,var(--ink) 13%,var(--surface));--input:color-mix(in oklab,var(--ink) 18%,var(--surface));--shadow:0 8px 24px #00000040,0 1px 3px #00000024;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent!important;overflow:hidden;user-select:none;-webkit-user-select:none}[hidden]{display:none!important}button,input{font:inherit}button{border:0;cursor:pointer;color:inherit}button:disabled,input:disabled{opacity:.5;cursor:default}button:focus-visible,input:focus-visible{outline:2px solid var(--brand);outline-offset:3px}svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;pointer-events:none}.icon-button{display:grid;place-items:center;flex:none;width:32px;height:32px;padding:0;border-radius:10px;background:transparent;color:var(--muted-fg);transition:background .14s,color .14s,transform .14s}.icon-button:hover{background:var(--muted);color:var(--ink)}.icon-button:active{transform:scale(.94)}
+#pet{position:absolute;bottom:56px;left:50%;width:180px;height:180px;transform:translateX(-50%);cursor:grab;outline:none}#pet:active{cursor:grabbing}#pet:focus-visible{filter:drop-shadow(0 0 3px var(--brand))}
+/* Dialogue is just the message; transient work is a compact typing bubble. */
+#bubble{--bubble-line:color-mix(in oklab,var(--ink) 78%,var(--card));position:absolute;z-index:2;left:28px;right:28px;bottom:248px;padding:17px 19px 18px;border:0;background:none;animation:card-in .18s ease-out;isolation:isolate}
+/* One continuous contour for both the body and tail: no overlapping borders. */
+#bubble-outline{position:absolute;z-index:-1;inset:0;width:100%;height:calc(100% + 18px);overflow:visible;fill:var(--card);stroke:var(--bubble-line);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(2px 3px 0 color-mix(in oklab,var(--ink) 24%,transparent));pointer-events:none}
+#bubble-contour{vector-effect:non-scaling-stroke}
+#message{display:block;width:100%;padding:0;text-align:left;background:none}#title{display:block;margin-top:0;font-size:12px;font-weight:500;line-height:1.6;color:var(--muted-fg)}#detail{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:450;line-height:1.8;letter-spacing:.01em;color:var(--ink);margin-top:0;overflow-wrap:anywhere}#bubble[data-reply=true] #title{display:none}#bubble[data-compact=true] #detail{-webkit-line-clamp:2}#bubble[data-compact=true]:not([data-reply=true]) #detail{-webkit-line-clamp:1}#dismiss{position:absolute;right:9px;top:8px;width:24px;height:24px;border-radius:50%}#dismiss svg{width:13px;height:13px}
+@media(prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}
+#pet-art{display:block;width:100%;height:100%;pointer-events:none;background-image:url(pet/sprites-v3.png);background-size:800% 1500%;background-repeat:no-repeat;transform-origin:50% 22%}
+#pet.grabbed{cursor:grabbing}
+#pet.grabbed #pet-art{animation:pet-dangle 900ms ease-in-out infinite;filter:drop-shadow(0 8px 5px #18243c20)}
+#pet.landing #pet-art{transform-origin:50% 88%;animation:pet-land 420ms ease-out both}
+@keyframes pet-dangle{0%,100%{transform:translateY(-5px) rotate(-6deg) scale(.97,1.035)}50%{transform:translateY(-7px) rotate(6deg) scale(.97,1.035)}}
+@keyframes pet-land{0%{transform:translateY(-6px) scale(.97,1.035)}35%{transform:translateY(2px) scale(1.045,.95)}65%{transform:translateY(-2px) scale(.99,1.02)}100%{transform:none}}
+@media(prefers-reduced-motion:reduce){#pet.grabbed #pet-art{animation:none;transform:translateY(-4px)}#pet.landing #pet-art{animation:none}}
+
+#bubble[data-kind=reply] #message{padding-right:12px}
+#bubble[data-kind=notice] #title{padding-right:12px}
+#bubble[data-kind=notice] #detail{margin-top:6px}
+#bubble[data-tone=failed] #title{color:var(--danger)}
+#bubble[data-kind=thinking]{left:50%;right:auto;width:82px;transform:translateX(-50%);padding:17px 29px 17px 17px}
+#thinking{display:flex;align-items:center;gap:5px;height:8px}
+#thinking i{display:block;flex:none;width:5px;height:5px;border-radius:50%;background:var(--brand);opacity:.45;animation:thinking-dot 1.4s ease-in-out infinite}
+#thinking i:nth-child(2){animation-delay:.16s}#thinking i:nth-child(3){animation-delay:.32s}
+#bubble[data-kind=thinking] #dismiss{top:9px;right:6px;width:20px;height:24px}
+@keyframes thinking-dot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-3px);opacity:1}}
+
+@keyframes card-in{from{opacity:0;translate:0 4px}to{opacity:1;translate:0 0}}

@@ -4,7 +4,8 @@
   "description": "Loading page listens for supervisor status events; the UI drags and zooms the window from its top strip; the launcher sends a line and dismisses itself",
   "windows": [
     "main",
-    "launcher"
+    "launcher",
+    "pet"
   ],
   "permissions": [
     "core:default",

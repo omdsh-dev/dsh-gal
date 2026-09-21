@@ -1,0 +1,44 @@
+# Desktop pet
+
+Enable **Settings → General → Desktop pet**, or use the native **桌宠 → 开启 / 关闭桌宠** menu. It is off by default. After enabling, closing the main window with Cmd+W or hiding Aibo with Cmd+H leaves Xiaoheiyu on the desktop. **Also show with the main window** controls whether she stays while the main window is visible. Cmd+Q exits both windows and the supervised backend.
+
+Drag the character to move her; while held, an eight-frame dangling animation plays, with directional running when pulled sideways and a 420 ms rebound on release. Bubbles stay hidden during the drag. macOS mouse-button polling catches releases outside the webview. Reduced motion uses a static lift. Click a status bubble to reopen the conversation. Right-click opens a native menu with **聊一句**, **打开 App**, and **关闭桌宠**. There is no hover toolbar, settings popover, or double-click action. Configure size (120–260 px), main-window visibility and enabling in the main Settings page. Position and preferences are saved in `~/Library/Application Support/aibo/pet.json`.
+
+The pet reads the authenticated `/pet-state` endpoint through a native command while visible. It does not depend on the main page being active, create another agent, or send anything automatically. Bubbles show real task activity, pending input, a brief failure indication, and a completed reply excerpt. Dismissing a bubble does not cancel a task. Offline status is explicit and retries automatically. Operating-system reduced motion uses still frames.
+
+Implementation: `app/src-tauri/src/pet.rs`, `app/ui/pet*`, `src/pet-state.ts`. The macOS companion is a non-activating NSPanel with `canHide = false`; see Apple's [canHide documentation](https://developer.apple.com/documentation/appkit/nswindow/canhide). Transparent sprite regions use alpha-derived native mouse hit areas. Status/control commands are limited to the bundled pet window; the local main page may only read/write appearance preferences.
+
+Checks:
+
+- Build the plugin and chat UI using the repository build commands.
+- `node scripts/check-pet.mjs` (lifecycle and real HTTP auth/state; temporary port 14987).
+- `node scripts/check-launcher.mjs` (launcher regression).
+- `node scripts/check-pet-controls.mjs` (removed shortcuts, settings updates, drag directions, release and hit regions).
+- `node scripts/check-pet-animation.mjs` (81-frame contract, Codex playback timing, all 16 gaze directions and reduced motion).
+- `node scripts/check-thinking.mjs` (thinking settings and request overrides).
+- `cd app/src-tauri && cargo test --lib`.
+- `cd app/src-tauri && cargo run --example launcher-panel-check` (isolated AppKit windows; Cmd+H, focus, minimize/reopen).
+- `node scripts/preview-pet.mjs` serves a synthetic browser fixture on port 14988; it does not touch the user's agent session.
+- `cd app && npm run build -- --bundles app`.
+
+## Codex-aligned animation behavior
+
+The runtime now uses the v2 atlas: nine action groups plus sixteen directional looks (73 effective frames, matching the installed Codex v2 contract), and eight extra held frames, for 81 total. See `assets/pet/README.md` for counts and `assets/pet/v2/PROMPTS.md` for independently generated artwork provenance. Standard actions play three times, then return to slow idle. Hover selects jump; task bubbles remain accurate even when an animation settles. Gaze follows the installed Codex semantics: ordinary desktop mouse movement never selects a gaze frame or restarts idle. Only the focused launcher's measured text caret (highest priority) or explicit Computer Use helper targets can select the sixteen directions, and only during idle/running/waving. Gaze pauses the clip; clearing it restarts that action. Waiting/review/failed and hover/drag stay in their own animations. Native caret coordinates are reconciled with frameless AppKit window coordinates; Computer Use Quartz points are converted on the main thread, including Retina/multi-monitor offsets. The helper emits only positions of its own pointer actions, tagged with their request ID; cancelled/timed-out requests cannot supply targets. The backend clears targets at turn boundaries, failures and helper exit; the existing one-second pet-status polling delivers CU targets (intermediate drag samples may be coalesced). No gaze coordinates or input text are persisted. Ordinary cursor deltas are sent at most every 33 ms only while dragging. While dragging, native cursor deltas move the non-activating window at roughly 60 Hz so the AppKit blocking drag loop does not freeze animation. Idle reconciliation runs at 20 Hz. The companion alone overrides AppKit frame constraints so transparent headroom can cross the screen top when dragging; the launcher retains normal constraints. Releases outside the webview are detected from the native primary mouse button.
+
+Validation of this update covers the browser fixture, animation/control regressions and Rust tests; it has not been packaged or installed over the user's running app.
+
+## Thinking preference
+
+Settings → General → Thinking selects from the current model adapter's supported efforts. Aibo defaults to `low`, independently of dsh's saved default selection. The preference is stored with the other Aibo UI preferences and is read by the room-scoped `agent/request` waterfall, so changes apply to the next model request in new and resumed conversations. A request already underway is unchanged. Unsupported preferences fall back to the model default when switching to a different model; models without reasoning capabilities receive no explicit effort. This does not rewrite the user's global dsh settings.
+
+## Companion controls and speech styling
+
+`app/ui/pet.css` uses the chat room’s Google Sans Flex font, warm light/dark palette and violet accent. The pet displays activity, supports dragging, and exposes three actions in its native context menu. Appearance settings live in the main app. Larger pet sizes use fewer excerpt lines to keep the card inside the 320×440 native window.
+
+Conversation bubbles show only the assistant message, without a speaker/status heading or a synthetic completion message. Reading/writing/searching/running use a compact three-dot indicator; speaking shows the reply when present. Waiting, failure and connection problems retain actionable text. The typing dots respect reduced motion, and the same dismiss/drag rules apply to every bubble kind.
+
+The selected comic bubble uses the main chat font stack (Google Sans Flex with system CJK fallbacks). A single size-aware SVG contour joins rounded corners and the centered curved tail, avoiding separate border seams. A fine outline and restrained offset shadow preserve the comic character in light and dark appearances.
+
+## Idle meme series
+
+Runtime atlas v3 extends the existing 81 frames with 24 new frames (105 total): plain rice, blanket nap and book/page-turn. See `assets/pet/memes/README.md` for sources and timing. Eligible idle gets a random 30–60 second cooldown; a vignette plays once, never repeats immediately, and yields to all meaningful interactions/tasks. Reduced motion disables these spontaneous vignettes.

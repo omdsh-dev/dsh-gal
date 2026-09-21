@@ -84,7 +84,9 @@ export function SettingsPanel({ open, onOpenChange, theme, setTheme, voiceOn, se
                       </div>
                     </div>
                   </div>
+                  {open && <ThinkingSettings />}
                   {open && <ComputerUseSettings />}
+                  {open && <PetSettings />}
                   <div className="settings-group">
                     <h3 className="section">Session</h3>
                     <div className="settings-rows">
@@ -118,7 +120,69 @@ export function SettingsPanel({ open, onOpenChange, theme, setTheme, voiceOn, se
   )
 }
 
+type ThinkingView = { provider: string; model: string; selected: string; effective?: string; efforts: { id: string; name: string }[] }
+function ThinkingSettings(): React.ReactElement {
+  const [view, setView] = React.useState<ThinkingView | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState('')
+  React.useEffect(() => {
+    let active = true
+    void getJson<ThinkingView>('/thinking').then(value => { if (active) setView(value) }).catch(() => { if (active) setError('Could not load thinking settings. Reopen Settings to retry.') })
+    return () => { active = false }
+  }, [])
+  const save = async (effort: string) => {
+    setSaving(true); setError('')
+    try { setView(await postJson<ThinkingView>('/thinking', { effort })) }
+    catch { setError('Could not save thinking level. Please retry.') }
+    finally { setSaving(false) }
+  }
+  return <div className="settings-group">
+    <h3 className="section">Thinking</h3>
+    <div className="settings-rows"><label className="setting"><span><b>Thinking level</b><small>{view ? `${view.model} · Applies from the next model request. Higher levels can take longer.` : 'Loading…'}</small></span>
+      {view && <select className="input" aria-label="Thinking level" value={view.selected} disabled={saving || view.efforts.length === 0} onChange={e => void save(e.target.value)}>
+        <option value="default">Model default{view.selected === 'default' && view.effective ? ` (${view.effective})` : ''}</option>
+        {view.efforts.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>}
+    </label></div>
+    {error && <p role="alert">{error}</p>}
+  </div>
+}
+
 type ComputerUseView = { status: string; summary: string; shared: boolean; stats?: { label: string; value: string }[]; actions?: { id: string; kind: string; value?: boolean }[] }
+
+function PetSettings(): React.ReactElement | null {
+  type Prefs = { enabled: boolean; showWithMain: boolean; size: number }
+  const bridge = (window as unknown as { __TAURI__?: { core: { invoke: <T>(name: string, args?: Record<string, unknown>) => Promise<T> }; event: { listen: <T>(name: string, callback: (event: {payload:T}) => void) => Promise<() => void> } } }).__TAURI__
+  const [prefs, setPrefs] = React.useState<Prefs | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState('')
+  React.useEffect(() => {
+    if (!bridge) return
+    let active = true
+    void bridge.core.invoke<Prefs>('get_pet_preferences').then(p => { if (active) setPrefs(p) }).catch(() => { if (active) setError('Could not load desktop pet settings.') })
+    const unlisten = bridge.event.listen<Prefs>('aibo://pet-preferences', ({payload}) => { if (active) setPrefs(payload) })
+    return () => { active = false; void unlisten.then(fn => fn()).catch(console.error) }
+  }, [])
+  if (!bridge) return null
+  const save = async (patch: Partial<Prefs>): Promise<void> => {
+    if (!prefs) return
+    setSaving(true); setError('')
+    try { setPrefs(await bridge.core.invoke<Prefs>('set_pet_preferences', { ...prefs, ...patch })) }
+    catch { setError('Could not save. Please try again.') }
+    finally { setSaving(false) }
+  }
+  return <div className="settings-group">
+    <h3 className="section">Desktop pet</h3>
+    <div className="settings-rows">
+      {prefs && <>
+        <label className="setting"><span><b>Keep Xiaoheiyu on the desktop</b><small>She stays when you close (⌘W) or hide (⌘H) the window. Quit (⌘Q) exits everything.</small></span><input className="switch" type="checkbox" checked={prefs.enabled} disabled={saving} onChange={e => void save({enabled:e.target.checked})} /></label>
+        <label className="setting"><span><b>Also show with the main window</b><small>Off keeps her on the desktop only while the main window is tucked away.</small></span><input className="switch" type="checkbox" checked={prefs.showWithMain} disabled={saving || !prefs.enabled} onChange={e => void save({showWithMain:e.target.checked})} /></label>
+        <label className="setting"><span><b>Pet size</b><small>Drag her to move. Click a bubble to open the conversation.</small></span><select className="input" aria-label="Pet size" value={prefs.size} disabled={saving || !prefs.enabled} onChange={e => void save({size:Number(e.target.value)})}>{Array.from({length:15},(_,i)=>120+i*10).map(size => <option key={size} value={size}>{size} px</option>)}</select></label>
+      </>}
+      {error && <p className="empty" role="status">{error}</p>}
+    </div>
+  </div>
+}
 
 /**
  * The Computer Use switch. The plugin (plugins/computer-use) registers itself

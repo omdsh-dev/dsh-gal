@@ -129,29 +129,35 @@ async function ensureHelper(log: (m: string) => void): Promise<string> {
 class HelperError extends Error { constructor(readonly code: string, message: string) { super(message) } }
 
 /** One long-lived helper process; requests are serialized by the helper itself. */
+type CursorPoint = { x: number; y: number }
 class Helper {
   private child: ChildProcessByStdio<Writable, Readable, Readable> | undefined
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>()
   private seq = 0
   private starting: Promise<void> | undefined
-  constructor(private readonly log: (m: string) => void, private readonly warn: (m: string) => void) {}
+  constructor(private readonly log: (m: string) => void, private readonly warn: (m: string) => void, private readonly cursor: (point: CursorPoint | null) => void) {}
 
   private async start(): Promise<void> {
     const bin = await ensureHelper(this.log)
     const child = spawn(bin, [], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
     createInterface({ input: child.stdout }).on('line', line => {
-      let msg: { id?: number; result?: unknown; error?: { code?: string; message?: string } }
+      let msg: { event?: string; point?: CursorPoint; id?: number; result?: unknown; error?: { code?: string; message?: string } }
       try { msg = JSON.parse(line) as typeof msg } catch { return }
+      if (msg.event === 'cursor') {
+        if (typeof msg.id === 'number' && this.pending.has(msg.id) && Number.isFinite(msg.point?.x) && Number.isFinite(msg.point?.y)) this.cursor(msg.point!)
+        return
+      }
       const slot = typeof msg.id === 'number' ? this.pending.get(msg.id) : undefined
       if (!slot) return
       this.pending.delete(msg.id as number)
       clearTimeout(slot.timer)
-      if (msg.error) slot.reject(new HelperError(msg.error.code ?? 'error', msg.error.message ?? 'helper error'))
+      if (msg.error) { this.cursor(null); slot.reject(new HelperError(msg.error.code ?? 'error', msg.error.message ?? 'helper error')) }
       else slot.resolve(msg.result)
     })
     createInterface({ input: child.stderr }).on('line', line => { if (line.trim()) this.warn(`helper: ${line}`) })
     child.on('exit', (code, signal) => {
+      this.cursor(null)
       if (this.child === child) this.child = undefined
       const reason = new Error(`the Computer Use helper exited (${signal ?? code})`)
       for (const [id, slot] of this.pending) { clearTimeout(slot.timer); slot.reject(reason); this.pending.delete(id) }
@@ -167,14 +173,14 @@ class Helper {
     if (!child) throw new Error('the Computer Use helper is not running')
     const id = ++this.seq
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} timed out after ${Math.round(timeoutMs / 1000)} s`)) }, timeoutMs)
+      const timer = setTimeout(() => { this.pending.delete(id); this.cursor(null); reject(new Error(`${method} timed out after ${Math.round(timeoutMs / 1000)} s`)) }, timeoutMs)
       this.pending.set(id, { resolve: v => resolve(v as T), reject, timer })
-      signal?.addEventListener('abort', () => { if (this.pending.delete(id)) { clearTimeout(timer); reject(new Error('cancelled')) } }, { once: true })
+      signal?.addEventListener('abort', () => { if (this.pending.delete(id)) { clearTimeout(timer); this.cursor(null); reject(new Error('cancelled')) } }, { once: true })
       child.stdin.write(`${JSON.stringify({ id, method, params })}\n`, err => { if (err) { this.pending.delete(id); clearTimeout(timer); reject(err) } })
     })
   }
 
-  stop(): void { this.child?.kill(); this.child = undefined }
+  stop(): void { this.cursor(null); this.child?.kill(); this.child = undefined }
 }
 
 // ---- helper payloads ---------------------------------------------------------
@@ -199,7 +205,10 @@ export function apply(ctx: Context, config: Config): void {
   const warn = (m: string): void => ctx.logger.warn(`dsh-computer-use: ${m}`)
   const defaults: Settings = { enabled: config.enabled !== false, screenshots: config.screenshots !== false, allowedApps: {} }
   let settings = readSettings(defaults)
-  const helper = new Helper(log, warn)
+  let cursorPoint: CursorPoint | null = null
+  const cursor = { snapshot: () => cursorPoint, clear: () => { cursorPoint = null } }
+  ctx.effect(() => (ctx as unknown as { provide(name: string, value: unknown): () => void }).provide('computerUseCursor', cursor), 'dsh-computer-use.cursor')
+  const helper = new Helper(log, warn, point => { cursorPoint = point })
   ctx.effect(() => () => helper.stop(), 'dsh-computer-use.helper')
 
   // ---- state the panel shows ------------------------------------------------

@@ -27,6 +27,7 @@ use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
 mod launcher_panel;
 mod updater;
+mod pet;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
@@ -415,6 +416,7 @@ fn dismiss_launcher(app: &AppHandle, restore: bool) {
 }
 
 fn dismiss_launcher_on_main(app: &AppHandle, restore: bool) {
+    pet::clear_caret(app);
     // Take this before orderOut triggers the focus-loss callback reentrantly.
     let previous = PREVIOUS_APP.swap(0, Ordering::SeqCst);
     #[cfg(target_os = "macos")]
@@ -608,12 +610,13 @@ pub fn run() {
     install_signal_handlers();
     tauri::Builder::default()
         .manage(Mutex::new(Supervisor { child: None }))
-        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher, set_zoom_level, restore_zoom])
+        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher, set_zoom_level, restore_zoom, pet::get_pet_preferences, pet::set_pet_preferences, pet::pet_regions, pet::open_pet_chat, pet::open_pet_launcher, pet::show_pet_menu, pet::pet_status, pet::start_pet_drag, pet::pet_caret])
         .plugin(tauri::plugin::Builder::<tauri::Wry>::new("saved-zoom")
             .js_init_script(include_str!("../../ui/zoom.js"))
             .build())
         .setup(|app| {
             updater::setup(app)?;
+            pet::setup(app)?;
             // The `main` window comes from tauri.conf.json; only the supervisor starts here.
             let handle = app.handle().clone();
             std::thread::spawn(move || boot(handle));

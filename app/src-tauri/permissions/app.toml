@@ -7,3 +7,18 @@ commands.allow = ["retry", "support_dir", "send_message", "hide_launcher"]
 identifier = "allow-saved-zoom"
 description = "Read and update the desktop main window's local zoom preference."
 commands.allow = ["restore_zoom", "set_zoom_level"]
+
+[[permission]]
+identifier = "allow-pet-preferences"
+description = "Read and save desktop pet appearance and visibility."
+commands.allow = ["get_pet_preferences", "set_pet_preferences"]
+
+[[permission]]
+identifier = "allow-pet-controls"
+description = "The bundled desktop pet reads task status and opens existing chat surfaces."
+commands.allow = ["pet_status", "pet_regions", "start_pet_drag", "open_pet_chat", "open_pet_launcher", "show_pet_menu"]
+
+[[permission]]
+identifier = "allow-pet-caret"
+description = "The bundled launcher reports its input caret to the companion."
+commands.allow = ["pet_caret"]

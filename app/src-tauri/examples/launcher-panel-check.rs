@@ -64,6 +64,25 @@ fn main() {
                 size: Size { width, height },
             }, styleMask: mask, backing: 2usize, defer: Bool::NO]
         };
+        let pet = make_window(320.0, 440.0, 0);
+        launcher_panel::configure_companion(pet.cast::<c_void>());
+        // The sprite sits below transparent headroom reserved for bubbles.
+        // That headroom must be allowed above the screen during an upward drag.
+        let screen: *mut AnyObject = msg_send![AnyClass::get(c"NSScreen").unwrap(), mainScreen];
+        let screen_frame: Rect = msg_send![screen, frame];
+        let requested = Rect {
+            origin: Point { x: screen_frame.origin.x + 100.0, y: screen_frame.origin.y + screen_frame.size.height - 200.0 },
+            size: Size { width: 320.0, height: 440.0 },
+        };
+        let constrained: Rect = msg_send![pet, constrainFrameRect: requested, toScreen: screen];
+        assert!((constrained.origin.y-requested.origin.y).abs()<0.5,
+            "transparent pet headroom must cross screen top: requested {}, got {}", requested.origin.y, constrained.origin.y);
+        let _: () = msg_send![pet, setFrame: requested, display: Bool::NO];
+        let actual: Rect = msg_send![pet, frame];
+        assert!((actual.origin.y-requested.origin.y).abs()<0.5, "pet must retain upward drag position");
+        let _: () = msg_send![pet, setFrameOrigin: Point { x: -10000.0, y: -10000.0 }];
+        println!("PASS pet transparent headroom can cross the screen top");
+        if std::env::args().any(|arg| arg == "--pet-geometry-only") { return; }
         let main = make_window(640.0, 480.0, 15);
         let panel = make_window(700.0, 104.0, 0);
         let main_ptr = main.cast::<c_void>();
@@ -145,6 +164,28 @@ fn main() {
         println!("PASS main can still be explicitly reopened");
         // Exercise native geometry without displaying the moved window.
         launcher_panel::place_on_mouse_screen(panel_ptr);
+
+        let _: () = msg_send![app, unhideWithoutActivation];
+        let _: () = msg_send![pet, orderFrontRegardless];
+        pump();
+        assert_foreground();
+        let can_hide: Bool = msg_send![pet, canHide];
+        assert!(!can_hide.as_bool());
+        for _ in 0..3 {
+            let _: () = msg_send![main, orderFrontRegardless];
+            let _: () = msg_send![app, hide: std::ptr::null_mut::<AnyObject>()];
+            pump();
+            let hidden: Bool = msg_send![app, isHidden];
+            assert!(hidden.as_bool());
+            assert!(is_visible(pet), "Cmd+H must retain the desktop pet");
+            let key: Bool = msg_send![pet, isKeyWindow];
+            assert!(!key.as_bool(), "pet must not grab keyboard focus");
+            let _: () = msg_send![app, unhideWithoutActivation];
+            pump();
+        }
+        launcher_panel::order_out(pet.cast::<c_void>());
+        launcher_panel::order_out(main_ptr);
+        println!("PASS desktop pet survives three Cmd+H cycles without taking keyboard focus");
     }
 }
 

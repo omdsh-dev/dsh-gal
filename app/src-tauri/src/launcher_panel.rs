@@ -129,6 +129,39 @@ pub fn order_out(ptr: *mut c_void) {
     }
 }
 
+/// A desktop companion survives both deactivation and explicit Cmd+H.
+/// Unlike a keyboard launcher, presenting it must never make it key.
+pub fn configure_companion(ptr: *mut c_void) {
+    configure(ptr);
+    if ptr.is_null() { return; }
+    // The 440-point canvas includes transparent space above the sprite for
+    // speech. AppKit must not pin that invisible window edge below the menu bar.
+    // Keep this override exclusive to the companion, not the keyboard launcher.
+    use objc2::{runtime::{ClassBuilder, Sel}, sel};
+    let class = AnyClass::get(c"AiboCompanionPanel").or_else(|| {
+        let superclass = AnyClass::get(c"AiboLauncherPanel")?;
+        let mut builder = ClassBuilder::new(c"AiboCompanionPanel", superclass)?;
+        extern "C-unwind" fn unconstrained(
+            _this: &AnyObject, _sel: Sel, frame: NSRect, _screen: *mut AnyObject,
+        ) -> NSRect { frame }
+        unsafe {
+            builder.add_method(
+                sel!(constrainFrameRect:toScreen:),
+                unconstrained as extern "C-unwind" fn(_, _, _, _) -> NSRect,
+            );
+        }
+        Some(builder.register())
+    });
+    let Some(class) = class else { return };
+    unsafe {
+        let w = &*(ptr as *const AnyObject);
+        AnyObject::set_class(w, class);
+        let _: () = msg_send![w, setCanHide: Bool::NO];
+        let _: () = msg_send![w, setLevel: 3isize];
+        let _: () = msg_send![w, setHasShadow: Bool::NO];
+    }
+}
+
 use objc2::encode::{Encode, Encoding};
 // Minimal AppKit geometry types (NSPoint/NSSize/NSRect are CGPoint/CGSize/CGRect
 // on 64-bit macOS). We declare them locally with the right Objective-C struct
@@ -277,5 +310,28 @@ pub fn remove_outside_click_monitor() {
         let obj = ptr as *mut AnyObject;
         let _: () = msg_send![ns_event, removeMonitor: obj];
         let _: () = msg_send![obj, release];
+    }
+}
+
+// Convert Quartz screen points (top-left origin, logical points) to webview
+// coordinates. AppKit frames avoid mixing Retina pixels across monitors.
+pub fn companion_local_point(ptr: *mut c_void, x: f64, y: f64) -> Option<(f64, f64)> {
+    unsafe {
+        let screens: *mut AnyObject = msg_send![AnyClass::get(c"NSScreen")?, screens];
+        let count: usize = msg_send![screens, count];
+        if count == 0 { return None; }
+        let primary: *mut AnyObject = msg_send![screens, objectAtIndex: 0usize];
+        let screen: NSRect = msg_send![primary, frame];
+        let window = &*(ptr as *const AnyObject);
+        let frame: NSRect = msg_send![window, frame];
+        Some((x-frame.origin.x, y-(screen.origin.y+screen.size.height-frame.origin.y-frame.size.height)))
+    }
+}
+
+pub fn companion_caret_point(from: *mut c_void, to: *mut c_void, x: f64, y: f64) -> (f64, f64) {
+    unsafe {
+        let source: NSRect = msg_send![&*(from as *const AnyObject), frame];
+        let target: NSRect = msg_send![&*(to as *const AnyObject), frame];
+        (source.origin.x+x-target.origin.x, target.origin.y+target.size.height-source.origin.y-source.size.height+y)
     }
 }

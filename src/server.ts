@@ -6,6 +6,7 @@
  */
 
 import { SpeechService } from './speech.js'
+import { PetState } from './pet-state.js'
 import type { AiboSources } from './sources.js'
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -24,6 +25,8 @@ export interface Upload { kind: 'image' | 'file'; name: string; mediaType: strin
 
 export interface AiboServerOptions {
   port: number
+  petGaze?: () => { x: number; y: number } | null
+  clearPetGaze?: () => void
   token: string
   webRoot: string
   /** Directory of the active character pack (served under /character/). */
@@ -45,6 +48,9 @@ export interface AiboServerOptions {
   saveMemory: (entries: { date: string; text: string }[]) => { date: string; text: string }[]
   /** Called with every event the backlog keeps, so the transcript outlives the process. */
   onBacklog?: (event: AiboEvent) => void
+  /** Model-supported thinking levels and the shared selection. */
+  thinking?: () => Promise<unknown>
+  saveThinking?: (effort: string) => Promise<unknown>
   /** UI preferences shared by every browser (read aloud, speech language). */
   prefs: () => unknown
   savePrefs: (patch: Record<string, unknown>) => unknown
@@ -102,6 +108,7 @@ const MIME: Record<string, string> = {
 }
 
 export class AiboServer {
+  private readonly pet = new PetState()
   private readonly speech = new SpeechService()
   private readonly clients = new Set<ServerResponse>()
   private readonly backlog: AiboEvent[] = []
@@ -111,6 +118,8 @@ export class AiboServer {
 
   /** Push one event to every connected client and remember it for replays. */
   broadcast(event: AiboEvent): void {
+    if (event.type === 'session' || event.type === 'busy' || event.type === 'activity' && event['activity'] === 'failed') this.options.clearPetGaze?.()
+    this.pet.update(event)
     // Messages and tool steps are kept so a reloaded page can rebuild the
     // conversation, including the folded "Worked through N steps" groups.
     const kept = event.type === 'user' || event.type === 'assistant' || event.type === 'status' || (event.type === 'lists' && typeof event['fresh'] === 'string') || (event.type === 'question' && Array.isArray(event['questions']))
@@ -130,6 +139,7 @@ export class AiboServer {
 
   /** Forget the replayed conversation (a new session started). */
   clearBacklog(): void {
+    this.pet.reset()
     this.backlog.length = 0
   }
 
@@ -195,6 +205,12 @@ export class AiboServer {
     if (await this.speech.handle(req, res)) return
 
     if (url.pathname === '/events') { this.handleEvents(res); return }
+    if (url.pathname === '/pet-state' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+      const snapshot = this.pet.snapshot()
+      res.end(JSON.stringify({ ...snapshot, gaze: snapshot.busy ? this.options.petGaze?.() ?? null : null }))
+      return
+    }
     if (url.pathname === '/manifest.json') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(this.options.manifest()))
@@ -221,6 +237,23 @@ export class AiboServer {
     if (url.pathname === '/memory' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ entries: this.options.memory() }))
+      return
+    }
+    if (url.pathname === '/thinking' && (req.method === 'GET' || req.method === 'POST')) {
+      try {
+        if (!this.options.thinking || !this.options.saveThinking) throw new Error('Thinking settings unavailable')
+        let view: unknown
+        if (req.method === 'POST') {
+          const body = await this.readJson(req)
+          if (typeof body['effort'] !== 'string') throw new Error('A thinking level is required')
+          view = await this.options.saveThinking(body['effort'])
+        } else view = await this.options.thinking()
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+        res.end(JSON.stringify(view))
+      } catch (error) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Could not update thinking level' }))
+      }
       return
     }
     if (url.pathname === '/settings' && req.method === 'GET') {

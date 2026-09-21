@@ -242,20 +242,20 @@
     let composing = false, compositionEnded = -Infinity;
     input.addEventListener('compositionstart', () => { composing = true; });
     input.addEventListener('compositionend', () => { composing = false; compositionEnded = performance.now(); });
+    // Capture at window level so Escape also works while a button has focus.
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || composing || e.isComposing || e.keyCode === 229 || performance.now() - compositionEnded < 50) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dismiss();
+    }, true);
     input.addEventListener('keydown', (e) => {
       if (composing || e.isComposing || e.keyCode === 229 || performance.now() - compositionEnded < 50) return;
-      // Escape clears a line in progress before it closes anything, so a
-      // typo costs one key rather than the whole summons.
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (input.value !== '') { input.value = ''; reset(); return; }
-        dismiss();
-        return;
-      }
       if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
       e.preventDefault();
       void send();
     });
   </script>
+  <script type="module" src="launcher-caret.js"></script>
 </body>
 </html>

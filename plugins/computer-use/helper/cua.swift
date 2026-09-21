@@ -549,6 +549,7 @@ func mouseButton(_ s: String?) throws -> CGMouseButton {
 }
 
 func clickAt(_ p: CGPoint, button: CGMouseButton, count: Int, holding flags: CGEventFlags = []) {
+  sendCursor(p)
   let (down, up, drag): (CGEventType, CGEventType, CGEventType) = button == .right ? (.rightMouseDown, .rightMouseUp, .rightMouseDragged)
     : button == .center ? (.otherMouseDown, .otherMouseUp, .otherMouseDragged) : (.leftMouseDown, .leftMouseUp, .leftMouseDragged)
   _ = drag
@@ -563,6 +564,7 @@ func clickAt(_ p: CGPoint, button: CGMouseButton, count: Int, holding flags: CGE
 }
 
 func dragBetween(_ from: CGPoint, _ to: CGPoint) {
+  sendCursor(from)
   if let m = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: from, mouseButton: .left) { post(m) }
   usleep(40_000)
   if let d = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: from, mouseButton: .left) { post(d) }
@@ -571,6 +573,7 @@ func dragBetween(_ from: CGPoint, _ to: CGPoint) {
   for i in 1...steps {
     let t = CGFloat(i) / CGFloat(steps)
     let p = CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
+    sendCursor(p)
     if let e = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: p, mouseButton: .left) { post(e) }
     usleep(12_000)
   }
@@ -579,6 +582,7 @@ func dragBetween(_ from: CGPoint, _ to: CGPoint) {
 }
 
 func scrollAt(_ p: CGPoint, direction: String, pages: Double) throws {
+  sendCursor(p)
   let (v, h): (Int32, Int32)
   switch direction.lowercased() {
   case "up", "u": (v, h) = (1, 0)
@@ -739,6 +743,7 @@ func handle(_ method: String, _ p: JSON) throws -> Any {
     let app = try resolveApp(try require(p, "app"), launch: false)
     let (pt, snap, _) = try targetPoint(app, p)
     activate(app, window: snap.window.element)
+    sendCursor(pt)
     if let m = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: pt, mouseButton: .left) { post(m) }
     return ["ok": true]
   case "drag":
@@ -837,6 +842,11 @@ func send(_ obj: JSON) {
   outputLock.lock(); output.write(data); output.write("\n".data(using: .utf8)!); outputLock.unlock()
 }
 
+// Accessed only by the serial request queue, including cursor emissions.
+var cursorRequestID: Any = NSNull()
+func sendCursor(_ point: CGPoint) {
+  send(["event": "cursor", "id": cursorRequestID, "point": ["x": point.x, "y": point.y]])
+}
 let queue = DispatchQueue(label: "dsh-cua.requests")
 Thread.detachNewThread {
   while let line = readLine(strippingNewline: true) {
@@ -845,6 +855,8 @@ Thread.detachNewThread {
     let method = (req["method"] as? String) ?? ""
     let params = (req["params"] as? JSON) ?? [:]
     queue.async {
+      cursorRequestID = id
+      defer { cursorRequestID = NSNull() }
       do { send(["id": id, "result": try handle(method, params)]) }
       catch let e as HelperError { send(["id": id, "error": ["code": e.code, "message": e.message]]) }
       catch { send(["id": id, "error": ["code": "internal", "message": String(describing: error)]]) }

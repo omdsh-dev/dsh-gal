@@ -1,0 +1,69 @@
+{
+  "columns": 8,
+  "rows": 12,
+  "cellWidth": 256,
+  "cellHeight": 256,
+  "validFrames": 81,
+  "states": [
+    {
+      "name": "idle",
+      "row": 0,
+      "frames": 6
+    },
+    {
+      "name": "running-right",
+      "row": 1,
+      "frames": 8
+    },
+    {
+      "name": "running-left",
+      "row": 2,
+      "frames": 8
+    },
+    {
+      "name": "waving",
+      "row": 3,
+      "frames": 4
+    },
+    {
+      "name": "jumping",
+      "row": 4,
+      "frames": 5
+    },
+    {
+      "name": "failed",
+      "row": 5,
+      "frames": 8
+    },
+    {
+      "name": "waiting",
+      "row": 6,
+      "frames": 6
+    },
+    {
+      "name": "running",
+      "row": 7,
+      "frames": 6
+    },
+    {
+      "name": "review",
+      "row": 8,
+      "frames": 6
+    },
+    {
+      "name": "look-0-7",
+      "row": 9,
+      "frames": 8
+    },
+    {
+      "name": "look-8-15",
+      "row": 10,
+      "frames": 8
+    },
+    {
+      "name": "grabbed",
+      "row": 11,
+      "frames": 8
+    }
+  ]
+}

@@ -31,6 +31,7 @@ import { homedir, tmpdir } from 'node:os'
 import { listCharacterPacks, loadCharacterPack, personaSection, resolveCharacterPack, resolveStateAsset, saveCharacterPack, storePackAsset, userCharactersDir, type CharacterPack, type CharacterPatch } from './characters.js'
 import { memoryEntries, memorySection, remember, writeEntries } from './memory.js'
 import { readPrefs, writePrefs } from './prefs.js'
+import { applyThinking, thinkingView, type ThinkingModel } from './thinking.js'
 import { addItems, createList, deleteList, findList, listsSection, readLists, renderList, reorderItems, updateItem, updateList } from './lists.js'
 import { artifactSection, artifactStat, findArtifact, forgetArtifact, listArtifacts, mimeFor, recordArtifact, writtenPath } from './artifacts.js'
 import { ACTIVITIES, ASSET_NAMES, activityForTool, isActivity } from './activity.js'
@@ -89,7 +90,7 @@ type Context = CordisContext & {
   tools: ToolsLike
   agents: AgentRegistryLike
   agentLoop: { create(id: ReturnType<typeof SessionId>, options?: object, meta?: { cwd?: string }): AgentLike | Promise<AgentLike> }
-  llm: { stream(options: GenerateOptions): AsyncIterable<unknown> }
+  llm: { stream(options: GenerateOptions): AsyncIterable<unknown>; resolveModelInfo(provider: string, model: string): Promise<ThinkingModel> }
   systemPrompt: SystemPromptLike
 }
 
@@ -354,6 +355,13 @@ export function apply(ctx: Context, config: Config): void {
   const defaultSelection = (): { provider: string; model: string } | undefined =>
     (ctx.get('agentDefaultModel') as { currentSelection?: () => { provider: string; model: string } } | undefined)?.currentSelection?.()
 
+  const thinking = async () => {
+    const active = resolveAgent()?.options
+    const route = active?.provider && active.model ? { provider: active.provider, model: active.model } : defaultSelection()
+    if (!route) throw new Error('no default model configured')
+    return thinkingView(route.provider, route.model, await ctx.llm.resolveModelInfo(route.provider, route.model), readPrefs().reasoningEffort)
+  }
+
   // The list the page shows: each pointer plus whether the file is still there and how big it is.
   const artifactsWithStat = () => listArtifacts().map(artifact => ({ ...artifact, ...artifactStat(artifact) }))
   // Data sources are other plugins' business; they register here and the panel shows them.
@@ -417,7 +425,10 @@ export function apply(ctx: Context, config: Config): void {
   const attachmentsOf = (content: readonly { type: string; attachment?: { attachmentId: string; name?: string; bytes?: number } }[]) =>
     content.filter(b => (b.type === 'image' || b.type === 'file') && b.attachment !== undefined).map(b => previews.get(b.attachment!.attachmentId) ?? { kind: b.type as 'image' | 'file', name: b.attachment!.name ?? (b.type === 'image' ? 'image' : 'file'), bytes: b.attachment!.bytes ?? 0 })
 
+  const computerCursor = () => ctx.get('computerUseCursor') as { snapshot(): {x: number; y: number} | null; clear(): void } | undefined
   const server = new AiboServer({
+    petGaze: () => computerCursor()?.snapshot() ?? null,
+    clearPetGaze: () => computerCursor()?.clear(),
     port,
     token: config.token ?? '',
     webRoot: join(PKG_ROOT, 'web'),
@@ -475,8 +486,15 @@ export function apply(ctx: Context, config: Config): void {
     memory: () => memoryEntries(),
     saveMemory: entries => writeEntries(entries),
     onBacklog: event => { if (activeSessionId !== undefined) transcript(activeSessionId).append(event) },
+    thinking,
+    saveThinking: async effort => {
+      const view = await thinking()
+      if (effort !== 'default' && !view.efforts.some(e => e.id === effort)) throw new Error('Unsupported thinking level for this model')
+      writePrefs({ reasoningEffort: effort })
+      return thinking()
+    },
     prefs: () => readPrefs(),
-    savePrefs: patch => writePrefs(patch as never),
+    savePrefs: patch => writePrefs({ ...(typeof patch['voice'] === 'boolean' ? { voice: patch['voice'] } : {}), ...(patch['speechLanguage'] === undefined ? {} : { speechLanguage: patch['speechLanguage'] as never }) }),
     lists: () => readLists(),
     listAction: (action, body) => {
       const ref = String(body['list'] ?? '')
@@ -572,7 +590,15 @@ export function apply(ctx: Context, config: Config): void {
     const presetId = presets === undefined ? undefined : (await presets.resolve(undefined)).id
     return {
       agentOptions: { provider: selection.provider, model: selection.model }, presetId,
-      ...presets === undefined ? {} : { setup: async (agentCtx: unknown) => { await presets.mount(agentCtx, presetId) } },
+      setup: async (agentCtx: unknown) => {
+        if (presets) await presets.mount(agentCtx, presetId)
+        // Scoped to this room; read preferences for every request, including resumed turns.
+        const scoped = agentCtx as { on(event: string, handler: (payload: unknown, next: () => Promise<{ provider?: string; model?: string; reasoningEffort?: unknown }>) => Promise<unknown>, options: { prepend: boolean }): unknown }
+        scoped.on('agent/request', async (_payload, next) => {
+          const preferred = readPrefs().reasoningEffort
+          return applyThinking(await next(), preferred, (provider, model) => ctx.llm.resolveModelInfo(provider, model))
+        }, { prepend: true })
+      },
     }
   }
   /** Sessions opened by this room; only their questions are answered here. */

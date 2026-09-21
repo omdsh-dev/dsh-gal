@@ -8,6 +8,7 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const elements = new Map();
 const events = new Map();
 const timers = new Map();
+const windowEvents = new Map();
 const sends = [];
 let hides = 0, timerId = 0;
 const element = id => {
@@ -34,7 +35,7 @@ vm.runInNewContext(script, {
   setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
   clearTimeout: id => timers.delete(id),
   window: {
-    addEventListener() {},
+    addEventListener(name, callback) { windowEvents.set(name, callback); },
     __TAURI__: {
       event: { listen: (name, callback) => events.set(name, callback) },
       core: { invoke: name => {
@@ -64,3 +65,16 @@ open(); send(); await settle();
 [...timers.values()][0]();
 assert.equal(hides, 1, 'a current successful background send should dismiss normally');
 console.log('PASS stale timer, stale send completion, and normal background dismissal');
+
+const escape = (extra = {}) => windowEvents.get('keydown')({ key: 'Escape', preventDefault() {}, stopPropagation() {}, ...extra });
+open(); element('text').value = 'unfinished message'; escape();
+assert.equal(hides, 2, 'Escape closes even with a draft');
+assert.equal(element('text').value, '');
+open(); escape({ target: element('mode') });
+assert.equal(hides, 3, 'Escape closes from buttons as well as the input');
+open(); escape({ isComposing: true });
+assert.equal(hides, 3, 'Escape belongs to the IME while composing');
+open(); send(); escape(); await settle();
+assert.equal(hides, 4);
+assert.equal(timers.size, 0, 'a send finishing after Escape cannot dismiss a future launch');
+console.log('PASS Escape with draft, button focus, IME, and pending send');

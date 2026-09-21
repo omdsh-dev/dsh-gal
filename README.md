@@ -6,10 +6,10 @@
 
 <p align="center"><strong>Aibo</strong> (相棒, <em>partner</em>) is a personal AI assistant that wears a galgame face. Underneath it is the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh) — same agent, same tools, same session, same preset. On top it gives that agent a character, so you can see her working, hear her answer, and keep what she made. It ships as a dsh plugin, plus a small macOS app that runs it standalone.</p>
 
-<p align="center"><strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong> · <strong>Computer Use</strong></p>
+<p align="center"><strong>Desktop pet</strong> · <strong>Live character stage</strong> · <strong>Spoken replies</strong> · <strong>Lists &amp; files</strong> · <strong>Memory</strong> · <strong>Personal data connectors</strong> · <strong>Computer Use</strong></p>
 
 <p align="center">
-  <a href="https://github.com/omdsh-dev/aibo/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/aibo?style=flat" /></a>
+  <a href="https://github.com/omdsh-dev/dsh-gal/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/omdsh-dev/aibo?style=flat" /></a>
   <a href="LICENSE"><img alt="BSD-3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue" /></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple" />
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white" />
@@ -17,6 +17,25 @@
 </p>
 
 ![Aibo — the chat layout: conversation on the left, the character on the right, reacting to what the agent is doing](assets/docs/hero.jpg)
+
+## New in 0.2.0: a companion on your desktop
+
+Xiaoheiyu now stays with you outside the main window. Enable **Settings → Desktop pet**, then close the main window with **⌘W** or hide it with **⌘H**. Choose whether she also appears while the main window is open; her size and position are remembered. **⌘Q** quits the app and its owned agent process.
+
+![Xiaoheiyu desktop pet: a reply bubble and a compact thinking bubble, using the actual pet renderer](assets/docs/desktop-pet-bubbles.png)
+
+- **Quiet conversation.** Replies appear in rounded comic speech bubbles with the same typeface as the main app. Thinking is three dots; only actionable errors and requests for input get status text. Click the message to return to the conversation.
+- **Simple interactions.** Drag her to move; pickup, dangling, directional movement and landing have their own animation. Right-click for the native menu. Size and visibility controls live in Settings.
+- **Idle that stays alive.** Ordinary mouse movement does not suppress idle. Gaze follows only the quick launcher's text caret or an explicit Computer Use target, with caret priority.
+- **105 animation frames.** Task reactions, sixteen gaze directions and held poses are joined by three eight-frame meme vignettes: eating plain white rice, blanket naps and turning a book page. A random vignette plays once after 30–60 seconds of eligible idle, avoids immediate repetition, and yields to tasks and interaction. Reduced motion disables spontaneous vignettes.
+
+![Idle meme animation preview: plain rice, a cozy nap and reading](assets/docs/desktop-pet-memes.png)
+
+The images above are controlled previews with sample text, rendered from the shipped assets; they contain no private conversation. Animation layout, playback and artwork provenance: [Desktop pet](DESKTOP-PET.md), [meme series](assets/pet/memes/README.md).
+
+This release also adds a **Thinking level** preference, defaulting to **low** when the selected model supports it, and fixes Escape dismissal in the quick launcher. Signed macOS updates are checked automatically; from 0.2.0, a native prompt lets you download/install and choose when to restart. Existing 0.1.0 installs use **更新 → 检查更新** for this first upgrade.
+
+[Download the latest signed macOS release](https://github.com/omdsh-dev/dsh-gal/releases/latest) · Apple Silicon · macOS 12+
 
 ## Demo
 
@@ -41,7 +60,7 @@ Swap the character pack and the same agent shows up as someone else: art, person
 ## Quick start
 
 ```bash
-git clone https://github.com/omdsh-dev/aibo && cd aibo
+git clone https://github.com/omdsh-dev/dsh-gal aibo && cd aibo
 ./scripts/build.sh        # compile src/ → lib/ against your installed dsh
 npm run start:web         # opens the UI in your browser
 ```
@@ -208,7 +227,7 @@ Prerequisites: Node.js 22+, a configured dsh (the app's private runtime is prefe
 
 `app/` is a Tauri 2 shell: a native window around the plugin's UI, with a supervisor that owns its own dsh.
 
-On first launch it installs a pinned private dsh runtime under `~/Library/Application Support/aibo/runtime`, stages the bundled plugin next to it, and starts `dsh --profile web` with the plugin mounted. It reuses your `~/.dsh` (keys, settings, sessions). If an Aibo server already answers on `127.0.0.1:4877` it just attaches. Closing the window stops the dsh it started.
+On first launch it installs a pinned private dsh runtime under `~/Library/Application Support/aibo/runtime`, stages the bundled plugin next to it, and starts `dsh --profile web` with the plugin mounted. It reuses your `~/.dsh` (keys, settings, sessions). If an Aibo server already answers on `127.0.0.1:4877` it just attaches. Closing the main window hides it so the launcher and desktop pet keep working. Quitting Aibo stops the dsh process it started.
 
 ```bash
 ./scripts/build.sh
@@ -219,7 +238,7 @@ open src-tauri/target/release/bundle/macos/Aibo.app
 ## Install into your own dsh
 
 ```bash
-git clone https://github.com/omdsh-dev/aibo
+git clone https://github.com/omdsh-dev/dsh-gal aibo
 cd aibo && ./scripts/build.sh
 ```
 
@@ -303,4 +322,4 @@ Discussed on [LINUX DO](https://linux.do) and [V2EX](https://www.v2ex.com). Ques
 
 ## Desktop releases
 
-Signed macOS releases support background updates. See [release setup and publishing](RELEASE.md) for signing, notarization, and the one-command release workflow.
+Signed macOS releases check for updates at startup and every four hours. Version 0.2.0 and later ask before downloading/installing and again before restarting; “Later” keeps the current session running. See [release setup and publishing](RELEASE.md) for signing, notarization, and the one-command release workflow.

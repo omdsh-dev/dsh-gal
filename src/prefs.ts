@@ -1,6 +1,6 @@
 /*
  * UI preferences that belong to the user, not to a browser: whether replies
- * are read aloud and in which language. Kept in the shared store so every
+ * are read aloud, in which language, and the model thinking level. Kept in the shared store so every
  * browser and the desktop shell agree. Theme stays in the browser: it is a
  * per-screen choice.
  */
@@ -8,8 +8,8 @@ import { dirname, join } from 'node:path'
 import { userCharactersDir } from './characters.js'
 import { migrateFile, openStore } from './store.js'
 
-export interface UiPrefs { voice: boolean; speechLanguage: 'auto' | 'zh' | 'en' | 'ja' }
-const DEFAULTS: UiPrefs = { voice: true, speechLanguage: 'auto' }
+export interface UiPrefs { voice: boolean; speechLanguage: 'auto' | 'zh' | 'en' | 'ja'; reasoningEffort: string }
+const DEFAULTS: UiPrefs = { voice: true, speechLanguage: 'auto', reasoningEffort: 'low' }
 
 /** `~/.dsh/aibo/settings.json`, the pre-store file (imported once, then renamed). */
 export function prefsPath(): string {
@@ -19,6 +19,7 @@ export function prefsPath(): string {
 function normalize(input: Partial<UiPrefs>): UiPrefs {
   const lang = input.speechLanguage
   return {
+    reasoningEffort: typeof input.reasoningEffort === 'string' && input.reasoningEffort.length > 0 && input.reasoningEffort.length < 64 ? input.reasoningEffort : DEFAULTS.reasoningEffort,
     voice: typeof input.voice === 'boolean' ? input.voice : DEFAULTS.voice,
     speechLanguage: lang === 'zh' || lang === 'en' || lang === 'ja' || lang === 'auto' ? lang : DEFAULTS.speechLanguage,
   }

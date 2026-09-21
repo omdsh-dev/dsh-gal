@@ -16,3 +16,7 @@ app/src-tauri/gen/
 eval-results.json
 ui/node_modules/
 plugins/*/lib/
+dist/
+app/release.env
+*.key
+*.key.pub

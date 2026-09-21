@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(target_os = "macos")]
 mod launcher_panel;
+mod updater;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
@@ -612,6 +613,7 @@ pub fn run() {
             .js_init_script(include_str!("../../ui/zoom.js"))
             .build())
         .setup(|app| {
+            updater::setup(app)?;
             // The `main` window comes from tauri.conf.json; only the supervisor starts here.
             let handle = app.handle().clone();
             std::thread::spawn(move || boot(handle));

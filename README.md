@@ -300,3 +300,7 @@ Discussed on [LINUX DO](https://linux.do) and [V2EX](https://www.v2ex.com). Ques
 ## License
 
 [BSD-3-Clause](LICENSE)
+
+## Desktop releases
+
+Signed macOS releases support background updates. See [release setup and publishing](RELEASE.md) for signing, notarization, and the one-command release workflow.

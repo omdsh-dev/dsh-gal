@@ -10,7 +10,7 @@ mkdir -p "$APP/plugin"
 cp -R "$ROOT/lib" "$ROOT/web" "$ROOT/package.json" "$ROOT/dsh.plugin.json" "$APP/plugin/"
 mkdir -p "$APP/plugin/characters"
 # The private cetus pack when this checkout has it, otherwise the pack the public repo ships.
-if [ -d "$ROOT/characters/cetus" ]; then cp -R "$ROOT/characters/cetus" "$APP/plugin/characters/"
+if [ "${AIBO_PUBLIC_RELEASE:-0}" != 1 ] && [ -d "$ROOT/characters/cetus" ]; then cp -R "$ROOT/characters/cetus" "$APP/plugin/characters/"
 else cp -R "$ROOT/characters/xiaoheiyu" "$APP/plugin/characters/"; fi
 cp "$ROOT/characters/README.md" "$APP/plugin/characters/"
 

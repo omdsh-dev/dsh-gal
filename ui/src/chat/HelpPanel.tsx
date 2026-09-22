@@ -1,6 +1,7 @@
 /* Commands and shortcuts. */
 import * as React from 'react'
 import { Panel } from './Panel'
+import { MOD_LABEL } from './lib'
 
 export const COMMANDS: [string, string][] = [
   ['/new', 'Start a fresh session (the old one stays in dsh web)'],
@@ -19,6 +20,10 @@ const KEYS: [string[], string][] = [
   [['Shift', 'Enter'], 'New line'],
   [['/', '、'], 'Focus the input'],
   [['Esc'], 'Leave the input / close a panel'],
+  [[MOD_LABEL, 'K'], 'Jump to the input'],
+  [[MOD_LABEL, 'N'], 'New session'],
+  [[MOD_LABEL, ','], 'Settings'],
+  [[MOD_LABEL, '/'], 'Help'],
   [['⌥', 'M'], 'Memory'],
   [['⌥', 'F'], 'Files'],
   [['⌥', 'L'], 'Lists'],
@@ -33,14 +38,14 @@ const KEYS: [string[], string][] = [
 export function HelpContent(): React.ReactElement {
   return (
     <>
-      <p className="field-hint" style={{ marginBottom: 14 }}>Slash commands go in the message box. ⌥ shortcuts work anywhere, even mid-sentence.</p>
+      <p className="field-hint" style={{ marginBottom: 14 }}>Slash commands go in the message box. {MOD_LABEL} and ⌥ shortcuts work anywhere, even mid-sentence.</p>
       <h3 className="section">Commands</h3>
       <dl className="help-list">
         {COMMANDS.map(([command, text]) => <React.Fragment key={command}><dt><code>{command}</code></dt><dd>{text}</dd></React.Fragment>)}
       </dl>
       <h3 className="section">Keyboard</h3>
       <dl className="help-list">
-        {KEYS.map(([keys, text]) => <React.Fragment key={text}><dt>{keys.map(key => <kbd key={key}>{key}</kbd>)}</dt><dd>{text}</dd></React.Fragment>)}
+        {KEYS.map(([keys, text]) => <React.Fragment key={keys.join('+')}><dt>{keys.map(key => <kbd key={key}>{key}</kbd>)}</dt><dd>{text}</dd></React.Fragment>)}
       </dl>
     </>
   )

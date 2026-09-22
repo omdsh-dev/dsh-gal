@@ -11,6 +11,11 @@ export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
 export const postJson = <T>(path: string, body: unknown): Promise<T> =>
   getJson<T>(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
+/* Shortcuts follow the platform: ⌘ on a Mac, Ctrl everywhere else. */
+export const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+export const MOD_LABEL = IS_MAC ? '\u2318' : 'Ctrl'
+export const MOD = (ev: KeyboardEvent): boolean => IS_MAC ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey
+
 export type Lang = 'zh' | 'en' | 'ja'
 export type StateAsset = { video?: string; image?: string; from: string }
 export type Manifest = {

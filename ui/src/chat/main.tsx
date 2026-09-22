@@ -14,7 +14,7 @@ import { FilesPanel } from './FilesPanel'
 import { SettingsPanel, errorText } from './SettingsPanel'
 import { HelpPanel } from './HelpPanel'
 import { DataPanel } from './DataPanel'
-import { ACTIVITY_LABEL, browserLanguage, formatBytes, getJson, kindLabel, nextKey, postJson, withToken, readDraftFiles, readDraftText, writeDraftFiles, writeDraftText, type Artifact, type Attachment, type Item, type Lang, type List, type Manifest, type MemoryEntry, type Question, type QuestionAnswer, type Step } from './lib'
+import { ACTIVITY_LABEL, browserLanguage, MOD, MOD_LABEL, formatBytes, getJson, kindLabel, nextKey, postJson, withToken, readDraftFiles, readDraftText, writeDraftFiles, writeDraftText, type Artifact, type Attachment, type Item, type Lang, type List, type Manifest, type MemoryEntry, type Question, type QuestionAnswer, type Step } from './lib'
 import './chat.css'
 
 const ACTIVITY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -480,12 +480,23 @@ function App(): React.ReactElement {
     if (!res.ok) throw new Error(await res.text())
   }, [runCommand])
 
-  // Keyboard: ⌥ shortcuts anywhere, single keys only outside the input.
+  // Keyboard: ⌘ and ⌥ shortcuts anywhere, single keys only outside the input.
   React.useEffect(() => {
     const onKey = (ev: KeyboardEvent): void => {
       if (ev.isComposing) return
       const target = ev.target as HTMLElement | null
       const typing = Boolean(target?.closest?.('input,textarea,select,[contenteditable]'))
+      // The platform's own modifier, so the habits people already have carry over.
+      if (MOD(ev) && !ev.altKey) {
+        const map: Record<string, () => void> = {
+          Comma: () => openPanel('settings'),
+          KeyN: () => { void newSession() },
+          KeyK: () => { setPanel(null); composerRef.current?.focus() },
+          Slash: () => openPanel('help'),
+        }
+        const action = map[ev.code]
+        if (action) { ev.preventDefault(); action(); return }
+      }
       if (ev.altKey && !ev.metaKey && !ev.ctrlKey) {
         const map: Record<string, () => void> = {
           KeyM: () => openPanel('memory'), KeyF: () => openPanel('files'), KeyL: () => openPanel('lists'), KeyD: () => openPanel('data'), KeyC: () => openPanel('character'), KeyS: () => openPanel('settings'),
@@ -499,7 +510,7 @@ function App(): React.ReactElement {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openPanel, panel, replay, voiceOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [newSession, openPanel, panel, replay, voiceOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The mood outlives the turn while her voice is still reading the line, then fades.
   const voiceLive = voice.speaking || voice.status === 'Preparing voice…'
@@ -533,7 +544,7 @@ function App(): React.ReactElement {
             <IconButton title="Files (⌥F)" onClick={() => openPanel('files')}><Files /></IconButton>
             <IconButton title="Lists (⌥L)" onClick={() => openPanel('lists')}><ListChecks /></IconButton>
             <IconButton title="Connectors (⌥D)" onClick={() => openPanel('data')}><Plug /></IconButton>
-            <IconButton title="Settings (⌥S)" onClick={() => openPanel('settings')}><Settings /></IconButton>
+            <IconButton title={`Settings (${MOD_LABEL},)`} onClick={() => openPanel('settings')}><Settings /></IconButton>
           </div>
         </header>
         <MessageList items={items} lists={lists} name={name} busy={busy} onReplay={text => voice.speak(text)} onOpenFile={id => openPanel('files', { file: id })} onOpenList={id => { setListId(id); openPanel('lists') }} />

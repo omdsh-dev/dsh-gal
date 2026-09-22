@@ -101,7 +101,7 @@
     transition: color .15s;
   }
   .note:empty { display: none; }
-  .bar.sending .name, .bar.sent .name, .bar.failed .name { display: none; }
+  .bar.failed .name { display: none; }
   /* The shadcn switch, to the same spec as the ones in the main UI's panels:
      a 36×20 track, a 16px thumb, 16px of travel. This page is plain HTML with
      no React or Tailwind, so it is written out here rather than imported. */
@@ -126,13 +126,9 @@
   .switch:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   /* The label carries the state as well as the track, for a bar this small. */
   .mode:has(.switch[aria-checked="true"]) .mode-label { color: var(--ink); }
-  /* While the line is in flight the bar dims rather than swapping layout. */
-  .bar.sending input, .bar.sending .avatar, .bar.sending .send, .bar.sending .mode { opacity: .55; }
-  .bar.sending .switch { pointer-events: none; }
+  /* Nothing is ever in flight on screen: the bar leaves on the keystroke. The
+     only state it still wears is the one where the line did not get through. */
   .bar.failed .note { color: #ffb4a8; }
-  /* With the switch off nothing else confirms the send — the main window is
-     left alone — so the bar says so for a beat before putting itself away. */
-  .bar.sent .note { color: #a8e6c0; }
 </style>
 </head>
 <body>
@@ -197,12 +193,12 @@
       toggleMode();
     });
 
-    let openGeneration = 0, dismissTimer;
-    const dismiss = () => { ++openGeneration; clearTimeout(dismissTimer); input.value = ''; reset(); void core.invoke('hide_launcher'); };
+    let openGeneration = 0, failedLine = null;
+    const dismiss = () => { ++openGeneration; failedLine = null; input.value = ''; reset(); void core.invoke('hide_launcher'); };
     // The button is lit only when there is a line to send, which is also the
     // only affordance left now that the keycap legend is gone.
     const paintSend = () => { sendButton.classList.toggle('ready', input.value.trim() !== ''); };
-    const reset = () => { note.textContent = ''; bar.classList.remove('sending', 'failed', 'sent'); paintSend(); };
+    const reset = () => { note.textContent = ''; bar.classList.remove('failed'); paintSend(); };
     const focusInput = () => { input.focus(); input.select(); };
     focusInput();
     // Re-focus every time the shortcut summons it: the window is reused, so
@@ -210,35 +206,40 @@
     // Replay the arrival on every summons: the window is reused, so without
     // restarting the animation the panel would only ever ease in once.
     const replayArrival = () => { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; };
-    event.listen('aibo://launcher-open', () => { ++openGeneration; clearTimeout(dismissTimer); reset(); replayArrival(); focusInput(); });
+    event.listen('aibo://launcher-open', () => { ++openGeneration; reset(); replayArrival(); focusInput(); showFailure(); });
     window.addEventListener('focus', focusInput);
 
-    const send = async () => {
+    /* A send that never landed. The bar comes back rather than swallowing the
+       line — unless the user is already typing the next one, which wins. */
+    const showFailure = () => {
+      if (failedLine === null) return;
+      if (input.value.trim() === '') input.value = failedLine;
+      bar.classList.add('failed');
+      note.textContent = 'Could not reach her';
+      paintSend();
+      focusInput();
+    };
+    /*
+     * The panel leaves on the keystroke, not on the round trip: the Return is
+     * its own receipt, and waiting on the network is what made it feel slow.
+     * Success is therefore silent — in Open mode the main window arriving is
+     * the confirmation; in Background mode nothing interrupts what you were
+     * doing. Only a failure speaks up, and it brings the line back with it.
+     */
+    const send = () => {
       const text = input.value.trim();
-      if (text === '' || bar.classList.contains('sending')) return;
-      const generation = openGeneration, openAfterSend = openMain;
-      bar.classList.add('sending'); bar.classList.remove('failed'); note.textContent = 'Sending…';
-      try {
-        await core.invoke('send_message', { text, openMain: openAfterSend });
-        if (generation !== openGeneration) return;
-        input.value = ''; paintSend();
-        // In Open mode the window arriving is confirmation enough, so the bar
-        // just gets out of the way. In Background mode this beat is the only
-        // confirmation there is, then focus goes back to where it came from.
-        if (openAfterSend) { dismiss(); return; }
-        bar.classList.remove('sending'); bar.classList.add('sent');
-        note.textContent = 'Sent';
-        dismissTimer = setTimeout(() => { if (generation === openGeneration) dismiss(); }, 600);
-      } catch {
-        if (generation !== openGeneration) return;
-        bar.classList.remove('sending'); bar.classList.add('failed');
-        note.textContent = 'Could not reach her';
-      }
+      if (text === '') return;
+      const openAfterSend = openMain;
+      dismiss();
+      core.invoke('send_message', { text, openMain: openAfterSend }).catch(() => {
+        failedLine = text;
+        void core.invoke('show_launcher').then(showFailure, showFailure);
+      });
     };
 
-    input.addEventListener('input', () => { if (bar.classList.contains('failed')) reset(); else paintSend(); });
+    input.addEventListener('input', () => { failedLine = null; if (bar.classList.contains('failed')) reset(); else paintSend(); });
     // mousedown, like the mode toggle: a click would take the caret with it.
-    sendButton.addEventListener('mousedown', (e) => { e.preventDefault(); focusInput(); void send(); });
+    sendButton.addEventListener('mousedown', (e) => { e.preventDefault(); focusInput(); send(); });
     let composing = false, compositionEnded = -Infinity;
     input.addEventListener('compositionstart', () => { composing = true; });
     input.addEventListener('compositionend', () => { composing = false; compositionEnded = performance.now(); });
@@ -253,7 +254,7 @@
       if (composing || e.isComposing || e.keyCode === 229 || performance.now() - compositionEnded < 50) return;
       if (e.key !== 'Enter' || e.isComposing) return;   // never send mid-IME
       e.preventDefault();
-      void send();
+      send();
     });
   </script>
   <script type="module" src="launcher-caret.js"></script>

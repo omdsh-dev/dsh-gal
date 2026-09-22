@@ -10,7 +10,7 @@ const events = new Map();
 const timers = new Map();
 const windowEvents = new Map();
 const sends = [];
-let hides = 0, timerId = 0;
+let hides = 0, shows = 0, timerId = 0;
 const element = id => {
   if (!elements.has(id)) {
     const classes = new Set();
@@ -38,43 +38,68 @@ vm.runInNewContext(script, {
     addEventListener(name, callback) { windowEvents.set(name, callback); },
     __TAURI__: {
       event: { listen: (name, callback) => events.set(name, callback) },
-      core: { invoke: name => {
+      core: { invoke: (name, args) => {
         if (name === 'hide_launcher') { ++hides; return Promise.resolve(); }
+        if (name === 'show_launcher') { ++shows; return Promise.resolve(); }
         assert.equal(name, 'send_message');
-        return new Promise(resolve => sends.push(resolve));
+        return new Promise((resolve, reject) => sends.push({ resolve, reject, args }));
       } },
     },
   },
 });
 const open = () => events.get('aibo://launcher-open')();
-const send = () => {
-  element('text').value = 'test';
-  element('send').handlers.get('mousedown')({ preventDefault() {} });
-};
-const settle = async () => { sends.shift()(); await new Promise(setImmediate); };
-open(); send(); await settle();
-assert.equal(timers.size, 1);
-const oldDismiss = [...timers.values()][0];
-open();
-assert.equal(timers.size, 0, 'reopening must cancel the previous success timer');
-oldDismiss();
-assert.equal(hides, 0, 'an already-queued old timer must not hide the new launcher');
-open(); send(); open(); await settle();
-assert.equal(timers.size, 0, 'a stale send completion must not arm a dismiss timer');
-open(); send(); await settle();
-[...timers.values()][0]();
-assert.equal(hides, 1, 'a current successful background send should dismiss normally');
-console.log('PASS stale timer, stale send completion, and normal background dismissal');
+const type = text => { element('text').value = text; };
+const send = () => element('send').handlers.get('mousedown')({ preventDefault() {} });
+const settle = async () => new Promise(setImmediate);
+const land = async () => { sends.shift().resolve(); await settle(); };
+const drop = async () => { sends.shift().reject(new Error('offline')); await settle(); await settle(); };
 
+// The keystroke is the receipt: the bar is gone before the send resolves.
+open(); type('test'); send();
+assert.equal(hides, 1, 'the panel leaves on the keystroke, not on the round trip');
+assert.equal(element('text').value, '', 'and takes the line with it');
+assert.equal(sends.length, 1, 'the send is still in flight');
+assert.equal(sends[0].args.text, 'test');
+await land();
+assert.equal(shows, 0, 'a send that lands says nothing');
+assert.equal(hides, 1);
+
+// A send that never lands brings the bar back, with the line intact.
+open(); type('offline line'); send();
+assert.equal(hides, 2);
+await drop();
+assert.equal(shows, 1, 'a failed send reopens the bar');
+assert.equal(element('text').value, 'offline line', 'and hands the line back');
+assert.ok(element('bar').classList.contains('failed'));
+assert.equal(element('note').textContent, 'Could not reach her');
+// Typing clears the failure rather than leaving a stale warning up.
+element('text').handlers.get('input')();
+assert.ok(!element('bar').classList.contains('failed'));
+console.log('PASS instant dismissal, silent success, and a failure that returns the line');
+
+// A failure must never overwrite the next line already being typed.
+open(); type('first'); send(); await settle();
+open(); type('second');
+await drop();
+assert.equal(element('text').value, 'second', 'the line in progress wins');
+assert.ok(element('bar').classList.contains('failed'), 'but the failure is still reported');
+// Dismissing drops the pending line, so a later reopen is clean.
 const escape = (extra = {}) => windowEvents.get('keydown')({ key: 'Escape', preventDefault() {}, stopPropagation() {}, ...extra });
-open(); element('text').value = 'unfinished message'; escape();
-assert.equal(hides, 2, 'Escape closes even with a draft');
+escape();
+open();
+assert.equal(element('text').value, '', 'a dismissed failure does not come back');
+assert.ok(!element('bar').classList.contains('failed'));
+console.log('PASS a failure yields to the next line and does not outlive a dismissal');
+
+const hidesBefore = hides;
+open(); type('unfinished message'); escape();
+assert.equal(hides, hidesBefore + 1, 'Escape closes even with a draft');
 assert.equal(element('text').value, '');
 open(); escape({ target: element('mode') });
-assert.equal(hides, 3, 'Escape closes from buttons as well as the input');
+assert.equal(hides, hidesBefore + 2, 'Escape closes from buttons as well as the input');
 open(); escape({ isComposing: true });
-assert.equal(hides, 3, 'Escape belongs to the IME while composing');
-open(); send(); escape(); await settle();
-assert.equal(hides, 4);
-assert.equal(timers.size, 0, 'a send finishing after Escape cannot dismiss a future launch');
-console.log('PASS Escape with draft, button focus, IME, and pending send');
+assert.equal(hides, hidesBefore + 2, 'Escape belongs to the IME while composing');
+open(); type(''); send();
+assert.equal(sends.length, 0, 'an empty line is not a send');
+assert.equal(hides, hidesBefore + 2, 'and does not dismiss the bar either');
+console.log('PASS Escape with draft, button focus, IME, and the empty line');

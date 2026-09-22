@@ -470,8 +470,11 @@ fn place_launcher(app: &AppHandle, window: &tauri::WebviewWindow) {
 /// Suppress the incidental Reopen generated when a hidden app presents a panel.
 static LAST_LAUNCHER_OPEN: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// Toggle the entire native lifecycle in one main-thread pass.
-fn toggle_launcher(app: &AppHandle) {
+/// Toggle the entire native lifecycle in one main-thread pass. `toggle` off is
+/// the reopen a failed send needs: already on screen, it leaves the panel — and
+/// whatever is being typed into it — exactly as it is.
+fn toggle_launcher(app: &AppHandle) { launcher_lifecycle(app, true) }
+fn launcher_lifecycle(app: &AppHandle, toggle: bool) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let Some(window) = handle.get_webview_window("launcher") else { return };
@@ -480,7 +483,7 @@ fn toggle_launcher(app: &AppHandle) {
         #[cfg(not(target_os = "macos"))]
         let visible = window.is_visible().unwrap_or(false);
         if visible {
-            dismiss_launcher_on_main(&handle, true);
+            if toggle { dismiss_launcher_on_main(&handle, true); }
             return;
         }
         remember_frontmost();
@@ -526,6 +529,13 @@ fn hide_launcher(app: AppHandle) {
     dismiss_launcher(&app, true);
 }
 
+/// Bring the bar back after a send that never landed, so the line is not lost.
+/// A no-op when it is already up: the user has moved on and is typing again.
+#[tauri::command]
+fn show_launcher(app: AppHandle) {
+    launcher_lifecycle(&app, false);
+}
+
 /// Post the line to the running plugin. Where the user ends up afterwards is
 /// the bar's own switch (`open_main`, on by default and remembered by the page):
 ///   * on — the main window comes forward, which is also the confirmation that
@@ -535,8 +545,10 @@ fn hide_launcher(app: AppHandle) {
 ///     stage when they next open it.
 /// Sending from here rather than from the page keeps the launcher off the
 /// plugin's origin: no CORS, no token.
+/// Async on purpose: a synchronous command runs on the main thread, where a
+/// slow `/send` would hold up the very dismissal the keystroke just asked for.
 #[tauri::command]
-fn send_message(app: AppHandle, text: String, open_main: bool) -> Result<(), String> {
+async fn send_message(app: AppHandle, text: String, open_main: bool) -> Result<(), String> {
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("empty".into());
@@ -544,11 +556,14 @@ fn send_message(app: AppHandle, text: String, open_main: bool) -> Result<(), Str
     // ureq is built without its json feature here, so the body is serialised by
     // hand — the same one field the composer posts.
     let body = serde_json::json!({ "text": text }).to_string();
-    ureq::post(&format!("{AIBO_URL}send"))
-        .config().timeout_global(Some(Duration::from_secs(15))).build()
-        .header("content-type", "application/json")
-        .send(body.as_str())
-        .map_err(|error: ureq::Error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        ureq::post(&format!("{AIBO_URL}send"))
+            .config().timeout_global(Some(Duration::from_secs(15))).build()
+            .header("content-type", "application/json")
+            .send(body.as_str())
+            .map(|_| ())
+            .map_err(|error: ureq::Error| error.to_string())
+    }).await.map_err(|error| error.to_string())??;
     if open_main {
         focus_main(&app);
     }
@@ -610,7 +625,7 @@ pub fn run() {
     install_signal_handlers();
     tauri::Builder::default()
         .manage(Mutex::new(Supervisor { child: None }))
-        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher, set_zoom_level, restore_zoom, pet::get_pet_preferences, pet::set_pet_preferences, pet::pet_regions, pet::open_pet_chat, pet::open_pet_launcher, pet::show_pet_menu, pet::pet_status, pet::start_pet_drag, pet::pet_caret])
+        .invoke_handler(tauri::generate_handler![retry, support_dir, send_message, hide_launcher, show_launcher, set_zoom_level, restore_zoom, pet::get_pet_preferences, pet::set_pet_preferences, pet::pet_regions, pet::open_pet_chat, pet::open_pet_launcher, pet::show_pet_menu, pet::pet_status, pet::start_pet_drag, pet::pet_caret])
         .plugin(tauri::plugin::Builder::<tauri::Wry>::new("saved-zoom")
             .js_init_script(include_str!("../../ui/zoom.js"))
             .build())

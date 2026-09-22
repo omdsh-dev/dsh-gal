@@ -2,18 +2,21 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { presentation, atlasLayout, sequence, lookFrame, memes, nextMeme, memeDelay } from '../app/ui/pet-model.js';
+import { presentation, atlasLayout, sequence, lookFrame, memes, nextMeme, memeDelay, glance, offline } from '../app/ui/pet-model.js';
 const documentEvents = new Map();
 const html=fs.readFileSync(new URL('../app/ui/pet.html',import.meta.url),'utf8');
 const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(match=>match[1]));
-let failDrag = false;
+let failDrag = false, failStatus = false;
 let mockStatus = {activity:'idle',revision:0};
 const elements = new Map(), events = new Map(), timers = new Map(), calls = [];
+// Frames are hand-cranked, so a scroll pass can be stepped without waiting.
+let frameClock = 0;
 let timer = 0;
 const motion = {matches:false,change:null,addEventListener(_name,fn){this.change=fn}};
 const element = id => {
   assert.ok(ids.has(id), `element ${id} must exist in pet.html`);
   if (!elements.has(id)) elements.set(id, { hidden:id==='bubble', style:{setProperty(name,value){this[name]=value}}, setAttribute(){}, focus(){}, dataset:{}, handlers:new Map(), hovered:false, focused:false,
+    scrollTop:0, scrollHeight:0, clientHeight:0,
     classList: { values:new Set(), add(name){this.values.add(name)}, remove(name){this.values.delete(name)}, contains(name){return this.values.has(name)} },
     addEventListener(name,fn){const previous=this.handlers.get(name);this.handlers.set(name,previous?(...args)=>{previous(...args);fn(...args)}:fn)},
     matches(){return this.hovered || this.focused}, querySelector(){return null},
@@ -23,12 +26,14 @@ const element = id => {
 };
 const script=fs.readFileSync(new URL('../app/ui/pet.js',import.meta.url),'utf8').replace(/^import .*;\n/,'');
 await vm.runInNewContext(`(async()=>{${script}})()`,{
-  presentation,atlasLayout,sequence,lookFrame,memes,nextMeme,memeDelay,console:{...console,error(error){if(error.message!=='mock drag failure')throw error}},
+  presentation,atlasLayout,sequence,lookFrame,memes,nextMeme,memeDelay,glance,offline,console:{...console,error(error){if(error.message!=='mock drag failure')throw error}},
   document:{ getElementById:element, addEventListener(name,fn){documentEvents.set(name,fn)}, body:{} },
   Image:class {}, ResizeObserver:class{observe(){}}, matchMedia:()=>motion,
   setTimeout:(fn,delay)=>{fn.delay=delay;timers.set(++timer,fn);return timer},clearTimeout:id=>timers.delete(id),
+  requestAnimationFrame:fn=>{fn.delay='frame';timers.set(++timer,fn);return timer},cancelAnimationFrame:id=>timers.delete(id),
+  performance:{now:()=>frameClock},
   window:{__TAURI__:{core:{invoke:async(name,args)=>{
-    calls.push({name,args}); if(name==='set_pet_preferences')return args; if(name==='start_pet_drag' && failDrag) throw new Error('mock drag failure'); if(name==='pet_status')return mockStatus; if(name==='get_pet_preferences')return {size:180,enabled:true,showWithMain:false};
+    calls.push({name,args}); if(name==='pet_status' && failStatus) throw new Error('offline'); if(name==='set_pet_preferences')return args; if(name==='start_pet_drag' && failDrag) throw new Error('mock drag failure'); if(name==='pet_status')return mockStatus; if(name==='get_pet_preferences')return {size:180,enabled:true,showWithMain:false};
   }},event:{listen:async(name,fn)=>events.set(name,fn)},window:{getCurrentWindow:()=>({isVisible:async()=>false})}}},
 });
 const enter=id=>{element(id).hovered=true;element(id).handlers.get('pointerenter')()};
@@ -177,3 +182,114 @@ assert.equal(pet.dataset.action,'idle','reduced motion cancels active meme, rath
 assert.equal(cooldown(),undefined);
 motion.matches=false;motion.change();assert.ok(cooldown());
 console.log('PASS reduced motion cancels vignette and restores idle scheduling when disabled');
+
+// A click is the whole trigger: she looks where it landed, wherever that is,
+// and the clip comes back on its own a beat later.
+events.get('aibo://pet-visible')({payload:false});timers.clear();
+mockStatus={activity:'idle',busy:false,revision:50};
+events.get('aibo://pet-visible')({payload:true});await new Promise(setImmediate);
+const rest=sprite.style.backgroundPosition, above=`0% ${9/14*100}%`;
+const click=point=>events.get('aibo://pet-click')({payload:point});
+const holdTimer=()=>[...timers.entries()].find(([,fn])=>fn.delay===glance.hold);
+click({x:90,y:-3000});
+assert.equal(sprite.style.backgroundPosition,above,'a click across the desk still turns her head');
+assert.equal(pet.dataset.gaze,'on','the still frame declares itself, so the body can breathe under it');
+click({x:3000,y:90});
+assert.notEqual(sprite.style.backgroundPosition,above,'the next click moves her eyes again');
+const hold=holdTimer();
+assert.ok(hold,'the look is time-boxed');
+fire(hold);
+assert.equal(pet.dataset.gaze,'off');
+assert.equal(sprite.style.backgroundPosition,rest,'the beat ends on its own, back to idle');
+click({x:90,y:-3000});
+assert.equal(pet.dataset.gaze,'on','there is no cooldown: every click counts');
+const restarted=holdTimer();
+click({x:90,y:-3000});
+assert.notEqual(holdTimer()[0],restarted[0],'a repeat click restarts the beat instead of stacking');
+fire(holdTimer());
+const vignette=cooldown();assert.ok(vignette,'an idle vignette is still on the clock');
+click({x:100,y:-100});
+assert.equal(cooldown()[0],vignette[0],'a look never postpones the idle vignette');
+fire(holdTimer());
+fire(vignette);
+const playing=pet.dataset.action;assert.ok(playing in memes);
+click({x:90,y:-3000});
+assert.equal(pet.dataset.action,playing,'she finishes her rice before looking up');
+assert.equal(pet.dataset.gaze,'off');
+for(const frame of memes[playing]) {
+  const tick=[...timers.entries()].filter(([,fn])=>fn.delay===frame.ms).at(-1);
+  if(tick)fire(tick);
+}
+assert.equal(pet.dataset.action,'idle');
+enter('pet');click({x:90,y:-3000});
+assert.equal(pet.dataset.gaze,'off','hover has its own reaction and outranks a look');
+leave('pet');
+click({x:90,y:-3000});assert.equal(sprite.style.backgroundPosition,above);
+events.get('aibo://pet-caret')({payload:{x:900,y:50}});
+assert.equal(sprite.style.backgroundPosition,lookFrameFor(900,50),'a real caret target outranks a click');
+events.get('aibo://pet-caret')({payload:null});
+function lookFrameFor(x,y){const f=lookFrame(x,y,{x:0,y:0,width:180,height:180});return `${f.column/7*100}% ${f.row/14*100}%`;}
+console.log('PASS click-driven look, time-boxed beat, no cooldown, and meme/hover/caret priority');
+
+// The bubble leaves on a fade, and a reply too long for it reads itself down.
+const bubble=element('bubble'), detail=element('detail');
+events.get('aibo://pet-visible')({payload:false});timers.clear();
+mockStatus={activity:'done',busy:false,revision:60,text:'早上好。今天是周二，周五就中秋了。'};
+events.get('aibo://pet-visible')({payload:true});await new Promise(setImmediate);
+assert.equal(bubble.hidden,false,'a finished reply speaks up');
+assert.equal(bubble.dataset.kind,'reply');
+// Short enough to fit: no reveal, no scrolling.
+assert.equal(bubble.dataset.more,'no');
+assert.ok(!([...timers.values()].some(fn=>fn.delay==='frame')),'nothing to scroll');
+// Now a reply that overflows its three lines.
+detail.scrollHeight=220; detail.clientHeight=73; detail.scrollTop=0;
+mockStatus={activity:'done',busy:false,revision:61,text:'早上好。今天是周二，周五就中秋了——三天，比昨天短一截了。今天上海晴，二十七度，中午出门别忘了帽子。'};
+fire([...timers.entries()].find(([,fn])=>fn.delay===1000));await new Promise(setImmediate);
+assert.equal(bubble.dataset.more,'true','the tail dissolves to show there is more');
+// requestAnimationFrame hands its callback a timestamp; so does this.
+const frame=()=>{const f=[...timers.entries()].find(([,fn])=>fn.delay==='frame');if(f){timers.delete(f[0]);f[1](frameClock);}};
+frameClock=0;frame();
+assert.equal(detail.scrollTop,0,'she holds on the first line before moving');
+frameClock=1600;frame();
+assert.equal(detail.scrollTop,0,'the lead-in is a full beat');
+frameClock=1600+1000;frame();
+assert.ok(detail.scrollTop>0 && detail.scrollTop<147,'then it creeps down at a readable pace');
+frameClock=1600+60000;frame();
+assert.equal(detail.scrollTop,147,'it stops at the last line instead of looping');
+assert.equal(bubble.dataset.more,'end','the mask flips to the top edge once the end is reached');
+assert.equal([...timers.values()].filter(fn=>fn.delay==='frame').length,0,'the pass releases the frame loop');
+// Dismissing fades: inert and unclickable at once, hidden only after the fade.
+const regionCount=()=>calls.filter(c=>c.name==='pet_regions').at(-1).args.regions.length;
+const withBubble=regionCount();
+element('dismiss').onclick();
+assert.equal(bubble.hidden,false,'the bubble is still on screen while it fades');
+assert.ok(bubble.classList.contains('leaving'));
+assert.equal(regionCount(),withBubble-1,'the fading bubble stops taking clicks immediately');
+const fade=[...timers.entries()].find(([,fn])=>fn.delay===220);
+assert.ok(fade,'the fade is timed, not instant');
+// Emptying the text first would collapse the shape mid-fade: two exits, not one.
+const words=detail.textContent;
+fire([...timers.entries()].find(([,fn])=>fn.delay===1000));await new Promise(setImmediate);
+assert.equal(detail.textContent,words,'a leaving bubble keeps its words');
+assert.equal(bubble.dataset.kind,'reply','and its shape, so the whole thing fades as one');
+fire(fade);
+assert.equal(bubble.hidden,true,'and only then does it leave the layout');
+assert.ok(!bubble.classList.contains('leaving'));
+console.log('PASS bubble fade-out, released regions, and a self-reading overflow reply');
+
+// A connection she once had, lost: one missed poll is a blip, two is an outage.
+events.get('aibo://pet-visible')({payload:false});timers.clear();
+mockStatus={activity:'idle',busy:false,revision:70};
+events.get('aibo://pet-visible')({payload:true});await new Promise(setImmediate);
+const tick=async()=>{fire([...timers.entries()].find(([,fn])=>fn.delay===1000));await new Promise(setImmediate);};
+assert.equal(bubble.hidden,true,'a healthy idle says nothing');
+failStatus=true;
+await tick();
+assert.equal(bubble.hidden,true,'one missed poll is not worth a word');
+await tick();
+assert.equal(element('title').textContent,'暂时连不上小黑鱼','two in a row is');
+assert.equal(pet.dataset.action,'failed');
+failStatus=false;
+await tick();
+assert.equal(bubble.classList.contains('leaving') || bubble.hidden,true,'and it goes once she is back');
+console.log('PASS blip tolerance and a reported disconnection');

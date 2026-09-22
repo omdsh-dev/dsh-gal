@@ -9,13 +9,21 @@
 /* One continuous contour for both the body and tail: no overlapping borders. */
 #bubble-outline{position:absolute;z-index:-1;inset:0;width:100%;height:calc(100% + 18px);overflow:visible;fill:var(--card);stroke:var(--bubble-line);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(2px 3px 0 color-mix(in oklab,var(--ink) 24%,transparent));pointer-events:none}
 #bubble-contour{vector-effect:non-scaling-stroke}
-#message{display:block;width:100%;padding:0;text-align:left;background:none}#title{display:block;margin-top:0;font-size:12px;font-weight:500;line-height:1.6;color:var(--muted-fg)}#detail{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:450;line-height:1.8;letter-spacing:.01em;color:var(--ink);margin-top:0;overflow-wrap:anywhere}#bubble[data-reply=true] #title{display:none}#bubble[data-compact=true] #detail{-webkit-line-clamp:2}#bubble[data-compact=true]:not([data-reply=true]) #detail{-webkit-line-clamp:1}#dismiss{position:absolute;right:9px;top:8px;width:24px;height:24px;border-radius:50%}#dismiss svg{width:13px;height:13px}
+#message{display:block;width:100%;padding:0;text-align:left;background:none}#title{display:block;margin-top:0;font-size:12px;font-weight:500;line-height:1.6;color:var(--muted-fg)}#detail{display:block;max-height:calc(1.8em*3);overflow:hidden;font-size:13.5px;font-weight:450;line-height:1.8;letter-spacing:.01em;color:var(--ink);margin-top:0;overflow-wrap:anywhere;scrollbar-width:none}#detail::-webkit-scrollbar{display:none}
+/* More text than fits: the bottom line dissolves instead of ending in an
+ * ellipsis, so the reveal that follows has somewhere to come from. */
+#bubble[data-more=true] #detail{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 15px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 15px),transparent)}#bubble[data-more=end] #detail{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 15px);mask-image:linear-gradient(to bottom,transparent,#000 15px)}
+#bubble[data-reply=true] #title{display:none}#bubble[data-compact=true] #detail{max-height:calc(1.8em*2)}#bubble[data-compact=true]:not([data-reply=true]) #detail{max-height:1.8em}#dismiss{position:absolute;right:9px;top:8px;width:24px;height:24px;border-radius:50%}#dismiss svg{width:13px;height:13px}
 @media(prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}
 #pet-art{display:block;width:100%;height:100%;pointer-events:none;background-image:url(pet/sprites-v3.png);background-size:800% 1500%;background-repeat:no-repeat;transform-origin:50% 22%}
 #pet.grabbed{cursor:grabbing}
 #pet.grabbed #pet-art{animation:pet-dangle 900ms ease-in-out infinite;filter:drop-shadow(0 8px 5px #18243c20)}
 #pet.landing #pet-art{transform-origin:50% 88%;animation:pet-land 420ms ease-out both}
 @keyframes pet-dangle{0%,100%{transform:translateY(-5px) rotate(-6deg) scale(.97,1.035)}50%{transform:translateY(-7px) rotate(6deg) scale(.97,1.035)}}
+/* A look is a single still frame. Breathing under it keeps her alive instead of
+ * turning her into a photograph for as long as she is looking at something. */
+#pet[data-gaze=on] #pet-art{transform-origin:50% 94%;animation:pet-breathe 3.4s ease-in-out infinite}
+@keyframes pet-breathe{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-1.5px) scale(1.006,.994)}}
 @keyframes pet-land{0%{transform:translateY(-6px) scale(.97,1.035)}35%{transform:translateY(2px) scale(1.045,.95)}65%{transform:translateY(-2px) scale(.99,1.02)}100%{transform:none}}
 @media(prefers-reduced-motion:reduce){#pet.grabbed #pet-art{animation:none;transform:translateY(-4px)}#pet.landing #pet-art{animation:none}}
 
@@ -31,3 +39,7 @@
 @keyframes thinking-dot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-3px);opacity:1}}
 
 @keyframes card-in{from{opacity:0;translate:0 4px}to{opacity:1;translate:0 0}}
+/* She stops talking the way she started: the bubble fades and settles back
+ * toward her instead of being cut out of the frame between two frames. */
+#bubble.leaving{pointer-events:none;animation:card-out .22s ease-in both}
+@keyframes card-out{from{opacity:1;translate:0 0;scale:1}to{opacity:0;translate:0 6px;scale:.985}}

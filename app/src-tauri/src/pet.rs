@@ -29,6 +29,7 @@ pub struct State {
     position_pending: Option<(i32, i32)>,
     caret: Option<(f64,f64)>,
     emitted_caret: Option<(f64,f64)>,
+    clicks_seen: Option<u32>,
 }
 fn save(prefs: &Preferences) -> Result<(), String> {
     let root = super::app_support();
@@ -154,6 +155,20 @@ fn main_visible(window: &tauri::WebviewWindow) -> bool {
 #[cfg(not(target_os = "macos"))]
 fn main_visible(window: &tauri::WebviewWindow) -> bool { window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) }
 
+/// Mouse-down counts for the whole session, read straight from the window
+/// server. Polling these is how a click anywhere on the desktop reaches her
+/// without an event tap, an input monitor, or any permission prompt: the
+/// counter says a button went down, never which window or what was clicked.
+#[cfg(target_os = "macos")]
+fn clicks() -> u32 {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" { fn CGEventSourceCounterForEventType(state: u32, event: u32) -> u32; }
+    // Combined session state; left, right and other (middle, back, forward).
+    unsafe { [1u32, 3, 25].iter().fold(0u32, |n, e| n.wrapping_add(CGEventSourceCounterForEventType(0, *e))) }
+}
+#[cfg(not(target_os = "macos"))]
+fn clicks() -> u32 { 0 }
+
 fn should_show(prefs: &Preferences, main_visible: bool) -> bool { prefs.enabled && (prefs.show_with_main || !main_visible) }
 
 fn drag_position(anchor: (f64, f64, i32, i32), cursor: (f64, f64)) -> (i32, i32) {
@@ -217,6 +232,15 @@ fn reconcile(app: &AppHandle) {
             let _ = window.emit("aibo://pet-pointer", serde_json::json!({"x":x,"y":y,"dx":dx}));
             state.last_pointer = Some((cursor.x, cursor.y));
             state.pointer_emitted = Some(Instant::now());
+        }
+        // Only a click moves her. The position is read from the tick that
+        // already runs, and is sent once per button press: plain cursor motion
+        // never reaches the webview, is never traced, and is never stored.
+        let seen = clicks();
+        let clicked = state.clicks_seen.is_some_and(|last| last != seen);
+        state.clicks_seen = Some(seen);
+        if clicked && !state.dragging {
+            let _ = window.emit("aibo://pet-click", serde_json::json!({"x":x,"y":y}));
         }
         let interactive = state.dragging || state.regions.iter().any(|r| x >= r.x && x <= r.x+r.width && y >= r.y && y <= r.y+r.height);
         if state.interactive != interactive {

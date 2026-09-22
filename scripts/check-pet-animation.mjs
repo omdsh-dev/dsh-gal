@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {atlasLayout, clips, sequence, lookFrame, presentation, memes, nextMeme, memeDelay} from '../app/ui/pet-model.js';
+import {atlasLayout, clips, sequence, lookFrame, presentation, memes, nextMeme, memeDelay, glance, offline, startup} from '../app/ui/pet-model.js';
 assert.deepEqual(Object.values(clips).map(a=>a.length),[6,8,8,4,5,8,6,6,6,8]);
 assert.equal(Object.values(clips).reduce((n,a)=>n+a.length,16),81);
 assert.equal(atlasLayout.rows,15);
@@ -36,3 +36,21 @@ for(const [name,frames] of Object.entries(memes)) {
   assert.ok(frames.reduce((total,frame)=>total+frame.ms,0)<10000);
 }
 console.log('PASS 24 meme frames, bounded duration, cooldown and no immediate repeats');
+
+// A look is bounded: long enough to read as a reaction to the click, short
+// enough that idle owns the rest of the time.
+assert.ok(glance.hold >= 600 && glance.hold <= 2000,'a look is a beat, not a stare');
+assert.equal(Object.keys(glance).length,1,'no radius or cooldown: a click is the whole trigger');
+console.log('PASS bounded click look');
+
+// Launch is not an outage: the backend ships inside the app and is started by
+// it, so silence before the first answer means "not up yet".
+assert.equal(offline({failures:1,everConnected:true}),false,'one missed poll is a blip, not an outage');
+assert.equal(offline({failures:9}),false,'a backend that has never answered is still starting');
+assert.equal(offline({failures:9,everConnected:true}),true,'a connection she once had and lost is worth saying');
+assert.equal(offline({failures:2,booted:'ready'}),true,'the supervisor says it is up, so silence is a real fault');
+assert.equal(offline({failures:2,booted:'error'}),true,'a startup that failed outright is reported too');
+assert.equal(offline({failures:2,booted:'attach'}),true,'so is an attach to a server already running');
+assert.equal(offline({failures:2,elapsed:startup.grace+1}),true,'and a startup that never finishes eventually surfaces');
+assert.equal(offline({failures:2,elapsed:startup.grace-1}),false,'but not before the grace period is out');
+console.log('PASS startup silence, blip tolerance and real disconnection');

@@ -44,7 +44,27 @@ export function sequence(action, reduced = false, held = false) {
   if (action === 'idle') return {frames:slowIdle,loopStart:0};
   return {frames:[...frames,...frames,...frames,...slowIdle],loopStart:frames.length*3};
 }
-// Clockwise from up, at 22.5° intervals. Only explicit caret / Computer Use targets may select these frames.
+// A click is an event, not a state: she looks where you clicked, holds it for
+// `hold`, then goes back to idle. Nothing else on the desktop moves her — plain
+// cursor motion never selects a frame, which is what keeps the idle loop alive.
+export const glance = { hold: 1200 };
+// A failed poll at launch is not an outage. The backend ships inside the app
+// and is started by it, so before it answers for the first time the honest
+// reading is "not up yet" — the supervisor's business, not hers.
+export const startup = { tolerance: 2, grace: 60000 };
+/**
+ * Whether a run of failed polls deserves the offline notice.
+ * @param failures       consecutive failed polls
+ * @param everConnected  a poll has answered at least once
+ * @param booted         the supervisor's last word: 'ready' | 'attach' | 'error' | null
+ * @param elapsed        ms since this window opened
+ */
+export function offline({ failures, everConnected = false, booted = null, elapsed = 0 }) {
+  if (failures < startup.tolerance) return false;
+  return everConnected || booted !== null || elapsed > startup.grace;
+}
+// Clockwise from up, at 22.5° intervals. Caret and Computer Use targets hold these
+// frames; a click borrows one for the length of a glance.
 export function lookFrame(x, y, rect) {
   const dx=x-(rect.x+rect.width/2),dy=y-(rect.y+rect.height/2);
   if (Math.hypot(dx,dy)<1) return null;

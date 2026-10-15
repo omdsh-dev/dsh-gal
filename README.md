@@ -2,6 +2,9 @@
 
 <h1 align="center">Aibo</h1>
 
+> [!IMPORTANT]
+> **This repository has moved to [drewnekota/aibo](https://github.com/drewnekota/aibo).** This copy is no longer maintained; please open issues and pull requests there.
+
 <p align="center"><strong>Give your agent a face, a voice, and a room of her own.</strong></p>
 
 <p align="center"><strong>Aibo</strong> (相棒, <em>partner</em>) is a personal AI assistant that wears a galgame face. Underneath it is the <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (dsh) — same agent, same tools, same session, same preset. On top it gives that agent a character, so you can see her working, hear her answer, and keep what she made. It ships as a dsh plugin, plus a small macOS app that runs it standalone.</p>
